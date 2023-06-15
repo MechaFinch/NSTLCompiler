@@ -1,0 +1,3 @@
+#entry example.main
+out\example.obj
+out\util.obj

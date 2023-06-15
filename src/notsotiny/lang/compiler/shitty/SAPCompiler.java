@@ -138,7 +138,7 @@ public class SAPCompiler extends NSTCompiler {
     
     @Override
     public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) {
-        LOG.info("Compiling " + defaultLibName);
+        LOG.info(() -> "Compiling file " + defaultLibName);
         
         // initialize state
         allInstructions = new ArrayList<>();
@@ -316,6 +316,11 @@ public class SAPCompiler extends NSTCompiler {
                             i2 = (peep2 instanceof Instruction inst) ? inst : null,
                             i3 = (peep3 instanceof Instruction inst) ? inst : null;
                 
+                boolean i0Labeled = labelIndexMap.containsValue(i - 3),
+                        i1Labeled = labelIndexMap.containsValue(i - 2),
+                        i2Labeled = labelIndexMap.containsValue(i - 1),
+                        i3Labeled = labelIndexMap.containsValue(i - 0);
+                
                 // no-op jump elimination
                 // if we find JMP 0, we can remove it
                 if(i3 != null && i3.getOpcode().getType() == Operation.JMP) {
@@ -358,7 +363,7 @@ public class SAPCompiler extends NSTCompiler {
                     
                     // LEA <pair>, [whatever]   -> op <x>, [whatever]
                     // MOV <x>, [<pair>]
-                    if(src.getType() == LocationType.MEMORY && src.getMemory().getBase() == ptrReg.getRegister()) {
+                    if(!i3Labeled && src.getType() == LocationType.MEMORY && src.getMemory().getBase() == ptrReg.getRegister()) {
                         // if the ptr is resolved we can eliminate, but if it's unresolved we can only do so if the second offset is zero
                         ResolvableMemory ptrMem = ptrVal.getMemory();
                         
@@ -390,7 +395,7 @@ public class SAPCompiler extends NSTCompiler {
                 // move as address elimination
                 // MOVW D:A, <pair>     -> MOV(W) D:A, [<pair>]
                 // MOV(W) D:A, [D:A]
-                if(i2 != null && i2.getOpcode() == Opcode.MOVW_RIM && i3 != null && (i3.getOpcode() == Opcode.MOV_RIM || i3.getOpcode() == Opcode.MOVW_RIM)) {
+                if(!i3Labeled && i2 != null && i2.getOpcode() == Opcode.MOVW_RIM && i3 != null && (i3.getOpcode() == Opcode.MOV_RIM || i3.getOpcode() == Opcode.MOVW_RIM)) {
                     ResolvableLocationDescriptor sd2 = i2.getSourceDescriptor(),
                                                  dd2 = i2.getDestinationDescriptor(),
                                                  sd3 = i3.getSourceDescriptor(),
@@ -414,7 +419,7 @@ public class SAPCompiler extends NSTCompiler {
                 // extra move elimination
                 // MOV <a>, <b>     -> MOV <a>, <b>
                 // MOV <b>, <a>
-                if(i0 != null && i1 != null) {
+                if(!i1Labeled && i0 != null && i1 != null) {
                     // MOV-MOV
                     if(i0.getOpcode() == Opcode.MOVW_RIM && i1.getOpcode() == Opcode.MOVW_RIM) {
                         ResolvableLocationDescriptor sd0 = i0.getSourceDescriptor(),
@@ -752,7 +757,8 @@ public class SAPCompiler extends NSTCompiler {
                 
                 case NstlgrammarParser.ID.VARIABLE_RETURN:
                     lastWasReturn = true;
-                    boolean isNone = codeNode.getChildren().get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_NONE;
+                    List<ASTNode> children = codeNode.getChildren();
+                    boolean isNone = children.size() == 0 || children.get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_NONE;
                     
                     // warn on return with returns none
                     if(functionHeader.getReturnType() == RawType.NONE && !isNone) {
@@ -1016,16 +1022,38 @@ public class SAPCompiler extends NSTCompiler {
         
         if(isConstant(node)) {
             // supported for stuff like while true
-            // we can't use immediates as destinations so load to accumulator
-            NSTLType t = compileValueComputation(node, localCode, "%accumulator", RawType.NONE, true);
+            TypedValue tv = computeConstant(node);
             
-            generateCompareAccumulatorZero(localCode, t.getSize());
-            
-            localCode.add(new Instruction(
-                invert ? Opcode.JNZ_RIM : Opcode.JZ_RIM,
-                new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(falseLabel)),
-                false, false
-            ));
+            if(tv instanceof TypedRaw tr) {
+                if(tr.getValue().isResolved()) {
+                    if((tr.getValue().value() == 0) ^ invert) {
+                        // skip
+                        localCode.add(new Instruction(
+                            Opcode.JMP_I32,
+                            new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(falseLabel)),
+                            false, false
+                        ));
+                    } else {
+                        // don't skip (do nothing)
+                    }
+                } else {
+                    // value isn't resolved, figure out at runtime
+                    // we can't use immediates as destinations so load to accumulator
+                    NSTLType t = compileValueComputation(node, localCode, "%accumulator", RawType.BOOLEAN, true);
+                    if(t.getSize() == 0) t = RawType.BOOLEAN; // if nothing was inferred just boolean
+                    
+                    generateCompareAccumulatorZero(localCode, t.getSize());
+                    
+                    localCode.add(new Instruction(
+                        invert ? Opcode.JNZ_RIM : Opcode.JZ_RIM,
+                        new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(falseLabel)),
+                        false, false
+                    ));
+                }
+            } else {
+                // invalid
+                LOG.severe("Expected integer for constant conditional, got " + tv);
+            }
         } else {
             switch(node.getSymbol().getID()) {
                 // If the value is a named reference, compare it directly to zero
@@ -1122,6 +1150,11 @@ public class SAPCompiler extends NSTCompiler {
                             direct = leftDirect && leftSymbol.type.getSize() != 4 && (leftSymbol.variableDescriptor.getType() == LocationType.REGISTER || leftSymbol.type.getSize() == 1);
                             vType = direct ? leftSymbol.type : compileValueComputation(leftNode, localCode, "%accumulator", RawType.NONE, true);
                             rld = direct ? leftSymbol.variableDescriptor : null;
+                        }
+                        
+                        // if the value is a pointer, make it raw
+                        if(vType instanceof PointerType pt) {
+                            vType = RawType.PTR;
                         }
                         
                         // only raw types allowed for comparisons
@@ -1268,6 +1301,8 @@ public class SAPCompiler extends NSTCompiler {
                                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(falseLabel)),
                                     false, false
                                 ));
+                                
+                                localLabelMap.put(trueLabel, localCode.size());
                             }
                         } else {
                             LOG.severe("Cannot compare non-integer types");
@@ -1501,7 +1536,7 @@ public class SAPCompiler extends NSTCompiler {
      * @param value
      */
     private void compileAssignment(ASTNode target, ASTNode value, List<Component> localCode) {
-        LOG.finest("Compiling assignment " + detailed(value) + " to " + detailed(target));
+        LOG.finest(() -> "Compiling assignment " + detailed(value) + " to " + detailed(target));
         
         // If the reference is just a name, we can write the computed value directly whether via accumulator or not
         // If the reference is complex, we'll need a register pair for the pointer. JI used by tradition.
@@ -1985,6 +2020,11 @@ public class SAPCompiler extends NSTCompiler {
                     hadIAllocated = acm.registerAllocations.containsKey(Register.I),
                     hadJIAllocated = acm.registerAllocations.containsKey(Register.JI);
             
+            // grab these before we overwrite
+            String jiName = hadJIAllocated ? acm.registerAllocations.get(Register.JI): null,
+                   jName = hadJAllocated ? acm.registerAllocations.get(Register.J): null,
+                   iName = hadIAllocated ? acm.registerAllocations.get(Register.I): null;
+            
             // make sure we don't relocate from JI to JI (e.g. only I allocated)
             acm.registerAllocations.put(Register.JI, "%jiused");
             contextStack.pushSymbol(new ContextSymbol("%jiused", RawType.PTR, new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI)));
@@ -1992,7 +2032,6 @@ public class SAPCompiler extends NSTCompiler {
             // yes we do
             if(hadJIAllocated) { 
                 // single value, single allocation, single move
-                String jiName = acm.registerAllocations.get(Register.JI);
                 NSTLType jiType = contextStack.getSymbol(jiName).type;
                 
                 ContextSymbol cs = allocateLocalVariable(jiName, jiType);
@@ -2007,7 +2046,6 @@ public class SAPCompiler extends NSTCompiler {
             } else {
                 if(hadJAllocated) {
                     // same as JI but just J
-                    String jName = acm.registerAllocations.get(Register.J);
                     NSTLType jType = contextStack.getSymbol(jName).type;
                     
                     ContextSymbol cs = allocateLocalVariable(jName, jType);
@@ -2023,7 +2061,6 @@ public class SAPCompiler extends NSTCompiler {
                 
                 if(hadIAllocated) {
                     // same as JI but just I
-                    String iName = acm.registerAllocations.get(Register.I);
                     NSTLType iType = contextStack.getSymbol(iName).type;
                     
                     ContextSymbol cs = allocateLocalVariable(iName, iType);
@@ -5632,15 +5669,15 @@ public class SAPCompiler extends NSTCompiler {
         s = s.replace("_", "");
         
         if(s.startsWith("0x")) {
-            v = Integer.parseInt(s.substring(2), 16);
+            v = Integer.parseUnsignedInt(s.substring(2), 16);
         } else if(s.startsWith("0o")) {
-            v = Integer.parseInt(s.substring(2), 8);
+            v = Integer.parseUnsignedInt(s.substring(2), 8);
         } else if(s.startsWith("0d")) {
-            v = Integer.parseInt(s.substring(2));
+            v = Integer.parseUnsignedInt(s.substring(2));
         } else if(s.startsWith("0b")) {
-            v = Integer.parseInt(s.substring(2), 2);
+            v = Integer.parseUnsignedInt(s.substring(2), 2);
         } else {
-            v = Integer.parseInt(s);
+            v = Integer.parseUnsignedInt(s);
         }
         
         if(signed && bytes != 0) {

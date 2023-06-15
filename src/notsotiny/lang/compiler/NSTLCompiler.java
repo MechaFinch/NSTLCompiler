@@ -118,7 +118,7 @@ public class NSTLCompiler {
         LOG.fine("Compiling files");
         while(locator.hasUnconsumed()) {
             Path workingFile = locator.consume();
-            LOG.fine("Processing file " + workingFile);
+            LOG.fine(() -> "Processing file " + workingFile);
             
             String fileName = workingFile.getFileName().toString(),
                    extension = fileName.substring(fileName.indexOf('.'));
@@ -144,7 +144,7 @@ public class NSTLCompiler {
                     } else {
                         ASTNode root = result.getRoot();
                         LOG.finest("AST");
-                        printTree(root, new boolean[] {});
+                        LOG.finest(() -> {printTree(root, new boolean[] {}); return "";});
                         
                         String libname = workingFile.getFileName().toString();
                         libname = libname.substring(0, libname.lastIndexOf('.'));
@@ -202,6 +202,7 @@ public class NSTLCompiler {
         LOG.fine("Unifying library names");
         for(String name : libraryNameMap.keySet()) {
             File f = libraryNameMap.get(name).toFile();
+            LOG.finest(() -> "Naming \"" + f + "\" " + name);
             
             for(RenameableRelocatableObject obj : assembledObjects) {
                 obj.renameLibrary(f, name);
@@ -243,6 +244,7 @@ public class NSTLCompiler {
         
         // make the output directory if it doesn't exist
         if(!Files.exists(outDir)) {
+            LOG.finest(() -> "Creating output directory " + outDir);
             Files.createDirectory(outDir);
         }
         
@@ -252,11 +254,14 @@ public class NSTLCompiler {
             String fileName = obj.getName() + ".obj";
             Path ofile = outDir.resolve(fileName);
             
+            LOG.finer(() -> "Writing output file " + ofile);
+            
             Files.write(ofile, obj.asObjectFile());
             objectFileNames.add(execRelativeOutputDir.resolve(fileName).toString());
         }
         
         // exec file
+        LOG.finer(() -> "Writing exec file " + execFile);
         try(PrintWriter execWriter = new PrintWriter(Files.newBufferedWriter(execFile))) {
             // entry
             execWriter.println("#entry " + entrySymbolName);

@@ -19,6 +19,8 @@ Top level code is evaluated in the following order:
 	2. Function headers, type definitions, compiler definitions, globals
 	3. Function code
 
+Comments use the -- prefix.
+
 
 
 
@@ -244,6 +246,12 @@ operations, as well as type casting. In order of increasing precedence, they are
 		- Cast	<expression> as <type>
 	- Parenthesis, References, Literals, and sizes
 
+
+Types can be cast when they are the same size in bytes. Additionally, primitives can be cast
+between eachother. If the source is wider, it will be truncated, and if it is smaller, it will be
+sign extended if it is signed and zero extended otherwise.
+
+
 Literals are integers. They may have separating underscores, and are decimal by default. They may
 be made other bases with the following prefixes:
 	0b	binary
@@ -311,17 +319,23 @@ indirectly will not, and will require constants to specify their types.
 
 
 	Control Flow Blocks
-There are three types of control flow blocks: 'if', 'while', and 'until'. 'if' is a simple
-conditional, 'while' is a check-first loop, and 'until' is a loop-first loop. When the conditional
-of a control flow block is evaluated, it is considered true if the value is nonzero and false if it
-is zero.
+There are three types of control flow blocks: 'if', 'while', and 'until'. Their expressions are
+conditionals, which are treated as true if their result is nonzero and false if their result is
+zero.
 
+'if' blocks are simple conditionals. If the condition evaluates as true, the block is executed.
+They can have 'elseif' and 'else' blocks: If the condition evaluates as false, the condition of the
+'elseif' is checked, and so on, where 'else' blocks have no condition.
 'if' blocks take the following form:
 	if <expression> then <code> [elseif <expression> then <code> [elseif ...]] [else <code>] end if
 
+'while' blocks are truthy check-first loops. They first check their condition, and if it is true,
+the block is executed, and this repeats until the condition is false.
 'while' blocks take the following form:
 	[<label>] while <expression> do <code> end while
 
+'until' blocks are falsy check-last loops. They first execute their block, then check their
+conditional. The loop repeats until the condition is true.
 'until' blocks take the follwing form:
 	[<label>] until <expression> do <code> end until
 

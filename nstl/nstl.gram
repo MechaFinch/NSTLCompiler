@@ -335,7 +335,8 @@ grammar NSTLGrammar {
 		
 		return ->
 			  KW_RETURN! variable_expression SEMI!
-			| KW_RETURN! KW_NONE SEMI!;
+			| KW_RETURN! KW_NONE SEMI!
+			| KW_RETURN! SEMI!;
 		
 		if_construct -> KW_IF! variable_expression KW_THEN! {function_code*} if_tail;
 		
