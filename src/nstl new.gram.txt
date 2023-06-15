@@ -1,0 +1,347 @@
+grammar NSTLGrammar {
+	options {
+		Axiom = "program";
+		Separator = "SEPARATOR";
+		CompilationMode = "Source";
+		ParserType = "RNGLR";
+		Runtime = "Java";
+		Namespace = "notsotiny.lang.parser";
+		AccessModifier = "Public";
+	}
+	
+	terminals {
+		NEWLINE		-> U+000D
+					 | U+000A
+					 | U+000D U+000A
+					 | U+2028
+					 | U+2029;
+		WHITESPACE	-> U+0020
+					 | U+0009
+					 | U+000B
+					 | U+000C;
+		COMMENT		-> '--' (.* - (.* NEWLINE .*));
+		SEPARATOR	-> (NEWLINE | WHITESPACE | COMMENT)+;
+		
+		SEMI	-> ';';
+		COMMA	-> ',';
+		OPEN_P	-> '(';
+		CLOSE_P	-> ')';
+		DOT		-> '.';
+		COLON	-> ':';
+		
+		NA	-> 'a' | 'A';
+		NB	-> 'b' | 'B';
+		NC	-> 'c' | 'C';
+		ND	-> 'd' | 'D';
+		NE	-> 'e' | 'E';
+		NF	-> 'f' | 'F';
+		NG	-> 'g' | 'G';
+		NH	-> 'h' | 'H';
+		NI	-> 'i' | 'I';
+		NJ	-> 'j' | 'J';
+		NK	-> 'k' | 'K';
+		NL	-> 'l' | 'L';
+		NM	-> 'm' | 'M';
+		NN	-> 'n' | 'N';
+		NO	-> 'o' | 'O';
+		NP	-> 'p' | 'P';
+		NQ	-> 'q' | 'Q';
+		NR	-> 'r' | 'R';
+		NS	-> 's' | 'S';
+		NT	-> 't' | 'T';
+		NU	-> 'u' | 'U';
+		NV	-> 'v' | 'V';
+		NW	-> 'w' | 'W';
+		NX	-> 'x' | 'X';
+		NY	-> 'y' | 'Y';
+		NZ	-> 'z' | 'Z';
+		
+		ALPHA			-> [a-zA-Z]+;
+		ALPHANUMERIC	-> [a-zA-Z0-9]+;
+		OCTAL_DIGITS	-> [0-7]+;
+		DECIMAL_DIGITS	-> [0-9]+;
+		HEX_DIGITS		-> [0-9a-fA-F];
+		
+		LNAME	-> '_' ALPHANUMERIC+;
+		NAME	-> (LNAME '.')? ALPHA (ALPHANUMERIC | '_')*;
+		INTEGER	-> '0b' ('0' | '1') ('0' | '1' | '_')*
+				 | '0x' HEX_DIGITS (HEX_DIGITS | '_')*
+				 | '0o' OCTAL_DIGITS (OCTAL_DIGITS | '_')*
+				 | '0d'? DECIMAL_DIGITS (DECIMAL_DIGITS | '_')*;
+		
+		KW_TYPE -> NT NY NP NE;
+		KW_STRUCTURE -> NS NT NR NU NC NT NU NR NE;
+		KW_ARRAY -> NA NR NR NA NY;
+		KW_IS -> NI NS;
+		KW_OF -> NO NF;
+		KW_FUNCTION -> NF NU NN NC NT NI NO NN;
+		KW_BEGIN -> NB NE NG NI NN;
+		KW_LIBRARY -> NL NI NB NR NA NR NY;
+		KW_LIBNAME -> NL NI NB NN NA NM NE;
+		KW_SIZE -> NS NI NZ NE;
+		KW_SIZEOF -> NS NI NZ NE NO NF;
+		KW_DEFINE -> ND NE NF NI NN NE;
+		KW_IF -> NI NF;
+		KW_ELSE -> NE NL NS NE;
+		KW_ELSEIF -> NE NL NS NE NI NF;
+		KW_POINTER -> NP NO NI NN NT NE NR;
+		KW_WITH -> NW NI NT NH;
+		KW_RETURN -> NR NE NT NU NR NN;
+		KW_RETURNS -> NR NE NT NU NR NN NS;
+		KW_WHILE -> NW NH NI NL NE;
+		KW_DO -> ND NO;
+		KW_THEN -> NT NH NE NN;
+		KW_END -> NE NN ND;
+		KW_EXTERNAL -> NE NX NT NE NR NN NA NL;
+		KW_GETS -> NG NE NT NS;
+		KW_INDEX -> NI NN ND NE NX;
+		KW_CONSTANT -> NC NO NN NS NT NA NN NT;
+		KW_VARIABLE -> NV NA NR NI NA NB NL NE;
+		KW_CALL -> NC NA NL NL;
+		KW_AT -> NA NT;
+		KW_TO -> NT NO;
+		KW_AND -> NA NN ND;
+		KW_OR -> NO NR;
+		KW_XOR -> NX NO NR;
+		KW_NOT -> NN NO NT;
+		KW_ROL -> NR NO NL;
+		KW_ROR -> NR NO NR;
+		KW_NONE -> NN NO NN NE;
+		KW_FROM -> NF NR NO NM NE;
+		KW_BREAK -> NB NR NE NA NK;
+		
+		OP_GREATER -> '>';
+		OP_LESS -> '<';
+		OP_GREATER_EQUAL -> '>' '=';
+		OP_LESS_EQUAL -> '<' '=';
+		OP_EQUAL -> '=';
+		OP_NOT_EQUAL -> '!' '=';
+		OP_ADD -> '+';
+		OP_SUBTRACT -> '-';
+		OP_MULTIPLY -> '*';
+		OP_DIVIDE -> '/';
+		OP_REMAINDER -> '%';
+		OP_SHIFT_LEFT -> '<<';
+		OP_ARITH_SHIFT_RIGHT -> '>>>';
+		OP_LOGIC_SHIFT_RIGHT -> '>>';
+		
+		STRING	-> '"' (. - NEWLINE)+ '"';
+	}
+	
+	rules {
+		program -> top_level_code*;
+		
+		top_level_code ->
+			  type_definition^
+			| function_definition^
+			| compiler_definition^
+			| value_creation^
+			| library_inclusion^
+			| library_name^;
+		
+		library_name -> KW_LIBNAME! LNAME SEMI!;
+		
+		library_inclusion ->
+			  KW_LIBRARY! LNAME KW_IS! LNAME KW_FROM! STRING SEMI!
+			| KW_LIBRARY! LNAME KW_IS! LNAME SEMI!
+			| KW_LIBRARY! LNAME KW_FROM! STRING SEMI!
+			| KW_LIBRARY! LNAME SEMI!;
+		
+		compiler_definition -> KW_DEFINE! NAME KW_IS! constant_expression SEMI!;
+		
+		type_definition -> KW_TYPE! NAME KW_IS! KW_STRUCTURE! KW_OF! {member+} KW_END! KW_TYPE! (SEMI?)!;
+		
+		member -> NAME KW_IS! type (COMMA?)!;
+		
+		type ->
+			  OPEN_P! type^ CLOSE_P!
+			| type KW_ARRAY! KW_SIZE! constant_expression
+			| type KW_POINTER
+			| NAME;
+		
+		function_definition ->
+			  internal_function_header {function_code*} KW_END! KW_FUNCTION!
+			| external_function_header SEMI!;
+		
+		internal_function_header ->
+			  KW_FUNCTION! NAME KW_OF! KW_NONE KW_BEGIN!
+			| KW_FUNCTION! NAME KW_OF! KW_NONE KW_RETURNS! type KW_BEGIN!
+			| KW_FUNCTION! NAME KW_OF! named_argument_list KW_BEGIN!
+			| KW_FUNCTION! NAME KW_OF! named_argument_list KW_RETURNS! type KW_BEGIN!;
+		
+		external_function_header ->
+			  KW_EXTERNAL! KW_FUNCTION! NAME KW_OF! KW_NONE
+			| KW_EXTERNAL! KW_FUNCTION! NAME KW_OF! KW_NONE KW_RETURNS! type
+			| KW_EXTERNAL! KW_FUNCTION! NAME KW_OF! nameless_argument_list
+			| KW_EXTERNAL! KW_FUNCTION! NAME KW_OF! nameless_argument_list KW_RETURNS! type;
+		
+		named_argument_list -> named_argument (COMMA! named_argument)*;
+		
+		named_argument -> type NAME;
+		
+		nameless_argument_list -> nameless_argument (COMMA! nameless_argument)*;
+		
+		nameless_argument ->
+			  named_argument^
+			| type;
+		
+		constant_expression ->
+			  constant_expression OP_EQUAL^ constant_logic
+			| constant_expression OP_NOT_EQUAL^ constant_logic
+			| constant_expression OP_GREATER^ constant_logic
+			| constant_expression OP_GREATER_EQUAL^ constant_logic
+			| constant_expression OP_LESS^ constant_logic
+			| constant_expression OP_LESS_EQUAL^ constant_logic
+			| constant_logic^;
+		
+		constant_logic ->
+			  constant_expression KW_AND^ constant_shift
+			| constant_expression KW_OR^ constant_shift
+			| constant_expression KW_XOR^ constant_shift
+			| constant_shift^;
+		
+		constant_shift ->
+			  constant_expression OP_SHIFT_LEFT^ constant_sum
+			| constant_expression OP_ARITH_SHIFT_RIGHT^ constant_sum
+			| constant_expression OP_LOGIC_SHIFT_RIGHT^ constant_sum
+			| constant_expression KW_ROL^ constant_sum
+			| constant_expression KW_ROR^ constant_sum
+			| constant_sum^;
+		
+		constant_sum ->
+			  constant_expression OP_ADD^ constant_factor
+			| constant_expression OP_SUBTRACT^ constant_factor
+			| constant_factor^;
+		
+		constant_factor ->
+			  constant_expression OP_MULTIPLY^ constant_unary
+			| constant_expression OP_DIVIDE^ constant_unary
+			| constant_expression OP_REMAINDER^ constant_unary
+			| constant_unary^;
+		
+		constant_unary ->
+			  OP_SUBTRACT^ constant_value
+			| KW_NOT^ constant_value
+			| constant_value^;
+		
+		constant_value ->
+			  OPEN_P! constant_expression^ CLOSE_P!
+			| type INTEGER
+			| KW_SIZEOF type
+			| INTEGER
+			| STRING
+			| NAME;
+		
+		variable_expression ->
+			  (variable_expression | constant_expression) OP_EQUAL^ variable_logic
+			| (variable_expression | constant_expression) OP_NOT_EQUAL^ variable_logic
+			| (variable_expression | constant_expression) OP_GREATER^ variable_logic
+			| (variable_expression | constant_expression) OP_GREATER_EQUAL^ variable_logic
+			| (variable_expression | constant_expression) OP_LESS^ variable_logic
+			| (variable_expression | constant_expression) OP_LESS_EQUAL^ variable_logic
+			| variable_logic^;
+		
+		variable_logic ->
+			  (variable_expression | constant_expression) KW_AND^ variable_shift
+			| (variable_expression | constant_expression) KW_OR^ variable_shift
+			| (variable_expression | constant_expression) KW_XOR^ variable_shift
+			| variable_shift^;
+		
+		variable_shift ->
+			  (variable_expression | constant_expression) OP_SHIFT_LEFT^ variable_sum
+			| (variable_expression | constant_expression) OP_ARITH_SHIFT_RIGHT^ variable_sum
+			| (variable_expression | constant_expression) OP_LOGIC_SHIFT_RIGHT^ variable_sum
+			| (variable_expression | constant_expression) KW_ROL^ variable_sum
+			| (variable_expression | constant_expression) KW_ROR^ variable_sum
+			| variable_sum^;
+		
+		variable_sum ->
+			  (variable_expression | constant_expression) OP_ADD^ variable_factor
+			| variable_expression OP_SUBTRACT^ variable_factor
+			| constant_expression OP_SUBTRACT^ variable_factor
+			| variable_factor^;
+		
+		variable_factor ->
+			  (variable_expression | constant_expression) OP_MULTIPLY^ variable_unary
+			| (variable_expression | constant_expression) OP_DIVIDE^ variable_unary
+			| (variable_expression | constant_expression) OP_REMAINDER^ variable_unary
+			| variable_unary^;
+		
+		variable_unary ->
+			  OP_SUBTRACT^ variable_nonconstant
+			| KW_NOT^ variable_value
+			| variable_value^;
+		
+		variable_value ->
+			  variable_nonconstant^
+			| constant_expression^;
+		
+		variable_nonconstant ->
+			  OPEN_P! variable_expression^ CLOSE_P!
+			| variable_structure^
+			| reference^;
+		
+		variable_structure -> NAME KW_OF! variable_assignment_list KW_END! KW_STRUCTURE!;
+		
+		variable_assignment_list -> {NAME KW_GETS! (variable_expression | constant_expression)} (COMMA! {NAME KW_GETS! (variable_expression | constant_expression)})*;
+		
+		reference ->
+			  KW_AT subreference
+			| type KW_AT subreference
+			| KW_TO subreference
+			| subreference^;
+		
+		subreference ->
+			  OPEN_P! reference^ CLOSE_P!
+			| subreference DOT NAME
+			| NAME DOT NAME
+			| subreference KW_INDEX variable_expression
+			| NAME KW_INDEX variable_expression
+			| OPEN_P! function_call CLOSE_P!
+			| NAME;
+		
+		function_call ->
+			  KW_CALL! reference KW_WITH! KW_NONE
+			| KW_CALL! reference KW_WITH! argument_list;
+		
+		argument_list -> variable_expression (COMMA! variable_expression)*;
+		
+		function_code ->
+			  value_creation^
+			| assignment^
+			| if_construct^
+			| while_construct^
+			| return^
+			| break^
+			| function_call^ SEMI!;
+		
+		assignment -> reference KW_GETS! variable_expression SEMI!;
+		
+		return ->
+			  KW_RETURN! variable_expression SEMI!
+			| KW_RETURN! KW_NONE SEMI!;
+		
+		if_construct -> KW_IF! variable_expression KW_THEN! {function_code*} if_tail;
+		
+		if_tail ->
+			  KW_ELSEIF! variable_expression KW_THEN! {function_code*} if_tail
+			| KW_ELSE! {function_code*} KW_END! KW_IF!
+			| KW_END! KW_IF!;
+		
+		while_construct -> {label?} KW_WHILE! variable_expression KW_DO! {function_code*} KW_END! KW_WHILE!;
+		
+		label -> NAME COLON!;
+		
+		break -> KW_BREAK! NAME;
+		
+		value_creation ->
+			  KW_VARIABLE NAME KW_IS! type SEMI!
+			| KW_VARIABLE NAME KW_IS! type KW_GETS! variable_expression SEMI!
+			| KW_CONSTANT NAME KW_IS! type KW_GETS! constant_expression SEMI!
+			| KW_CONSTANT NAME KW_IS! type KW_GETS! constant_structure SEMI!;
+		
+		constant_structure -> NAME KW_OF! constant_assignment_list KW_END! KW_STRUCTURE!;
+		
+		constant_assignment_list -> {NAME KW_GETS! constant_expression} (COMMA! {NAME KW_GETS! constant_expression})*;
+	}
+}

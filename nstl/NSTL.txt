@@ -1,0 +1,355 @@
+
+	NSTL
+	NotSoTinyLanguage
+	
+	A verbose minimalist systems programming language built for the NST architecture.
+	
+	TODO: add more sample code
+	
+	Program Structure
+Each nstl file contains top level code, consisting of:
+	- Function definitions
+	- Type definitions
+	- Compiler definitions
+	- Top-level constant & variable declarations
+	- Library name & inclusions
+
+Top level code is evaluated in the following order:
+	1. Type names, libraries
+	2. Function headers, type definitions, compiler definitions, globals
+	3. Function code
+
+
+
+
+	Libraries
+Libraries refer to other files. These can be nstl files, assembly files, or object files. Each file
+has a libraray name, which is either the name of the file or a name declared in the file.
+In NSTL, libraries have a separate namespace to other named values, denoted with an underscore.
+This underscore is not included in the actual name. An assembly file with the '%libname foo'
+directive would be referenced in nstl as '_foo', and an nstl file with the 'libname _bar' statement
+would be referenced in assembly as 'bar'. A library name prefixed with an underscore will be
+referred to as an lname.
+
+To declare the library name of an nstl file, the following syntax is used:
+	libname <lname>;
+
+To include another file as a library, the following syntax is used:
+	library <lname> [is <lname>] [from "<file>"];
+
+When a library is included, the first lname is the local name, used in references to the library,
+the second lname is the canonical name, and the file can be used to specify files in other
+directories or files whose names do not match their canonical names. If the second name is not
+included, the first name is also the canonical name. 
+If a file is included and is absolute, that file is used.
+If a file is included and is relative, it is searched for first in the directory of the current
+file and then in the directory of the standard library.
+If a file is not included, the canonical name is used as the file name, with the extensions '.obj',
+'.asm', and '.nstl' in that order. For the library '_foo', the file 'foo.nstl' in the directory of
+the current file will take priority over the file 'foo.obj' in the standard library directory.
+
+
+
+
+	Compiler Definitions
+Compiler definitions are essentially untyped global constants, but their names cannot be overloaded
+by local values. They use the following syntax:
+	define <name> is <constant expression>;
+
+
+
+
+	Types
+There are four categories of type in NSTL:
+	- Primitives
+	- Structures
+	- Arrays
+	- Pointers
+
+
+Primitives are raw values. They are integers, with the exception of string constants. Primitives
+can be cast between eachother: if the source is wider, it will be truncated, and if it is smaller,
+it will be sign extended if it is signed and zero extended otherwise.
+The following primitive types are available:
+	Signed	Unsigned				Size (bytes)
+	i8		u8, char, boolean		1
+	i16		u16						2
+	i32		u32, ptr				4
+			string					variable
+
+Strings are a special case in that they are effectively arrays of variable size. They cannot be
+used by value, and mostly exist to create text constants.
+
+
+Structures are compound types. They are groups of values of other types. Structures cannot directly
+recurse, but may be self-referential via pointers. 
+Structures are defined with the following syntax:
+	type <type name> is structure of <member>[, <member>[...]] end type
+
+Where members take the form
+	<member name> is <type>
+
+For example, consider 24-bit color:
+	type color24 is structure of
+		red is u8,
+		green is u8,
+		blue is u8
+	end type
+
+Structure members are accessed with a dot:
+	<structure reference>.<member name>
+
+Structures can be instantiated as a single unit or have their members initialized individually. In
+either case, order does not matter. To instantiate a structure, this syntax is used:
+	<structure name> of <member assignments> end structure
+
+Where each member is assigned with the following, separated by commas:
+	<member name> gets <expression>
+
+For example, with the color24 type:
+	variable c1 is color24 gets color24 of
+		red gets 0x5B,
+		green gets 0xCE,
+		blue gets 0xFA
+	end structure;
+	
+	variable c2 is color24;
+	c2.red gets 0xF5;
+	c2.green gets 0xA9;
+	c2.blue gets 0xB8;
+
+
+Arrays are groups of values of the same type. They have a fixed size and are continuous in memory.
+Arrays are treated as values, rather than pointers (such as in C).
+An array type uses the following syntax:
+	<type> array size <unsigned integer constant>
+
+Array members are accessed with the following syntax. Indexes are not checked at runtime.
+	<array reference> index <expression>
+
+Arrays may be instantiated as follows. The number of member expressions must match the size of the
+target.
+	<type> array of <expression>[, <expression>[...]] end array
+
+For example:
+	variable arr is u8 array size 8;
+	arr gets u8 array of 1, 2, 3, 4, 5, 6, 7, 8 end array;
+	
+	-- v1 = 6, v2 = 7
+	variable v1 is u8 gets (arr index 1) + (arr index 3);
+	variable v2 is u8 gets arr index v1;
+
+
+Pointers are addresses in memory, and come in two types. Untyped pointers are simply the 4 byte
+primitives (u32, i32, ptr); the ptr alias exists for this purpose. Typed pointers have an
+associated referenced type, and use the following syntax:
+	<type> pointer
+
+Pointers are dereferenced with the at keyword. However, an untyped pointer must be supplied a type.
+The syntax is as follows:
+	at <typed pointer reference>
+	<type> at <untyped pointer reference>
+
+Additionally, typed pointers can be accessed like arrays with the index syntax:
+	<typed pointer reference> index <expression>
+
+To create a pointer, the to keyword is used:
+	to <reference>
+
+This will yield a typed pointer whose reference type is the type of the reference. 
+Typed and untyped pointers can be assigned the other without casting. However, typed pointers with
+mismatched types must be explicitly casted.
+
+(TODO: add example code)
+
+
+
+
+	Top-level Constant & Variable Declarations
+Constants and variables can be declared at the top level of a file. These values are available to
+all functions in the file. Variables can remain uninitialized, while constants cannot. All initial
+values must be constant. 
+
+
+
+
+	Function Definitions
+Functions contain all the code in a program. There are two types of function definitions, internal
+and external. Internal function definitions include both the header and code, while external
+function definitions include only the header. All functions referenced from libraries must have
+external function definitions in the file in which they are used.
+
+External function definitions take the following forms:
+	external function <function name> of <argument list>;
+	external function <function name> of <argument list> returns <type>;
+
+Internal function definitions take the following forms:
+	function <function name> of <argument list> begin <code> end function
+	function <function name> of <argument list> returns <type> begin <code> end function
+
+The argument list of an external function may omit the names of parameters.
+The argument list and/or return type can be given 'none'. If a return type is omitted, it is
+considered 'none'.
+
+Argument lists take the following form:
+	<type> <name>[, <type> <name>[...]]
+
+
+
+
+
+
+	Code
+Function code consists of a series of statements, consisting of:
+	- Constant & variable declarations
+	- Assignments
+	- Function calls
+	- Control flow blocks
+	- Control flow statements
+
+
+
+
+	Expressions
+Expressions are used to manipulate values. They consist of most mathematical and logical
+operations, as well as type casting. In order of increasing precedence, they are:
+	- Bitwise Logic:
+		- AND	<expression> and <expression>
+		- OR	<expression> or <expression>
+		- XOR	<expression> xor <expression>
+	- Comparisons:
+		- Equals			<expression> = <expression>
+		- Not equal			<expression> != <expression>
+		- Greater			<expression> > <expression>
+		- Greater or equal	<expression> >= <expression>
+		- Less				<expression> < <expression>
+		- Less or equal		<expression> <= <expression>
+	- Bitshifts:
+		- Left shift				<expression> << <expression>
+		- Arithmetic right shift	<expression> >>> <expression>
+		- Logical right shift		<expression> >> <expression>
+		- Rotate left				<expression> rol <expression>
+		- Rotate right				<expression> ror <expression>
+	- Sums:
+		- Add		<expression> + <expression>
+		- Subtract	<expression> - <expression>
+	- Multiplication & Division
+		- Multiply	<expression> * <expression>
+		- Divide	<expression> / <expression>
+		- Remainder	<expression> % <expression>
+	- Unary Operators
+		- Negate	- <expression>
+		- NOT		not <expression>
+	- Type Casting
+		- Cast	<expression> as <type>
+	- Parenthesis, References, Literals, and sizes
+
+Literals are integers. They may have separating underscores, and are decimal by default. They may
+be made other bases with the following prefixes:
+	0b	binary
+	0o	octal
+	0d	decimal
+	0x	hexadecimal
+
+While in most cases their type can be inferred, literals may specify a type as follows:
+	<type> <integer>
+
+Sizes retrieve the size of a type in bytes. They use the following syntax:
+	sizeof <type>
+
+
+
+
+	References
+References are used to find values. They may be direct, such as a variable name, or indirect, such
+as a pointer dereference. While most are explained in their respective sections, the following are
+considered references:
+	- Value names				<name>
+	- Function calls			(call <function reference> with <arguments>)
+	- Structure access			<structure reference>.<member name>
+	- Pointer referencing		to <reference>
+	- Pointer dereferencing		<type> at <untyped pointer reference>
+								at <typed pointer reference>
+	- Indexing					<array reference or typed pointer reference> index <expression>
+
+
+
+
+	Constant & Variable Declarations
+Constants & variables are declared with the following syntax:
+	constant <value name> is <type> gets <constant expression>;
+	variable <value name> is <type>[ gets <expression>];
+
+All names are local to the context in which they are declared, and may overload existing value
+names. The names of types and functions cannot be overloaded. Blocks terminated with the 'end'
+keyword create new contexts.
+Constants cannot be arrays.
+
+
+
+
+	Assignments
+References to variables and indirect references may be assigned values with the 'gets' keyword.
+	<reference> gets <expression>;
+
+
+
+
+	Function Calls
+Function calls can be made as standalone statements. Unlike their reference form, these are not
+parenthesized.
+	call <function reference> with <arguments>;
+
+Where arguments take the forms
+	<expression>[, <expression>[...]]
+	none
+
+Calls made directly to functions will check the types and number of arguments. Calls made
+indirectly will not, and will require constants to specify their types.
+
+
+
+
+	Control Flow Blocks
+There are three types of control flow blocks: 'if', 'while', and 'until'. 'if' is a simple
+conditional, 'while' is a check-first loop, and 'until' is a loop-first loop. When the conditional
+of a control flow block is evaluated, it is considered true if the value is nonzero and false if it
+is zero.
+
+'if' blocks take the following form:
+	if <expression> then <code> [elseif <expression> then <code> [elseif ...]] [else <code>] end if
+
+'while' blocks take the following form:
+	[<label>] while <expression> do <code> end while
+
+'until' blocks take the follwing form:
+	[<label>] until <expression> do <code> end until
+
+At the start of each iteration of a loop, the conditional is evaluated. 'while' blocks will check
+their conditional during their first iteration, while 'until' blocks will not check during their
+first iteration.
+
+
+
+
+	Control Flow Statements
+There are four types of control flow statements: labels, 'break', 'continue', and 'return'. Returns
+can be placed at any point, labels can only be placed before 'while' and 'until' blocks, and
+'break' and 'continue' can only be placed inside of 'while' and 'until' blocks.
+
+The return statement takes the following form:
+	return [<expression>];
+
+The value of the expression must match the return type of the function. If the return type is
+'none', it is omitted.
+
+Labels take the following form:
+	<label name>:
+
+Break statements will terminate the loop specified by their label, or the inner-most loop if no
+label is given. They take the following form:
+	break [<label>];
+
+Continue statements will begin the next iteration of the loop specified by their label, or the
+inner-most loop if no label is given. They take the following form:
+	continue [<label>];

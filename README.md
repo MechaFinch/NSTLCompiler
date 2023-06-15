@@ -1,2 +1,5 @@
 # NSTLCompiler
- A compiler for a verbose systems language targeting NST
+ A compiler for a verbose minimalist systems language targeting NST
+
+ See the `nstl` folder for documentation
+ 
