@@ -17,7 +17,7 @@ constant screen_size_sqrt is u32 gets 278; -- sqrt(320 * 240) ~= 278
 constant screen_end is ptr gets screen_start + screen_size;
 
 function main of none begin
-	-- clear the screen
+	-- fill the screen
 	variable screen is u8 pointer gets screen_start;
 	
 	while screen < screen_end do

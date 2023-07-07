@@ -229,7 +229,7 @@ public class SAPCompiler extends NSTCompiler {
                     break;
                 
                 case NstlgrammarParser.ID.VARIABLE_VALUE_CREATION:
-                    compileValueCreation(topNode, allInstructions);
+                    compileValueCreation(topNode, allInstructions, labelIndexMap);
                     break;
                 
                 case NstlgrammarParser.ID.VARIABLE_LIBRARY_INCLUSION:
@@ -284,6 +284,11 @@ public class SAPCompiler extends NSTCompiler {
         LOG.finest("FINAL GLOBAL CONTEXT");
         for(ContextEntry ce : contextStack.getStack()) {
             LOG.finest(ce.toString());
+        }
+        
+        if(contextCounter != 0) {
+            LOG.severe("Error: malformed final context. Counter: " + contextCounter);
+            errorsEncountered = true;
         }
         
         if(errorsEncountered) {
@@ -419,6 +424,9 @@ public class SAPCompiler extends NSTCompiler {
                 // extra move elimination
                 // MOV <a>, <b>     -> MOV <a>, <b>
                 // MOV <b>, <a>
+                //
+                // MOV <a>, <b>     -> MOV <a>, <c>
+                // MOV <a>, <c>
                 if(!i1Labeled && i0 != null && i1 != null) {
                     // MOV-MOV
                     if(i0.getOpcode() == Opcode.MOVW_RIM && i1.getOpcode() == Opcode.MOVW_RIM) {
@@ -446,6 +454,10 @@ public class SAPCompiler extends NSTCompiler {
                             allInstructions.set(i - 2, nullComponent);
                             LOG.finest("Eliminated move-via-accumulator");
                         }
+                        
+                        // move-overwrite elimination
+                        // only apply to register dest in case of side effects
+                        // however, we can't implement this without dealing with MOV <dst>, <src>; MOV <dst>, [<dst>] and the like
                     } else if(i0.getOpcode() == Opcode.MOV_RIM && i1.getOpcode() == Opcode.MOV_RIM) {
                         // move-via-accumulator elimination
                         ResolvableLocationDescriptor sd0 = i0.getSourceDescriptor(),
@@ -471,6 +483,10 @@ public class SAPCompiler extends NSTCompiler {
                             allInstructions.set(i - 2, nullComponent);
                             LOG.finest("Eliminated move-via-accumulator");
                         }
+                        
+                        // move-overwrite elimination
+                        // only apply to register dest in case of side effects
+                        // however, we can't implement this without dealing with MOV <dst>, <src>; MOV <dst>, [<dst>] and the like
                     }
                 }
             }
@@ -736,11 +752,11 @@ public class SAPCompiler extends NSTCompiler {
         for(ASTNode codeNode : code) {
             switch(codeNode.getSymbol().getID()) {
                 case NstlgrammarParser.ID.VARIABLE_VALUE_CREATION:
-                    compileValueCreation(codeNode, localCode);
+                    compileValueCreation(codeNode, localCode, localLabelMap);
                     break;
                 
                 case NstlgrammarParser.ID.VARIABLE_ASSIGNMENT:
-                    compileAssignment(codeNode.getChildren().get(0), codeNode.getChildren().get(1), localCode);
+                    compileAssignment(codeNode.getChildren().get(0), codeNode.getChildren().get(1), localCode, localLabelMap);
                     break;
                 
                 case NstlgrammarParser.ID.VARIABLE_IF_CONSTRUCT:
@@ -765,7 +781,7 @@ public class SAPCompiler extends NSTCompiler {
                         LOG.warning("Found return statement in function that returns none. It will still be computed, but likely ignored");
                     }
                     
-                    if(!isNone) compileValueComputation(codeNode.getChildren().get(0), localCode, "%accumulator", functionHeader.getReturnType(), false);
+                    if(!isNone) compileValueComputation(codeNode.getChildren().get(0), localCode, localLabelMap, "%accumulator", functionHeader.getReturnType(), false);
                     
                     localCode.add(new Instruction(
                         Opcode.JMP_I32,
@@ -822,7 +838,7 @@ public class SAPCompiler extends NSTCompiler {
                     }
                 
                 case NstlgrammarParser.ID.VARIABLE_FUNCTION_CALL:
-                    compileFunctionCall(codeNode, localCode);
+                    compileFunctionCall(codeNode, localCode, localLabelMap);
                     break;
                 
                 default:
@@ -1039,7 +1055,7 @@ public class SAPCompiler extends NSTCompiler {
                 } else {
                     // value isn't resolved, figure out at runtime
                     // we can't use immediates as destinations so load to accumulator
-                    NSTLType t = compileValueComputation(node, localCode, "%accumulator", RawType.BOOLEAN, true);
+                    NSTLType t = compileValueComputation(node, localCode, localLabelMap, "%accumulator", RawType.BOOLEAN, true);
                     if(t.getSize() == 0) t = RawType.BOOLEAN; // if nothing was inferred just boolean
                     
                     generateCompareAccumulatorZero(localCode, t.getSize());
@@ -1143,12 +1159,12 @@ public class SAPCompiler extends NSTCompiler {
                         if(leftConstant) {
                             tv = computeConstant(leftNode);
                             direct = rightDirect && rightSymbol.type.getSize() != 4 && (rightSymbol.variableDescriptor.getType() == LocationType.REGISTER || rightSymbol.type.getSize() == 1);
-                            vType = direct ? rightSymbol.type : compileValueComputation(rightNode, localCode, "%accumulator", RawType.NONE, true);
+                            vType = direct ? rightSymbol.type : compileValueComputation(rightNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                             rld = direct ? rightSymbol.variableDescriptor : null;
                         } else {
                             tv = computeConstant(rightNode);
                             direct = leftDirect && leftSymbol.type.getSize() != 4 && (leftSymbol.variableDescriptor.getType() == LocationType.REGISTER || leftSymbol.type.getSize() == 1);
-                            vType = direct ? leftSymbol.type : compileValueComputation(leftNode, localCode, "%accumulator", RawType.NONE, true);
+                            vType = direct ? leftSymbol.type : compileValueComputation(leftNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                             rld = direct ? leftSymbol.variableDescriptor : null;
                         }
                         
@@ -1339,7 +1355,7 @@ public class SAPCompiler extends NSTCompiler {
                             
                             if(contextStack.hasSymbol(refName)) {
                                 ContextSymbol cs = contextStack.getSymbol(refName);
-                                NSTLType accType = compileValueComputation(accNode, localCode, "%accumulator", cs.type, true);
+                                NSTLType accType = compileValueComputation(accNode, localCode, localLabelMap, "%accumulator", cs.type, true);
                                 
                                 if(!accType.equals(cs.type)) { 
                                     LOG.severe("Comparison types do not match");
@@ -1372,7 +1388,7 @@ public class SAPCompiler extends NSTCompiler {
                         } else {
                             // neither side is a direct reference
                             // compute right side to accumulator to acquire type
-                            NSTLType rightType = compileValueComputation(rightNode, localCode, "%accumulator", RawType.NONE, true);
+                            NSTLType rightType = compileValueComputation(rightNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                             
                             // save right side
                             contextStack.pushContext();
@@ -1385,7 +1401,7 @@ public class SAPCompiler extends NSTCompiler {
                             rightSideDescriptor = tmpSymbol.variableDescriptor;
                             
                             // compute left side
-                            NSTLType leftType = compileValueComputation(leftNode, localCode, "%accumulator", RawType.NONE, true);
+                            NSTLType leftType = compileValueComputation(leftNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                             
                             // ensure things are comparable
                             if((nodeOp == NstlgrammarLexer.ID.TERMINAL_OP_EQUAL || nodeOp == NstlgrammarLexer.ID.TERMINAL_OP_NOT_EQUAL ||
@@ -1405,17 +1421,17 @@ public class SAPCompiler extends NSTCompiler {
                             }
                         }
                         
+                        Opcode jmpOp = switch(nodeOp) {
+                            case NstlgrammarLexer.ID.TERMINAL_OP_EQUAL          -> invert ? Opcode.JZ_RIM : Opcode.JNZ_RIM;
+                            case NstlgrammarLexer.ID.TERMINAL_OP_NOT_EQUAL      -> invert ? Opcode.JNZ_RIM : Opcode.JZ_RIM;
+                            case NstlgrammarLexer.ID.TERMINAL_OP_GREATER        -> signed ? (invert ? Opcode.JG_RIM : Opcode.JLE_RIM) : (invert ? Opcode.JA_RIM : Opcode.JBE_RIM);
+                            case NstlgrammarLexer.ID.TERMINAL_OP_GREATER_EQUAL  -> signed ? (invert ? Opcode.JGE_RIM : Opcode.JL_RIM) : (invert ? Opcode.JNC_RIM : Opcode.JC_RIM);
+                            case NstlgrammarLexer.ID.TERMINAL_OP_LESS           -> signed ? (invert ? Opcode.JL_RIM : Opcode.JGE_RIM) : (invert ? Opcode.JC_RIM : Opcode.JNC_RIM);
+                            case NstlgrammarLexer.ID.TERMINAL_OP_LESS_EQUAL     -> signed ? (invert ? Opcode.JLE_RIM : Opcode.JG_RIM) : (invert ? Opcode.JBE_RIM : Opcode.JA_RIM);
+                            default                                             -> Opcode.NOP;
+                        };
+                        
                         if(comparisonSize == 1 || comparisonSize == 2) {
-                            Opcode jmpOp = switch(nodeOp) {
-                                case NstlgrammarLexer.ID.TERMINAL_OP_EQUAL          -> invert ? Opcode.JZ_RIM : Opcode.JNZ_RIM;
-                                case NstlgrammarLexer.ID.TERMINAL_OP_NOT_EQUAL      -> invert ? Opcode.JNZ_RIM : Opcode.JZ_RIM;
-                                case NstlgrammarLexer.ID.TERMINAL_OP_GREATER        -> signed ? (invert ? Opcode.JG_RIM : Opcode.JLE_RIM) : (invert ? Opcode.JA_RIM : Opcode.JBE_RIM);
-                                case NstlgrammarLexer.ID.TERMINAL_OP_GREATER_EQUAL  -> signed ? (invert ? Opcode.JGE_RIM : Opcode.JL_RIM) : (invert ? Opcode.JNC_RIM : Opcode.JC_RIM);
-                                case NstlgrammarLexer.ID.TERMINAL_OP_LESS           -> signed ? (invert ? Opcode.JL_RIM : Opcode.JGE_RIM) : (invert ? Opcode.JC_RIM : Opcode.JNC_RIM);
-                                case NstlgrammarLexer.ID.TERMINAL_OP_LESS_EQUAL     -> signed ? (invert ? Opcode.JLE_RIM : Opcode.JG_RIM) : (invert ? Opcode.JBE_RIM : Opcode.JA_RIM);
-                                default                                             -> Opcode.NOP;
-                            };
-                            
                             // compare
                             localCode.add(new Instruction(
                                 Opcode.CMP_RIM,
@@ -1431,10 +1447,27 @@ public class SAPCompiler extends NSTCompiler {
                                 false, false
                             ));
                         } else {
-                            // TODO weird comparisons
+                            // dword variable comparisons
+                            // computes boolean to AL
+                            generateGenericOperation(leftSideDescriptor, rightSideDescriptor, jmpOp, true, localCode, localLabelMap);
+                            
+                            ResolvableLocationDescriptor leftSideLower = this.splitRLD(leftSideDescriptor).b;
+                            
+                            localCode.add(new Instruction(
+                                Opcode.CMP_RIM_0,
+                                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL),
+                                true, true
+                            ));
+                            
+                            localCode.add(new Instruction(
+                                Opcode.JNZ_RIM,
+                                new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(falseLabel)),
+                                false, false
+                            ));
+                            
                             // consume accumulator temporary
-                            contextStack.popContext();
-                            contextCounter--;
+                            //contextStack.popContext();
+                            //contextCounter--;
                         }
                         
                         if(usesTmp) {
@@ -1446,7 +1479,7 @@ public class SAPCompiler extends NSTCompiler {
                     
                 default:
                     // If the value is a different expression, evaluate it and compare to zero
-                    NSTLType t = compileValueComputation(node, localCode, "%accumulator", RawType.NONE, true);
+                    NSTLType t = compileValueComputation(node, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                     generateCompareAccumulatorZero(localCode, t.getSize());
                     
                     localCode.add(new Instruction(
@@ -1502,7 +1535,7 @@ public class SAPCompiler extends NSTCompiler {
             localCode.add(new Instruction(
                 Opcode.AND_F_RIM,
                 new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
-                true, true
+                false, true
             ));
         } else {
             // if we're here there should be an accumulator symbol for it to use
@@ -1527,6 +1560,8 @@ public class SAPCompiler extends NSTCompiler {
      */
     private void generateIrregularCompareZero(List<Component> localCode, ContextSymbol symbol) {
         // TODO
+        LOG.severe("UNIMPLEMENTED: IRREGULAR COMPARE ZERO");
+        errorsEncountered = true;
     }
     
     /**
@@ -1535,7 +1570,7 @@ public class SAPCompiler extends NSTCompiler {
      * @param target
      * @param value
      */
-    private void compileAssignment(ASTNode target, ASTNode value, List<Component> localCode) {
+    private void compileAssignment(ASTNode target, ASTNode value, List<Component> localCode, Map<String, Integer> localLabelMap) {
         LOG.finest(() -> "Compiling assignment " + detailed(value) + " to " + detailed(target));
         
         // If the reference is just a name, we can write the computed value directly whether via accumulator or not
@@ -1564,7 +1599,7 @@ public class SAPCompiler extends NSTCompiler {
                 generateEvictJI(localCode);
                 
                 // get pointer
-                NSTLType expectedTypePointer = compilePointerComputation(target, localCode, "%ji"),
+                NSTLType expectedTypePointer = compilePointerComputation(target, localCode, localLabelMap, "%ji"),
                          expectedType;
                 
                 if(expectedTypePointer instanceof PointerType pt) {
@@ -1578,7 +1613,7 @@ public class SAPCompiler extends NSTCompiler {
                 inferType = inferType && (expectedType == RawType.NONE);
                 
                 // get value to accumulator
-                NSTLType actualType = compileValueComputation(value, localCode, "%accumulator", inferType ? RawType.NONE : expectedType, true);
+                NSTLType actualType = compileValueComputation(value, localCode, localLabelMap, "%accumulator", inferType ? RawType.NONE : expectedType, true);
                 
                 if(!inferType && !(actualType.equals(expectedType) || (expectedType instanceof RawType && actualType == RawType.NONE))) {
                     LOG.severe("Mismatched types: expected " + expectedType + " but found " + actualType);
@@ -1588,10 +1623,11 @@ public class SAPCompiler extends NSTCompiler {
                 NSTLType t = inferType ? actualType : expectedType;
                 
                 // move
-                if(t.getSize() != 3 && t.getSize() <= 4) {
+                if(t.getSize() <= 4) {
                     generateOffsetPointerStore(0, t.getSize(), localCode);
                 } else {
-                    generateVariableMove("%accumulator", "%jipointer", t.getSize(), localCode);
+                    generateVariableMove("%accumulator" + contextCounter--, "%jipointer", t.getSize(), localCode);
+                    contextStack.popContext();
                 }
                 
                 generateRestoreJI(localCode);
@@ -1616,7 +1652,7 @@ public class SAPCompiler extends NSTCompiler {
                     
                     if(contextStack.hasSymbol(targetName)) {
                         // good to go, compile value computation with the given target
-                        compileValueComputation(value, localCode, targetName, contextStack.getSymbol(targetName).type, false);
+                        compileValueComputation(value, localCode, localLabelMap, targetName, contextStack.getSymbol(targetName).type, false);
                     } else {
                         // oh no
                         LOG.severe("Unknown symbol " + targetName + " as assignment target");
@@ -1647,7 +1683,7 @@ public class SAPCompiler extends NSTCompiler {
                                 contextStack.pushContext();
                                 contextStack.pushSymbol(tcs);
                                 
-                                compileValueComputation(value, localCode, "%target", targetType, false);
+                                compileValueComputation(value, localCode, localLabelMap, "%target", targetType, false);
                                 
                                 contextStack.popContext();
                                 
@@ -1675,7 +1711,7 @@ public class SAPCompiler extends NSTCompiler {
                     // compute pointer to JI
                     // subreference DOT name computes the subreference, others the full reference
                     if(tChildren.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_DOT) {
-                        targetType = ((PointerType) compilePointerComputation(tChildren.get(0), localCode, "%ji")).getPointedType();
+                        targetType = ((PointerType) compilePointerComputation(tChildren.get(0), localCode, localLabelMap, "%ji")).getPointedType();
                         
                         // we expect the name to be of a field in a structure type
                         if(targetType instanceof StructureType st) {
@@ -1703,11 +1739,11 @@ public class SAPCompiler extends NSTCompiler {
                             errorsEncountered = true;
                         }
                     } else {
-                        targetType = ((PointerType) compilePointerComputation(target, localCode, "%ji")).getPointedType();
+                        targetType = ((PointerType) compilePointerComputation(target, localCode, localLabelMap, "%ji")).getPointedType();
                     }
                     
                     // get value to accumulator
-                    compileValueComputation(value, localCode, "%accumulator", targetType, false);
+                    compileValueComputation(value, localCode, localLabelMap, "%accumulator", targetType, false);
                     
                     // move the value
                     if(tChildren.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_DOT) {
@@ -1838,6 +1874,8 @@ public class SAPCompiler extends NSTCompiler {
      */
     private void generateVariableMove(String source, String destination, int size, List<Component> localCode) {
         LOG.finest("Generating variable move size " + size + " from " + source + " to " + destination);
+        
+        if(source.equals(destination)) return;
         
         ResolvableLocationDescriptor sourceDescriptor, destinationDescriptor, accumulatorDescriptor, accptrDescriptor, jiptrDescriptor;
         
@@ -1993,7 +2031,102 @@ public class SAPCompiler extends NSTCompiler {
             }
         } else {
             // long/weird values
-            // TODO
+            if(sourceDescriptor.getType() != LocationType.MEMORY || destinationDescriptor.getType() != LocationType.MEMORY) {
+                // this shouldn't happen
+                LOG.severe("Cannot move irregular sized value between registers: " + size + " bytes from " + sourceDescriptor + " to " + destinationDescriptor);
+                errorsEncountered = true;
+            } else {
+                // break down into move via accumulator
+                int i = 0;
+                ResolvableMemory sourceMem = sourceDescriptor.getMemory(),
+                                 destMem = destinationDescriptor.getMemory();
+                
+                // 4s
+                while(i + 4 <= size) {
+                    localCode.add(new Instruction(
+                        Opcode.MOVW_RIM,
+                        new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
+                        new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(sourceMem.getBase(), sourceMem.getIndex(), sourceMem.getScale(), (int)(sourceMem.getOffset().value() + i))),
+                        true
+                    ));
+                    
+                    localCode.add(new Instruction(
+                        Opcode.MOVW_RIM,
+                        new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(destMem.getBase(), destMem.getIndex(), destMem.getScale(), (int)(destMem.getOffset().value() + i))),
+                        new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
+                        true
+                    ));
+                    
+                    i += 4;
+                }
+                
+                // final 1-3 bytes
+                switch(i - size) {
+                    case 1:
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL),
+                            new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(sourceMem.getBase(), sourceMem.getIndex(), sourceMem.getScale(), (int)(sourceMem.getOffset().value() + i))),
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(destMem.getBase(), destMem.getIndex(), destMem.getScale(), (int)(destMem.getOffset().value() + i))),
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL),
+                            true
+                        ));
+                        break;
+                        
+                    case 2:
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                            new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(sourceMem.getBase(), sourceMem.getIndex(), sourceMem.getScale(), (int)(sourceMem.getOffset().value() + i))),
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(destMem.getBase(), destMem.getIndex(), destMem.getScale(), (int)(destMem.getOffset().value() + i))),
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                            true
+                        ));
+                        break;
+                        
+                    case 3:
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                            new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(sourceMem.getBase(), sourceMem.getIndex(), sourceMem.getScale(), (int)(sourceMem.getOffset().value() + i))),
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(destMem.getBase(), destMem.getIndex(), destMem.getScale(), (int)(destMem.getOffset().value() + i))),
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL),
+                            new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(sourceMem.getBase(), sourceMem.getIndex(), sourceMem.getScale(), (int)(sourceMem.getOffset().value() + i + 2))),
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.MEMORY, 4, new ResolvableMemory(destMem.getBase(), destMem.getIndex(), destMem.getScale(), (int)(destMem.getOffset().value() + i + 2))),
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL),
+                            true
+                        ));
+                        break;
+                        
+                    default:
+                }
+            }
         }
     }
     
@@ -2140,7 +2273,7 @@ public class SAPCompiler extends NSTCompiler {
      * @param returnInferred If true, the returned type is the inferred type rather than specified type
      * @return the type of the value generated, or RawType.NONE. used for inference
      */
-    private NSTLType compileValueComputation(ASTNode node, List<Component> localCode, String target, NSTLType type, boolean returnInferred) {
+    private NSTLType compileValueComputation(ASTNode node, List<Component> localCode, Map<String, Integer> localLabelMap, String target, NSTLType type, boolean returnInferred) {
         LOG.finest("Compiling value computation " + target + " <= " + type + " " + detailed(node));
         NSTLType inferredType = RawType.NONE;
         
@@ -2197,7 +2330,7 @@ public class SAPCompiler extends NSTCompiler {
                         contextCounter++;
                         
                         ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextCounter, type);
-                        generateLongConstantMove(accSymbol, constantValue, localCode);
+                        generateLongConstantMove(accSymbol, constantValue, localCode, localLabelMap);
                     }
                 } else if(target.equals("%stack")) {
                     // %stack is the stack
@@ -2263,6 +2396,7 @@ public class SAPCompiler extends NSTCompiler {
             }
         }
         
+        // not constant
         List<ASTNode> children = node.getChildren();
         
         // what do we got
@@ -2332,7 +2466,7 @@ public class SAPCompiler extends NSTCompiler {
             case NstlgrammarParser.ID.VARIABLE_REFERENCE:
                 if(children.get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_TO) {
                     // pointer to reference
-                    NSTLType inferred = compilePointerComputation(children.get(1), localCode, target);
+                    NSTLType inferred = compilePointerComputation(children.get(1), localCode, localLabelMap, target);
                     
                     // allow pointers of unknown type
                     if(!inferred.equals(RawType.NONE))
@@ -2342,8 +2476,9 @@ public class SAPCompiler extends NSTCompiler {
                 } else {
                     // AT
                     // dereference via accumulator
-                    NSTLType inferred = ((PointerType) compilePointerComputation(node, localCode, "%accumulator")).getPointedType();
+                    NSTLType inferred = ((PointerType) compilePointerComputation(node, localCode, localLabelMap, "%accumulator")).getPointedType();
                     if(type.equals(RawType.NONE)) type = inferred;
+                    else type = checkType(type, inferred, "from AT");
                     
                     generateVariableMove("%accpointer", target, type.getSize(), localCode);
                     
@@ -2368,7 +2503,7 @@ public class SAPCompiler extends NSTCompiler {
                     } else {
                         // function call
                         // generate it
-                        NSTLType returnType = compileFunctionCall(children.get(0), localCode);
+                        NSTLType returnType = compileFunctionCall(children.get(0), localCode, localLabelMap);
                         
                         checkType(type, returnType, "from function call");
                         
@@ -2405,14 +2540,44 @@ public class SAPCompiler extends NSTCompiler {
                                         ContextSymbol tcs = info.a;
                                         boolean evictedJI = info.b;
                                         
-                                        contextStack.pushContext();
-                                        contextStack.pushSymbol(tcs);
-                                        
-                                        generateVariableMove("%member", target, memberType.getSize(), localCode);
-                                        
-                                        contextStack.popContext();
-                                        
-                                        if(evictedJI) generateRestoreJI(localCode);
+                                        // if the target involves JI, we need to move to a temporary and restore JI before moving to the target
+                                        if(evictedJI && target.contains("%ji")) {
+                                            contextStack.pushContext();
+                                            contextStack.pushSymbol(tcs);
+                                            
+                                            // do we need a memory acc
+                                            if(memberType.getSize() > 4) {                                                
+                                                ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextCounter, memberType);
+                                                generateVariableMove("%member", accSymbol.name, memberType.getSize(), localCode);
+                                                
+                                                contextStack.popContext();
+                                                generateRestoreJI(localCode);
+                                                
+                                                contextStack.pushContext();
+                                                contextStack.pushSymbol(accSymbol);
+                                                
+                                                generateVariableMove(accSymbol.name, target, memberType.getSize(), localCode);
+                                                contextStack.popContext();
+                                            } else {
+                                                // simple
+                                                generateVariableMove("%member", "%accumulator", memberType.getSize(), localCode);
+                                                
+                                                contextStack.popContext();
+                                                generateRestoreJI(localCode);
+                                                
+                                                generateVariableMove("%accumulator", target, memberType.getSize(), localCode);
+                                            }
+                                            
+                                            
+                                        } else {
+                                            contextStack.pushContext();
+                                            contextStack.pushSymbol(tcs);
+                                            
+                                            generateVariableMove("%member", target, memberType.getSize(), localCode);
+                                            
+                                            contextStack.popContext();
+                                            if(evictedJI) generateRestoreJI(localCode);
+                                        }
                                         
                                         return returnInferred ? memberType : type;
                                     } else {
@@ -2432,7 +2597,7 @@ public class SAPCompiler extends NSTCompiler {
                     } else {
                         // otherwise just compute pointer and load
                         if(!target.equals("%ji")) generateEvictJI(localCode);
-                        NSTLType t = ((PointerType) compilePointerComputation(node, localCode, "%ji")).getPointedType();
+                        NSTLType t = ((PointerType) compilePointerComputation(node, localCode, localLabelMap, "%ji")).getPointedType();
                         
                         String contextMessage = children.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_INDEX ? "from index" : "from structure";
                         
@@ -2453,7 +2618,7 @@ public class SAPCompiler extends NSTCompiler {
                             generateRestoreJI(localCode);
                         }
                         
-                        return type;
+                        return returnInferred ? t : type;
                     }
                 }
                 break;
@@ -2511,15 +2676,18 @@ public class SAPCompiler extends NSTCompiler {
                 // since we can't do operations on structures, we should only have memory locations to put them in
                 if(target.equals("%accumulator") && !contextStack.hasLocalSymbol("%accumulator")) {
                     // no memory accumulator available, make one
-                    allocateLocalVariable("%accumulator", definedType);
-                    compileValueComputation(node, localCode, "%accumulator", type, returnInferred);
+                    contextStack.pushContext();
+                    contextCounter++;
+                    
+                    ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextCounter, type);
+                    compileValueComputation(node, localCode, localLabelMap, accSymbol.name, type, returnInferred); // defer to below
                 } else if(target.equals("%stack")) {
                     // push in reverse member order
                     for(int i = memberNames.size() - 1; i >= 0; i--) {
                         String name = memberNames.get(i);
                         ASTNode mNode = memberNodeMap.get(name);
                         
-                        compileValueComputation(mNode, localCode, "%stack", structType.getMemberType(name), false);
+                        compileValueComputation(mNode, localCode, localLabelMap, "%stack", structType.getMemberType(name), false);
                     }
                 } else if(contextStack.hasSymbol(target)) {
                     // should be a memory symbol
@@ -2545,7 +2713,7 @@ public class SAPCompiler extends NSTCompiler {
                         
                         contextStack.pushSymbol(new ContextSymbol("%jioffs", mType, new ResolvableLocationDescriptor(LocationType.MEMORY, mType.getSize(), new ResolvableMemory(Register.JI, Register.NONE, 0, structType.getMemberOffset(name)))));
                         
-                        compileValueComputation(mNode, localCode, "%jioffs", structType.getMemberType(name), false);
+                        compileValueComputation(mNode, localCode, localLabelMap, "%jioffs", structType.getMemberType(name), false);
                     }
                     
                     generateRestoreJI(localCode);
@@ -2558,30 +2726,36 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarParser.ID.VARIABLE_VARIABLE_ARRAY:
                 //TODO asdjkjlkasdjlkasdlkjs
+                LOG.severe("UNIMPLEMENTED: VALUE COMPUTATION OF VARIABLE ARRAY");
+                errorsEncountered = true;
                 break;
             
             // Lexer IDs
             case NstlgrammarLexer.ID.TERMINAL_OP_EQUAL:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JZ_RIM, true, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JZ_RIM, true, localCode, localLabelMap);
                 } else {
                     // valid
                     // TODO
+                    LOG.severe("UNIMPLEMENTED: NON-RAW COMPARE EQUAL");
+                    errorsEncountered = true;
                 }
                 break;
             
             case NstlgrammarLexer.ID.TERMINAL_OP_NOT_EQUAL:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JNZ_RIM, true, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JNZ_RIM, true, localCode, localLabelMap);
                 } else {
                     // valid
                     // TODO
+                    LOG.severe("UNIMPLEMENTED: NON-RAW COMPARE NOT EQUAL");
+                    errorsEncountered = true;
                 }
                 break;
             
             case NstlgrammarLexer.ID.TERMINAL_OP_GREATER:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JG_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JG_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot compare non-raw types");
                     errorsEncountered = true;
@@ -2590,7 +2764,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_GREATER_EQUAL:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JGE_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JGE_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot compare non-raw types");
                     errorsEncountered = true;
@@ -2599,7 +2773,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_LESS:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JL_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JL_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot compare non-raw types");
                     errorsEncountered = true;
@@ -2608,7 +2782,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_LESS_EQUAL:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JLE_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.JLE_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot compare non-raw types");
                     errorsEncountered = true;
@@ -2617,7 +2791,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_KW_AND:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.AND_RIM, true, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.AND_RIM, true, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot AND non-raw types");
                     errorsEncountered = true;
@@ -2626,7 +2800,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_KW_OR:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.OR_RIM, true, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.OR_RIM, true, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot OR non-raw types");
                     errorsEncountered = true;
@@ -2635,7 +2809,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_KW_XOR:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.XOR_RIM, true, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.XOR_RIM, true, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot XOR non-raw types");
                     errorsEncountered = true;
@@ -2644,7 +2818,7 @@ public class SAPCompiler extends NSTCompiler {
                 
             case NstlgrammarLexer.ID.TERMINAL_OP_SHIFT_LEFT:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SHL_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SHL_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot shift non-raw types");
                     errorsEncountered = true;
@@ -2653,7 +2827,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_ARITH_SHIFT_RIGHT:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SHR_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SHR_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot shift non-raw types");
                     errorsEncountered = true;
@@ -2662,7 +2836,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_LOGIC_SHIFT_RIGHT:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SAR_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SAR_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot shift non-raw types");
                     errorsEncountered = true;
@@ -2671,7 +2845,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_KW_ROL:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.ROL_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.ROL_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot rotate non-raw types");
                     errorsEncountered = true;
@@ -2680,7 +2854,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_KW_ROR:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.ROR_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.ROR_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot rotate  non-raw types");
                     errorsEncountered = true;
@@ -2689,7 +2863,7 @@ public class SAPCompiler extends NSTCompiler {
                 
             case NstlgrammarLexer.ID.TERMINAL_OP_ADD:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.ADD_RIM, true, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.ADD_RIM, true, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot add non-raw types");
                     errorsEncountered = true;
@@ -2700,10 +2874,11 @@ public class SAPCompiler extends NSTCompiler {
                 if(type instanceof RawType || type instanceof PointerType) {
                     if(children.size() == 2) {
                         // subtract
-                        return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SUB_RIM, false, localCode);
+                        return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SUB_RIM, false, localCode, localLabelMap);
                     } else {
                         // negate
                         // TODO
+                        LOG.severe("UNIMLPEMENTED: NEGATION (UNARY GENERIC OPERATION)");
                     }
                 } else {
                     LOG.severe("Cannot subtract non-raw types");
@@ -2713,7 +2888,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_MULTIPLY:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.MUL_RIM, true, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.MUL_RIM, true, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot multiply non-raw types");
                     errorsEncountered = true;
@@ -2722,7 +2897,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_DIVIDE:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.DIV_RIM, false, localCode);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.DIV_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot divide non-raw types");
                     errorsEncountered = true;
@@ -2731,6 +2906,8 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_REMAINDER:
                 // TODO
+                LOG.severe("UNIMPLEMENTED: REMAINDER");
+                errorsEncountered = true;
                 break;
                 
             case NstlgrammarLexer.ID.TERMINAL_KW_NOT:
@@ -2781,7 +2958,7 @@ public class SAPCompiler extends NSTCompiler {
                     }
                     
                     // indirect = do via accumulator
-                    NSTLType t = compileValueComputation(valueNode, localCode, "%accumulator", type, returnInferred);
+                    NSTLType t = compileValueComputation(valueNode, localCode, localLabelMap, "%accumulator", type, returnInferred);
                     
                     if(type.equals(RawType.NONE)) type = t;
                     else checkType(type, t, " for NOT");
@@ -2816,6 +2993,101 @@ public class SAPCompiler extends NSTCompiler {
                 }
                 break;
             
+            case NstlgrammarLexer.ID.TERMINAL_KW_AS:
+                // type casting
+                NSTLType castedType = constructType(children.get(1));
+                
+                // compute to accumulator, perform cast if needed, send to target
+                NSTLType originalType = compileValueComputation(children.get(0), localCode, localLabelMap, "%accumulator", RawType.NONE, true);
+                
+                if((originalType instanceof RawType || originalType instanceof PointerType) && (castedType instanceof RawType || castedType instanceof PointerType)) {
+                    // can extend/truncate as needed
+                    int os = originalType.getSize(),
+                        cs = castedType.getSize();
+                    
+                    if(os < cs) {
+                        // extend based on original type
+                        ResolvableLocationDescriptor dst = switch(cs) {
+                            case 1  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL);
+                            case 2  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A);
+                            default -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA);
+                        };
+                        
+                        ResolvableLocationDescriptor src = switch(os) {
+                            case 1  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL);
+                            case 2  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A);
+                            default -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA);
+                        };
+                        
+                        if(originalType instanceof RawType rt && rt.isSigned()) {
+                            // signed
+                            if(cs - os < 3) {
+                                // 1 -> 2 or 2 -> 4
+                                localCode.add(new Instruction(
+                                    Opcode.MOVS_RIM,
+                                    dst,
+                                    src,
+                                    true
+                                ));
+                            } else {
+                                // 1 -> 4
+                                LOG.finest("SIGNED " + os + " TO " + cs + " -> MOVS 2X");
+                                localCode.add(new Instruction(
+                                    Opcode.MOVS_RIM,
+                                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                                    src,
+                                    true
+                                ));
+                                
+                                localCode.add(new Instruction(
+                                    Opcode.MOVS_RIM,
+                                    dst,
+                                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                                    true
+                                ));
+                            }
+                        } else {
+                            // unsigned
+                            if(cs - os < 3) {
+                                // 1 -> 2 or 2 -> 4
+                                localCode.add(new Instruction(
+                                    Opcode.MOVZ_RIM,
+                                    dst,
+                                    src,
+                                    true
+                                ));
+                            } else {
+                                // 1 -> 4
+                                localCode.add(new Instruction(
+                                    Opcode.MOVZ_RIM,
+                                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                                    src,
+                                    true
+                                ));
+                                
+                                localCode.add(new Instruction(
+                                    Opcode.MOVZ_RIM,
+                                    dst,
+                                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                                    true
+                                ));
+                            }
+                        }
+                    } // same/truncated = no action
+                    
+                    this.generateVariableMove("%accumulator", target, cs, localCode);
+                    
+                    return castedType;
+                } else if(type.getSize() == castedType.getSize()) {
+                    // alias. no action
+                    this.generateVariableMove("%accumulator", target, castedType.getSize(), localCode);
+                    return castedType;
+                } else {
+                    LOG.severe("Cannot cast between non-raw types of different sizes: " + type + " to " + castedType + " from " + detailed(node));
+                    errorsEncountered = true;
+                }
+                break;
+            
             default:
                 LOG.severe("Unexpected symbol in variable_expression " + detailed(node));
                 errorsEncountered = true;
@@ -2836,7 +3108,7 @@ public class SAPCompiler extends NSTCompiler {
      * @param localCode
      * @return
      */
-    private NSTLType compileGenericOperation(String target, ASTNode left, ASTNode right, NSTLType targetType, Opcode op, boolean commutative, List<Component> localCode) {
+    private NSTLType compileGenericOperation(String target, ASTNode left, ASTNode right, NSTLType targetType, Opcode op, boolean commutative, List<Component> localCode, Map<String, Integer> localLabelMap) {
         LOG.finest("Compiling generic operation " + detailed(left) + " " + op + " " + detailed(right) + " to " + targetType + " " + target);
         
         /*
@@ -2903,7 +3175,7 @@ public class SAPCompiler extends NSTCompiler {
             if(rightIsConstant || (leftIsConstant && commutative)) {
                 // A value is constant and we can use it directly. Compute the other to the accumulator then apply the oepration.
                 // get type
-                NSTLType accType = compileValueComputation(rightIsConstant ? left : right, localCode, "%accumulator", isComparison ? RawType.NONE : targetType, true);
+                NSTLType accType = compileValueComputation(rightIsConstant ? left : right, localCode, localLabelMap, "%accumulator", isComparison ? RawType.NONE : targetType, true);
                 
                 if(inferType) {
                     if(accType instanceof RawType rt) {
@@ -2929,7 +3201,7 @@ public class SAPCompiler extends NSTCompiler {
                 
                 ResolvableLocationDescriptor constantDescriptor = new ResolvableLocationDescriptor(LocationType.IMMEDIATE, targetType.getSize(), ((TypedRaw) tv).getValue());
                 
-                generateGenericOperation(accDescriptor, constantDescriptor, op, targetBoolean, localCode);
+                generateGenericOperation(accDescriptor, constantDescriptor, op, targetBoolean, localCode, localLabelMap);
                 return isComparison ? RawType.BOOLEAN : targetType;
             } else if(rightIsDirectReference || (leftIsDirectReference && commutative)) {
                 String refName = rightIsDirectReference ? rightReferenceName : leftReferenceName;
@@ -2955,7 +3227,7 @@ public class SAPCompiler extends NSTCompiler {
                 }
                 
                 // compute
-                NSTLType accType = compileValueComputation(rightIsDirectReference ? left : right, localCode, "%accumulator", isComparison ? RawType.NONE : targetType, false);
+                NSTLType accType = compileValueComputation(rightIsDirectReference ? left : right, localCode, localLabelMap, "%accumulator", isComparison ? RawType.NONE : targetType, false);
                 checkType(targetType, accType, "in generic operation " + op);
                 
                 ResolvableLocationDescriptor accDescriptor = switch(targetType.getSize()) {
@@ -2964,12 +3236,12 @@ public class SAPCompiler extends NSTCompiler {
                     default -> accumulatorDescriptor4;
                 };
                 
-                generateGenericOperation(accDescriptor, cs.variableDescriptor, op, targetBoolean, localCode);
+                generateGenericOperation(accDescriptor, cs.variableDescriptor, op, targetBoolean, localCode, localLabelMap);
                 return isComparison ? RawType.BOOLEAN : targetType;
             } else {
                 // The long way. Compute the right side to the stack, the left side to the accumulator, then apply the operation and clean up.
                 // compute and infer type
-                NSTLType rightType = compileValueComputation(right, localCode, "%stack", isComparison ? RawType.NONE : targetType, true);
+                NSTLType rightType = compileValueComputation(right, localCode, localLabelMap, "%stack", isComparison ? RawType.NONE : targetType, true);
                 
                 if(inferType) {
                     if(rightType instanceof RawType rt) {
@@ -2982,7 +3254,7 @@ public class SAPCompiler extends NSTCompiler {
                     checkType(targetType, rightType, "from computation " + detailed(right) + " in generic operation " + op);
                 }
                 
-                NSTLType leftType = compileValueComputation(left, localCode, "%accumulator", isComparison ? RawType.NONE : targetType, false);
+                NSTLType leftType = compileValueComputation(left, localCode, localLabelMap, "%accumulator", isComparison ? RawType.NONE : targetType, false);
                 checkType(targetType, leftType, "from computation " + detailed(left) + " in generic operation " + op);
                 
                 ResolvableLocationDescriptor accDescriptor = switch(targetType.getSize()) {
@@ -2993,7 +3265,7 @@ public class SAPCompiler extends NSTCompiler {
                 
                 ResolvableLocationDescriptor stackDescriptor = new ResolvableLocationDescriptor(LocationType.MEMORY, targetType.getSize(), new ResolvableMemory(Register.SP, Register.NONE, 0, 0));
                 
-                generateGenericOperation(accDescriptor, stackDescriptor, op, targetBoolean, localCode);
+                generateGenericOperation(accDescriptor, stackDescriptor, op, targetBoolean, localCode, localLabelMap);
                 
                 // clean up stack
                 localCode.add(new Instruction(
@@ -3047,11 +3319,11 @@ public class SAPCompiler extends NSTCompiler {
                     
                     if(targetSymbol.variableDescriptor.getType() == LocationType.REGISTER || rightSideSymbol.variableDescriptor.getType() == LocationType.REGISTER) {
                         // can go directly
-                        generateGenericOperation(targetSymbol.variableDescriptor, rightSideSymbol.variableDescriptor, op, targetBoolean, localCode);
+                        generateGenericOperation(targetSymbol.variableDescriptor, rightSideSymbol.variableDescriptor, op, targetBoolean, localCode, localLabelMap);
                         return isComparison ? RawType.BOOLEAN : targetType;
                     } else {
                         // via accumulator
-                        NSTLType t = compileValueComputation(rightSideNode, localCode, "%accumulator", isComparison ? RawType.NONE : targetType, false);
+                        NSTLType t = compileValueComputation(rightSideNode, localCode, localLabelMap, "%accumulator", isComparison ? RawType.NONE : targetType, false);
                         checkType(targetType, t, "from computation " + detailed(rightSideNode) + " in generic operation " + op);
                         
                         ResolvableLocationDescriptor rightDescriptor = switch(targetType.getSize()) {
@@ -3060,13 +3332,13 @@ public class SAPCompiler extends NSTCompiler {
                             default -> accumulatorDescriptor4;
                         };
                         
-                        generateGenericOperation(targetSymbol.variableDescriptor, rightDescriptor, op, targetBoolean, localCode);
+                        generateGenericOperation(targetSymbol.variableDescriptor, rightDescriptor, op, targetBoolean, localCode, localLabelMap);
                         return isComparison ? RawType.BOOLEAN : targetType;
                     }
                 } else {
                     // left is target, right is indirect
                     // compute right to accumulator then apply operation
-                    NSTLType rightType = compileValueComputation(rightSideNode, localCode, "%accumulator", isComparison ? RawType.NONE : targetType, true);
+                    NSTLType rightType = compileValueComputation(rightSideNode, localCode, localLabelMap, "%accumulator", isComparison ? RawType.NONE : targetType, true);
                     checkType(targetType, rightType, "from computation " + detailed(rightSideNode) + " in generic operation " + op);
                     
                     ResolvableLocationDescriptor rightDescriptor = switch(targetType.getSize()) {
@@ -3075,7 +3347,7 @@ public class SAPCompiler extends NSTCompiler {
                         default -> accumulatorDescriptor4;
                     };
                     
-                    generateGenericOperation(targetSymbol.variableDescriptor, rightDescriptor, op, targetBoolean, localCode);
+                    generateGenericOperation(targetSymbol.variableDescriptor, rightDescriptor, op, targetBoolean, localCode, localLabelMap);
                     return isComparison ? RawType.BOOLEAN : targetType;
                 }
             } else if((leftIsTarget && rightIsConstant) || (rightIsTarget && commutative && leftIsConstant)) {
@@ -3099,7 +3371,7 @@ public class SAPCompiler extends NSTCompiler {
                 if(targetIsRegister || ((op == Opcode.ADD_RIM || op == Opcode.SUB_RIM) && ((TypedRaw) tv).getValue().value() == 1)) {
                     // The target is a register and the other value is a constant, or the value is 1. We can compute this
                     ResolvableLocationDescriptor constantDescriptor = new ResolvableLocationDescriptor(LocationType.IMMEDIATE, targetType.getSize(), ((TypedRaw) tv).getValue());
-                    generateGenericOperation(contextStack.getSymbol(target).variableDescriptor, constantDescriptor, op, targetBoolean, localCode);
+                    generateGenericOperation(contextStack.getSymbol(target).variableDescriptor, constantDescriptor, op, targetBoolean, localCode, localLabelMap);
                     return isComparison ? RawType.BOOLEAN : targetType;
                 }
                 
@@ -3107,7 +3379,7 @@ public class SAPCompiler extends NSTCompiler {
             }
             
             // the long way - compute via accumulator
-            NSTLType type = compileGenericOperation("%accumulator", left, right, targetType, op, commutative, localCode);
+            NSTLType type = compileGenericOperation("%accumulator", left, right, targetType, op, commutative, localCode, localLabelMap);
             
             if(inferType) {
                 targetType = (RawType) type;
@@ -3130,7 +3402,8 @@ public class SAPCompiler extends NSTCompiler {
      * @param op
      * @param localCode
      */
-    private void generateGenericOperation(ResolvableLocationDescriptor left, ResolvableLocationDescriptor right, Opcode op, boolean targetBoolean, List<Component> localCode) {
+    private void generateGenericOperation(ResolvableLocationDescriptor left, ResolvableLocationDescriptor right, Opcode op, boolean targetBoolean, List<Component> localCode, Map<String, Integer> localLabelMap) {
+        LOG.finest("Generating generic operation " + op + ", " + left + ", " + right);
         // needed in a few places
         // split operands
         ResolvableLocationDescriptor leftHigh = null, leftLow = null, rightHigh = null, rightLow = null;
@@ -3150,18 +3423,6 @@ public class SAPCompiler extends NSTCompiler {
         
         // conditionals
         if(op.getType() == Operation.JCC) {
-            // evaluate conditional
-            if(left.getSize() == 1 || left.getSize() == 2) {
-                localCode.add(new Instruction(
-                    Opcode.CMP_RIM,
-                    left,
-                    right,
-                    false
-                ));
-            } else {
-                // TODO
-            }
-            
             Opcode oppositeJmp = switch(op) {
                 case JC_RIM     -> Opcode.JNC_RIM;
                 case JNC_RIM    -> Opcode.JC_RIM;
@@ -3179,6 +3440,113 @@ public class SAPCompiler extends NSTCompiler {
                 case JLE_RIM    -> Opcode.JG_RIM;
                 default -> op;
             };
+            
+            Opcode nonEqualJmp = switch(op) {
+                case JNC_RIM    -> Opcode.JA_RIM;   // JAE
+                case JBE_RIM    -> Opcode.JC_RIM;
+                case JGE_RIM    -> Opcode.JG_RIM;
+                case JLE_RIM    -> Opcode.JL_RIM;
+                default         -> op;
+            };
+            
+            Opcode oppositeNonEqualJmp = switch(oppositeJmp) {
+                case JNC_RIM    -> Opcode.JA_RIM;   // JAE
+                case JBE_RIM    -> Opcode.JC_RIM;
+                case JGE_RIM    -> Opcode.JG_RIM;
+                case JLE_RIM    -> Opcode.JL_RIM;
+                default         -> op;
+            };
+            
+            // evaluate conditional
+            if(left.getSize() == 1 || left.getSize() == 2) {
+                localCode.add(new Instruction(
+                    Opcode.CMP_RIM,
+                    left,
+                    right,
+                    false
+                ));
+            } else {
+                switch(op) {
+                    case JZ_RIM:
+                    case JNZ_RIM:
+                        // make both comparisons, OR the flags
+                        localCode.add(new Instruction(
+                            Opcode.CMP_RIM,
+                            leftHigh,
+                            rightHigh,
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            Opcode.PUSH_F,
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            Opcode.CMP_RIM,
+                            leftLow,
+                            rightLow,
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            Opcode.POP_A,
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                                Opcode.AND_F_RIM,
+                                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                                false, true
+                            ));
+                        break;
+                        
+                    case JG_RIM:
+                    case JGE_RIM:
+                    case JL_RIM:
+                    case JLE_RIM:
+                    case JA_RIM:
+                    case JNC_RIM: // JAE
+                    case JC_RIM: // JB
+                    case JBE_RIM:
+                        String determinedLabel = functionName + ".cmpd" + longComparisonCounter++; 
+                        
+                        // compare upper. if determinate, jump to the cmov
+                        localCode.add(new Instruction(
+                            Opcode.CMP_RIM,
+                            leftHigh,
+                            rightHigh,
+                            true
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            nonEqualJmp,
+                            new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(determinedLabel)),
+                            false, false
+                        ));
+                        
+                        localCode.add(new Instruction(
+                            oppositeNonEqualJmp,
+                            new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(determinedLabel)),
+                            false, false
+                        ));
+                        
+                        // compare lower
+                        localCode.add(new Instruction(
+                            Opcode.CMP_RIM,
+                            leftLow,
+                            rightLow,
+                            true
+                        ));
+                        
+                        localLabelMap.put(determinedLabel, localCode.size());
+                        break;
+                    
+                    default:
+                        LOG.severe("Unsupported generic dword compare: " + op);
+                        errorsEncountered = true;
+                }
+            }
             
             // if we're getting a boolean from this which goes in ACC
             if(targetBoolean) {
@@ -3322,7 +3690,7 @@ public class SAPCompiler extends NSTCompiler {
      * Splits a location descriptor
      * 
      * @param rld
-     * @return
+     * @return a = high, b = low
      */
     private Pair<ResolvableLocationDescriptor, ResolvableLocationDescriptor> splitRLD(ResolvableLocationDescriptor rld) {
         ResolvableLocationDescriptor high, low;
@@ -3399,9 +3767,9 @@ public class SAPCompiler extends NSTCompiler {
      * @param node reference
      * @param localCode
      * @param target Destination symbol, %accumulator, %stack, or %ji
-     * @return the type of the value pointed to
+     * @return a PointerType to the type pointed to
      */
-    private NSTLType compilePointerComputation(ASTNode node, List<Component> localCode, String target) {
+    private NSTLType compilePointerComputation(ASTNode node, List<Component> localCode, Map<String, Integer> localLabelMap, String target) {
         LOG.finest("Compiling pointer computation " + target + " <= pointer to " + detailed(node));
         
         ContextSymbol targetSymbol = (contextStack.hasSymbol(target) ? contextStack.getSymbol(target) : null);
@@ -3431,31 +3799,29 @@ public class SAPCompiler extends NSTCompiler {
                 errorsEncountered = true;
             } else {
                 // AT subreference
-                NSTLType t;
-                ASTNode subref;
-                
                 if(children.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_AT) {
-                    // overridden type
-                    subref = children.get(2);
-                    t = constructType(children.get(0));
+                    // untyped or overridden
+                    compileValueComputation(children.get(2), localCode, localLabelMap, target, RawType.PTR, true);
+                    
+                    return new PointerType(constructType(children.get(0)));
                 } else {
-                    // no type
-                    subref = children.get(1);
-                    t = null; // infer
+                    // must be a typed pointer
+                    NSTLType inferredType = compileValueComputation(children.get(1), localCode, localLabelMap, target, RawType.PTR, true);
+                    
+                    if(inferredType instanceof PointerType pt) {
+                        return pt;
+                    } else {
+                        LOG.severe("Cannot dereference without pointed type: " + detailed(children.get(1)) + " (" + inferredType + ") is not a typed pointer");
+                        errorsEncountered = true;
+                    }
                 }
-                
-                // AT = use value as address
-                NSTLType pointedType = compileValueComputation(subref, localCode, target, RawType.PTR, true);
-                
-                if(t == null) return pointedType;
-                return new PointerType(t);
             }
         } else if(children.size() > 1) {
             // Subreference
             if(children.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_DOT) {
                 // Structure member
                 // get structure pointer & infer type
-                NSTLType structType = ((PointerType) compilePointerComputation(children.get(0), localCode, "%accumulator")).getPointedType();
+                NSTLType structType = ((PointerType) compilePointerComputation(children.get(0), localCode, localLabelMap, "%accumulator")).getPointedType();
                 
                 if(structType instanceof StructureType st) {
                     String mName = children.get(2).getValue();
@@ -3499,7 +3865,7 @@ public class SAPCompiler extends NSTCompiler {
                     }
                 } else {
                     // we need a structure
-                    LOG.severe("Could not infer structure type for structure access");
+                    LOG.severe("Could not infer structure type for structure access: " + structType + " from " + detailed(children.get(0)));
                     errorsEncountered = true;
                 }
             } else {
@@ -3519,12 +3885,12 @@ public class SAPCompiler extends NSTCompiler {
                     elementType = at.getMemberType();
                     
                     // if the indexed reference is an array, the final pointer is (pointer to indexed reference) + offset
-                    compilePointerComputation(children.get(0), localCode, toJI ? "%ji" : "%accumulator");
+                    compilePointerComputation(children.get(0), localCode, localLabelMap, toJI ? "%ji" : "%accumulator");
                 } else if(referenceType instanceof PointerType pt) {
                     elementType = pt.getPointedType();
                     
                     // if the indexed reference is a typed pointer, the final pointer is (value of indexed reference) + offset
-                    compileValueComputation(children.get(0), localCode, toJI ? "%ji" : "%accumulator", pt, false);
+                    compileValueComputation(children.get(0), localCode, localLabelMap, toJI ? "%ji" : "%accumulator", pt, false);
                 } else {
                     elementType = null;
                     LOG.severe("Indexed reference is not an array or typed pointer: " + referenceType);
@@ -3562,7 +3928,7 @@ public class SAPCompiler extends NSTCompiler {
                     }
                     
                     // compute offset
-                    NSTLType offsetType = compileValueComputation(children.get(2), localCode, "%accumulator", RawType.NONE, false);
+                    NSTLType offsetType = compileValueComputation(children.get(2), localCode, localLabelMap, "%accumulator", RawType.NONE, false);
                     
                     // multiply & extend to ptr
                     if(offsetType instanceof RawType rt) {
@@ -3785,7 +4151,7 @@ public class SAPCompiler extends NSTCompiler {
                         ));
                     }
                     
-                    return RawType.NONE;
+                    return new PointerType(RawType.NONE);
                 } else if(name.startsWith("_")) {
                     name = name.substring(1);
                     
@@ -3821,7 +4187,7 @@ public class SAPCompiler extends NSTCompiler {
                         ));
                     }
                     
-                    return RawType.NONE;
+                    return new PointerType(RawType.NONE);
                 } else {
                     LOG.severe("Name " + name + " is not a variable or function; cannot create pointer");
                     errorsEncountered = true;
@@ -4078,6 +4444,7 @@ public class SAPCompiler extends NSTCompiler {
         } else if(node.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_FUNCTION_CALL) {
             // idk
             // TODO
+            LOG.severe("UNIMPLEMENTED: INFER TYPE FROM FUNCTION CALL");
             return RawType.NONE;
         } else {
             LOG.severe("Not a reference: " + detailed(node));
@@ -4091,7 +4458,7 @@ public class SAPCompiler extends NSTCompiler {
      * 
      * @param node
      */
-    private NSTLType compileFunctionCall(ASTNode node, List<Component> localCode) {
+    private NSTLType compileFunctionCall(ASTNode node, List<Component> localCode, Map<String, Integer> localLabelMap) {
         LOG.finest("Compiling function call");
         
         List<ASTNode> children = node.getChildren();
@@ -4129,7 +4496,7 @@ public class SAPCompiler extends NSTCompiler {
                     
                     // check specials
                     if(specialFunctionNames.contains(targetName)) {
-                        return compileSpecialFunction(targetName, argumentList.getChildren(), localCode);
+                        return compileSpecialFunction(targetName, argumentList.getChildren(), localCode, localLabelMap);
                     }
                     
                     if(functionDefinitions.containsKey(targetName)) {
@@ -4186,7 +4553,7 @@ public class SAPCompiler extends NSTCompiler {
                 argType = header.getArgumentTypes().get(i);
             }
             
-            argType = compileValueComputation(argNode, localCode, "%stack", argType, false);
+            argType = compileValueComputation(argNode, localCode, localLabelMap, "%stack", argType, false);
             totalArgumentsSize += argType.getSize();
         }
         
@@ -4286,7 +4653,7 @@ public class SAPCompiler extends NSTCompiler {
                 }
             } else {
                 // not a direct reference - compute it and call that
-                compileValueComputation(callTargetNode, localCode, "%accumulator", RawType.PTR, false);
+                compileValueComputation(callTargetNode, localCode, localLabelMap, "%accumulator", RawType.PTR, false);
                 
                 localCode.add(new Instruction(
                     Opcode.CALLA_RIM32,
@@ -4336,7 +4703,7 @@ public class SAPCompiler extends NSTCompiler {
      * @param arguments
      * @param localCode
      */
-    private NSTLType compileSpecialFunction(String name, List<ASTNode> arguments, List<Component> localCode) {
+    private NSTLType compileSpecialFunction(String name, List<ASTNode> arguments, List<Component> localCode, Map<String, Integer> localLabelMap) {
         LOG.finest("Compiling special function " + name);
         
         // TODO
@@ -4387,7 +4754,7 @@ public class SAPCompiler extends NSTCompiler {
             case "mulh":
             case "mulsh":
                 // compute to acc/[sp]
-                initialType2 = compileValueComputation(arguments.get(1), localCode, "%accumulator", RawType.NONE, true);
+                initialType2 = compileValueComputation(arguments.get(1), localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                 
                 if(!(initialType2 instanceof RawType) || initialType2.getSize() > 2) {
                     LOG.severe("Invalid type for high multiply; only U/I 8/16 are allowed: " + initialType2);
@@ -4396,7 +4763,7 @@ public class SAPCompiler extends NSTCompiler {
                 
                 localCode.add(new Instruction(Opcode.PUSH_A, true));    
                 
-                initialType = compileValueComputation(arguments.get(0), localCode, "%accumulator", RawType.NONE, true);
+                initialType = compileValueComputation(arguments.get(0), localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                 
                 if(!(initialType instanceof RawType) || initialType.getSize() > 2) {
                     LOG.severe("Invalid type for high multiply; only U/I 8/16 are allowed: " + initialType);
@@ -4453,7 +4820,7 @@ public class SAPCompiler extends NSTCompiler {
             case "zxi32":
             case "sxptr":
             case "zxptr":
-                initialType = compileValueComputation(arguments.get(0), localCode, "%accumulator", RawType.NONE, true);
+                initialType = compileValueComputation(arguments.get(0), localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                 
                 if(!(initialType instanceof RawType)) {
                     LOG.severe("Invalid type for sign/zero extend; only raw types are allowed: " + initialType);
@@ -4669,10 +5036,12 @@ public class SAPCompiler extends NSTCompiler {
      * @param constantValue
      * @param localCode
      */
-    private void generateLongConstantMove(ContextSymbol symbol, TypedValue constantValue, List<Component> localCode) {
+    private void generateLongConstantMove(ContextSymbol symbol, TypedValue constantValue, List<Component> localCode, Map<String, Integer> localLabelMap) {
         LOG.finest("Generating long constant move " + constantValue + " to " + symbol);
         
         // TODO
+        LOG.severe("UNIMPLEMENTED: LONG CONSTANT MOVE");
+        errorsEncountered = true;
     }
     
     /**
@@ -4680,7 +5049,7 @@ public class SAPCompiler extends NSTCompiler {
      * 
      * @param node
      */
-    private void compileValueCreation(ASTNode node, List<Component> localCode) {
+    private void compileValueCreation(ASTNode node, List<Component> localCode, Map<String, Integer> localLabelMap) {
         List<ASTNode> children = node.getChildren();
         
         String name = children.get(1).getValue();
@@ -4772,7 +5141,7 @@ public class SAPCompiler extends NSTCompiler {
             // check for value
             if(children.size() == 4) {
                 // generate assignment code
-                compileValueComputation(children.get(3), localCode, name, type, false);
+                compileValueComputation(children.get(3), localCode, localLabelMap, name, type, false);
             }
         }
     }
@@ -5044,6 +5413,18 @@ public class SAPCompiler extends NSTCompiler {
                 }
                 break;
             
+            case NstlgrammarLexer.ID.TERMINAL_KW_AS:
+                v1 = computeConstant(c0);
+                t1 = constructType(children.get(1));
+                
+                if(v1.convertType(t1)) {
+                    return v1;
+                } else {
+                    LOG.severe("Could not convert constant value " + v1 + " to type " + t1);
+                    errorsEncountered = true;
+                }
+                break;
+            
             case NstlgrammarLexer.ID.TERMINAL_OP_EQUAL:
                 v1 = computeConstant(c0);
                 v2 = computeConstant(children.get(1));
@@ -5261,7 +5642,7 @@ public class SAPCompiler extends NSTCompiler {
                         RawType rt = tr.getRawType();
                         long v = tr.getValue().value();
                         
-                        return new TypedRaw(new ResolvableConstant(v), rt);
+                        return new TypedRaw(new ResolvableConstant(-v), rt);
                     } else {
                         LOG.severe("Cannot negate non-integer constants");
                         errorsEncountered = true;
@@ -5599,6 +5980,9 @@ public class SAPCompiler extends NSTCompiler {
             case NstlgrammarLexer.ID.TERMINAL_OP_REMAINDER:
             case NstlgrammarLexer.ID.TERMINAL_KW_NOT:
                 return isConstant(node.getChildren());
+            
+            case NstlgrammarLexer.ID.TERMINAL_KW_AS:
+                return isConstant(node.getChildren().get(0));
                 
             case NstlgrammarParser.ID.VARIABLE_CONSTANT_VALUE:
                 List<ASTNode> children = node.getChildren();
