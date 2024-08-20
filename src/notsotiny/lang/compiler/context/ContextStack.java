@@ -10,9 +10,12 @@ public class ContextStack {
     
     private Deque<ContextEntry> contextStack;
     
+    private int contextCounter;
+    
     public ContextStack(ContextMarker baseContext) {
         this.contextStack = new ArrayDeque<>();      // tracks contexts and symbol names
         this.contextStack.push(baseContext);
+        this.contextCounter = 0;
     }
     
     /**
@@ -23,7 +26,7 @@ public class ContextStack {
      */
     public boolean hasLocalSymbol(String name) {
         for(ContextEntry ce : contextStack) {
-            if(ce instanceof ContextSymbol cs && cs.name.equals(name)) {
+            if(ce instanceof ContextSymbol cs && cs.getName().equals(name)) {
                 return true;
             } else if(ce instanceof ContextMarker) {
                 return false;
@@ -41,7 +44,7 @@ public class ContextStack {
      */
     public boolean hasSymbol(String name) {
         for(ContextEntry ce : contextStack) {
-            if(ce instanceof ContextSymbol cs && cs.name.equals(name))
+            if(ce instanceof ContextSymbol cs && cs.getName().equals(name))
                 return true;
         }
         
@@ -56,7 +59,7 @@ public class ContextStack {
     public ContextSymbol getSymbol(String name) {
         // search
         for(ContextEntry ce : contextStack) {
-            if(ce instanceof ContextSymbol cs && cs.name.equals(name)) {
+            if(ce instanceof ContextSymbol cs && cs.getName().equals(name)) {
                 return cs;
             }
         }
@@ -94,6 +97,7 @@ public class ContextStack {
      */
     public void pushContext() {
         LOG.finest("Pushing context");
+        this.contextCounter++;
         
         // search for last marker to duplicate
         for(ContextEntry ce : contextStack) {
@@ -111,6 +115,7 @@ public class ContextStack {
      */
     public ContextMarker popContext() {
         LOG.finest("Popped context");
+        this.contextCounter--;
         
         // search for the last ContextMarker and pop it
         while(!contextStack.isEmpty() && contextStack.peek() instanceof ContextSymbol) contextStack.pop();
@@ -123,7 +128,6 @@ public class ContextStack {
     /**
      * @return The raw context stack
      */
-    public Deque<ContextEntry> getStack() {
-        return this.contextStack;
-    }
+    public Deque<ContextEntry> getStack() { return this.contextStack; }
+    public int getContextCounter() { return this.contextCounter; }
 }

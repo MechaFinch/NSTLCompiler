@@ -1,6 +1,8 @@
 package notsotiny.lang.compiler.context;
 
+import notsotiny.asm.resolution.ResolvableConstant;
 import notsotiny.asm.resolution.ResolvableLocationDescriptor;
+import notsotiny.asm.resolution.ResolvableLocationDescriptor.LocationType;
 import notsotiny.lang.compiler.types.NSTLType;
 import notsotiny.lang.compiler.types.TypedValue;
 
@@ -10,11 +12,11 @@ import notsotiny.lang.compiler.types.TypedValue;
  * @author Mechafinch
  */
 public class ContextSymbol implements ContextEntry {
-    public String name;
-    public NSTLType type;
-    public TypedValue constantValue;
-    public ResolvableLocationDescriptor variableDescriptor;
-    public boolean isConstant;
+    private String name;
+    private NSTLType type;
+    private TypedValue constantValue;
+    private ResolvableLocationDescriptor variableDescriptor;
+    private boolean isConstant;
     
     /**
      * variable constructor
@@ -25,7 +27,7 @@ public class ContextSymbol implements ContextEntry {
      */
     public ContextSymbol(String name, NSTLType type, ResolvableLocationDescriptor descriptor) {
         this.name = name;
-        this.type = type;
+        this.type = type.getRealType();
         this.variableDescriptor = descriptor;
         this.constantValue = null;
         this.isConstant = false;
@@ -39,11 +41,23 @@ public class ContextSymbol implements ContextEntry {
      */
     public ContextSymbol(String name, TypedValue tv) {
         this.name = name;
-        this.type = tv.getType();
-        this.variableDescriptor = null;
+        this.type = tv.getType().getRealType();
+        this.variableDescriptor = new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(tv.toLong()));
         this.constantValue = tv;
         this.isConstant = true;
     }
+    
+    public String getName() { return this.name; }
+    public NSTLType getType() { return this.type.getRealType(); }
+    public TypedValue getConstantValue() { return this.constantValue; }
+    public ResolvableLocationDescriptor getVariableDescriptor() { return this.variableDescriptor; }
+    public boolean getIsConstant() { return this.isConstant; }
+    
+    public void setName(String n) { this.name = n; }
+    public void setType(NSTLType t) { this.type = t.getRealType(); }
+    public void setConstantValue(TypedValue v) { this.constantValue = v; }
+    public void setVariableDescriptor(ResolvableLocationDescriptor d) { this.variableDescriptor = d; }
+    public void setIsConstant(boolean c) { this.isConstant = c; }
     
     @Override
     public String toString() {

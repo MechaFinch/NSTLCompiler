@@ -13,7 +13,7 @@ public class ArrayType implements NSTLType {
     private int length;
     
     public ArrayType(NSTLType memberType, int length) {
-        this.memberType = memberType;
+        this.memberType = memberType.getRealType();
         this.length = length;
     }
     
@@ -23,7 +23,7 @@ public class ArrayType implements NSTLType {
     }
     
     public int getLength() { return this.length; }
-    public NSTLType getMemberType() { return this.memberType; }
+    public NSTLType getMemberType() { return this.memberType.getRealType(); }
     
     @Override
     public String toString() {
@@ -37,6 +37,8 @@ public class ArrayType implements NSTLType {
     
     @Override
     public boolean equals(NSTLType t) {
+        t = t.getRealType();
+        
         if(t instanceof ArrayType at) {
             return this.memberType.equals(at.memberType) && this.length == at.length;
         }

@@ -10,6 +10,18 @@ import java.util.List;
 public interface NSTLType {
     
     /**
+     * Gets the non-alias type this is
+     * @return
+     */
+    public default NSTLType getRealType() {
+        if(this instanceof AliasType at) {
+            return at.getRealType();
+        } else {
+            return this;
+        }
+    }
+    
+    /**
      * @return the name of this type
      */
     public String getName();

@@ -240,65 +240,69 @@ public class NstlgrammarLexer extends ContextFreeLexer {
          */
         public static final int TERMINAL_KW_UNTIL = 0x0059;
         /**
+         * The unique identifier for terminal KW_FOR
+         */
+        public static final int TERMINAL_KW_FOR = 0x005A;
+        /**
          * The unique identifier for terminal OP_GREATER
          */
-        public static final int TERMINAL_OP_GREATER = 0x005A;
+        public static final int TERMINAL_OP_GREATER = 0x005B;
         /**
          * The unique identifier for terminal OP_LESS
          */
-        public static final int TERMINAL_OP_LESS = 0x005B;
+        public static final int TERMINAL_OP_LESS = 0x005C;
         /**
          * The unique identifier for terminal OP_GREATER_EQUAL
          */
-        public static final int TERMINAL_OP_GREATER_EQUAL = 0x005C;
+        public static final int TERMINAL_OP_GREATER_EQUAL = 0x005D;
         /**
          * The unique identifier for terminal OP_LESS_EQUAL
          */
-        public static final int TERMINAL_OP_LESS_EQUAL = 0x005D;
+        public static final int TERMINAL_OP_LESS_EQUAL = 0x005E;
         /**
          * The unique identifier for terminal OP_EQUAL
          */
-        public static final int TERMINAL_OP_EQUAL = 0x005E;
+        public static final int TERMINAL_OP_EQUAL = 0x005F;
         /**
          * The unique identifier for terminal OP_NOT_EQUAL
          */
-        public static final int TERMINAL_OP_NOT_EQUAL = 0x005F;
+        public static final int TERMINAL_OP_NOT_EQUAL = 0x0060;
         /**
          * The unique identifier for terminal OP_ADD
          */
-        public static final int TERMINAL_OP_ADD = 0x0060;
+        public static final int TERMINAL_OP_ADD = 0x0061;
         /**
          * The unique identifier for terminal OP_SUBTRACT
          */
-        public static final int TERMINAL_OP_SUBTRACT = 0x0061;
+        public static final int TERMINAL_OP_SUBTRACT = 0x0062;
         /**
          * The unique identifier for terminal OP_MULTIPLY
          */
-        public static final int TERMINAL_OP_MULTIPLY = 0x0062;
+        public static final int TERMINAL_OP_MULTIPLY = 0x0063;
         /**
          * The unique identifier for terminal OP_DIVIDE
          */
-        public static final int TERMINAL_OP_DIVIDE = 0x0063;
+        public static final int TERMINAL_OP_DIVIDE = 0x0064;
         /**
          * The unique identifier for terminal OP_REMAINDER
          */
-        public static final int TERMINAL_OP_REMAINDER = 0x0064;
+        public static final int TERMINAL_OP_REMAINDER = 0x0065;
         /**
          * The unique identifier for terminal OP_SHIFT_LEFT
          */
-        public static final int TERMINAL_OP_SHIFT_LEFT = 0x0065;
+        public static final int TERMINAL_OP_SHIFT_LEFT = 0x0066;
         /**
          * The unique identifier for terminal OP_ARITH_SHIFT_RIGHT
          */
-        public static final int TERMINAL_OP_ARITH_SHIFT_RIGHT = 0x0066;
+        public static final int TERMINAL_OP_ARITH_SHIFT_RIGHT = 0x0067;
         /**
          * The unique identifier for terminal OP_LOGIC_SHIFT_RIGHT
          */
-        public static final int TERMINAL_OP_LOGIC_SHIFT_RIGHT = 0x0067;
+        public static final int TERMINAL_OP_LOGIC_SHIFT_RIGHT = 0x0068;
         /**
          * The unique identifier for terminal STRING
          */
-        public static final int TERMINAL_STRING = 0x0068;
+        public static final int TERMINAL_STRING = 0x0069;
     }
     /**
      * Contains the constant IDs for the contexts for this lexer
@@ -372,21 +376,22 @@ public class NstlgrammarLexer extends ContextFreeLexer {
         new Symbol(0x0057, "KW_BREAK"),
         new Symbol(0x0058, "KW_CONTINUE"),
         new Symbol(0x0059, "KW_UNTIL"),
-        new Symbol(0x005A, "OP_GREATER"),
-        new Symbol(0x005B, "OP_LESS"),
-        new Symbol(0x005C, "OP_GREATER_EQUAL"),
-        new Symbol(0x005D, "OP_LESS_EQUAL"),
-        new Symbol(0x005E, "OP_EQUAL"),
-        new Symbol(0x005F, "OP_NOT_EQUAL"),
-        new Symbol(0x0060, "OP_ADD"),
-        new Symbol(0x0061, "OP_SUBTRACT"),
-        new Symbol(0x0062, "OP_MULTIPLY"),
-        new Symbol(0x0063, "OP_DIVIDE"),
-        new Symbol(0x0064, "OP_REMAINDER"),
-        new Symbol(0x0065, "OP_SHIFT_LEFT"),
-        new Symbol(0x0066, "OP_ARITH_SHIFT_RIGHT"),
-        new Symbol(0x0067, "OP_LOGIC_SHIFT_RIGHT"),
-        new Symbol(0x0068, "STRING") };
+        new Symbol(0x005A, "KW_FOR"),
+        new Symbol(0x005B, "OP_GREATER"),
+        new Symbol(0x005C, "OP_LESS"),
+        new Symbol(0x005D, "OP_GREATER_EQUAL"),
+        new Symbol(0x005E, "OP_LESS_EQUAL"),
+        new Symbol(0x005F, "OP_EQUAL"),
+        new Symbol(0x0060, "OP_NOT_EQUAL"),
+        new Symbol(0x0061, "OP_ADD"),
+        new Symbol(0x0062, "OP_SUBTRACT"),
+        new Symbol(0x0063, "OP_MULTIPLY"),
+        new Symbol(0x0064, "OP_DIVIDE"),
+        new Symbol(0x0065, "OP_REMAINDER"),
+        new Symbol(0x0066, "OP_SHIFT_LEFT"),
+        new Symbol(0x0067, "OP_ARITH_SHIFT_RIGHT"),
+        new Symbol(0x0068, "OP_LOGIC_SHIFT_RIGHT"),
+        new Symbol(0x0069, "STRING") };
     /**
      * Initializes a new instance of the lexer
      *

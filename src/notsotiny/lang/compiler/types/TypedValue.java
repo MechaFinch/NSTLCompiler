@@ -34,7 +34,7 @@ public interface TypedValue {
         return v;
     }
     
-    public default boolean equals(TypedValue v2) {
+    public default boolean equals(TypedValue v2) {        
         if(this instanceof TypedRaw tr1 && v2 instanceof TypedRaw tr2) {
             return tr1.getValue().value() == tr2.getValue().value();
         } else if(this instanceof TypedRaw tr) {

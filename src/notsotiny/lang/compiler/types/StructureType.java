@@ -69,7 +69,8 @@ public class StructureType implements NSTLType {
         int s = 0;
         for(int i = 0; i < memberNames.size(); i++) {
             String member = memberNames.get(i);
-            NSTLType memberType = memberTypes.get(i);
+            NSTLType memberType = memberTypes.get(i).getRealType();
+            memberTypes.set(i, memberType);
             
             changed |= memberType.updateSize(updatedNames);
             
@@ -101,7 +102,7 @@ public class StructureType implements NSTLType {
             String member = memberNames.get(i);
             
             this.memberOffsetMap.put(member, s);
-            this.memberTypeMap.put(member, memberTypes.get(i));
+            this.memberTypeMap.put(member, memberTypes.get(i).getRealType());
             s += memberTypes.get(i).getSize();
         }
         
@@ -116,13 +117,15 @@ public class StructureType implements NSTLType {
      * @return true if recursion is detected
      */
     public boolean checkRecursion(List<String> disallowedTypes) {
-        if(disallowedTypes.contains(this.name)) return true; 
+        if(disallowedTypes.contains(this.name)) return true;
+        int index = disallowedTypes.size();
         disallowedTypes.add(this.name);
         
         for(NSTLType t : this.memberTypes) {
             if(checkRecursion(disallowedTypes, t)) return true;
         }
         
+        disallowedTypes.remove(index);
         return false;
     }
     
@@ -151,7 +154,7 @@ public class StructureType implements NSTLType {
     public List<String> getMemberNames() { return this.memberNames; }
     public List<NSTLType> getMemberTypes() { return this.memberTypes; }
     public int getMemberOffset(String name) { return this.memberOffsetMap.get(name); }
-    public NSTLType getMemberType(String name) { return this.memberTypeMap.get(name); }
+    public NSTLType getMemberType(String name) { return this.memberTypeMap.get(name).getRealType(); }
     
     @Override
     public String toString() {
@@ -184,6 +187,8 @@ public class StructureType implements NSTLType {
 
     @Override
     public boolean equals(NSTLType t) {
+        t = t.getRealType();
+        
         if(t instanceof StructureType st) {
             return st.name.equals(this.name);
         }

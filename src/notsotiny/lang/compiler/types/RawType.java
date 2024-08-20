@@ -35,6 +35,7 @@ public class RawType implements NSTLType {
      * @return
      */
     public RawType promote(NSTLType t) {
+        t = t.getRealType();
         if(t instanceof RawType rt && rt.size > this.size) return rt;
         else return this;
     }
@@ -55,6 +56,8 @@ public class RawType implements NSTLType {
 
     @Override
     public boolean equals(NSTLType t) {
+        t = t.getRealType();
+        
         // u32/i32/ptr = pointer
         if(t instanceof PointerType pt) {
             return this.size == 4;

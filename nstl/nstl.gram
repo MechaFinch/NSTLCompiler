@@ -112,6 +112,7 @@ grammar NSTLGrammar {
 		KW_BREAK -> NB NR NE NA NK;
 		KW_CONTINUE -> NC NO NN NT NI NN NU NE;
 		KW_UNTIL -> NU NN NT NI NL;
+		KW_FOR -> NF NO NR;
 		
 		OP_GREATER -> '>';
 		OP_LESS -> '<';
@@ -128,7 +129,7 @@ grammar NSTLGrammar {
 		OP_ARITH_SHIFT_RIGHT -> '>>>';
 		OP_LOGIC_SHIFT_RIGHT -> '>>';
 		
-		STRING	-> '"' (. - NEWLINE)+ '"';
+		STRING	-> '"' (. - NEWLINE)* '"';
 	}
 	
 	rules {
@@ -149,7 +150,13 @@ grammar NSTLGrammar {
 		
 		compiler_definition -> KW_DEFINE! NAME KW_IS! constant_expression SEMI!;
 		
-		type_definition -> KW_TYPE! NAME KW_IS! KW_STRUCTURE! KW_OF! {member+} KW_END! KW_TYPE!;
+		type_definition ->
+			  type_alias^
+			| structure_definition^;
+		
+		type_alias -> KW_TYPE! NAME KW_IS! type SEMI!;
+		
+		structure_definition -> KW_TYPE! NAME KW_IS! KW_STRUCTURE! KW_OF! {member+} KW_END! KW_TYPE!;
 		
 		member -> NAME KW_IS! type (COMMA?)!;
 		
@@ -295,7 +302,9 @@ grammar NSTLGrammar {
 		
 		variable_structure -> NAME KW_OF! variable_assignment_list KW_END! KW_STRUCTURE!;
 		
-		variable_assignment_list -> {NAME KW_GETS! (variable_expression | constant_expression | constant_structure)} (COMMA! {NAME KW_GETS! (variable_expression | constant_expression | constant_structure)})*;
+		variable_assignment_list ->
+			{NAME KW_GETS! (variable_expression | constant_expression | constant_structure)}
+			(COMMA! {NAME KW_GETS! (variable_expression | constant_expression | constant_structure)})*;
 		
 		variable_array -> type KW_ARRAY! KW_OF! argument_list KW_END! KW_ARRAY!;
 		
@@ -326,6 +335,7 @@ grammar NSTLGrammar {
 			| if_construct^
 			| while_construct^
 			| until_construct^
+			| for_construct^
 			| return^
 			| break^
 			| continue^
@@ -348,6 +358,13 @@ grammar NSTLGrammar {
 		while_construct -> {label?} KW_WHILE! variable_expression KW_DO! {function_code*} KW_END! KW_WHILE!;
 		
 		until_construct -> {label?} KW_UNTIL! variable_expression KW_DO! {function_code*} KW_END! KW_UNTIL!;
+		
+		for_construct ->
+			{label?} KW_FOR!
+			{NAME KW_IS! type KW_GETS! variable_expression SEMI!}
+			variable_expression SEMI!
+			{NAME KW_GETS! variable_expression}
+			KW_DO! {function_code*} KW_END! KW_FOR!;
 		
 		label -> NAME COLON!;
 		

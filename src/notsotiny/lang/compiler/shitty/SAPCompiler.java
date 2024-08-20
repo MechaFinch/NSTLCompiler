@@ -1,6 +1,9 @@
 package notsotiny.lang.compiler.shitty;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -14,7 +17,10 @@ import java.util.logging.Logger;
 
 import asmlib.util.FileLocator;
 import fr.cenotelie.hime.redist.ASTNode;
+import fr.cenotelie.hime.redist.ParseResult;
+import fr.cenotelie.hime.redist.ParseError;
 import fr.cenotelie.hime.redist.SymbolType;
+import fr.cenotelie.hime.redist.parsers.InitializationException;
 import notsotiny.asm.Assembler.AssemblyObject;
 import notsotiny.asm.Register;
 import notsotiny.asm.components.Component;
@@ -41,6 +47,8 @@ public class SAPCompiler extends NSTCompiler {
     public SAPCompiler() {
         
     }
+    
+    // TODO: multi-word comparisons are wrong, low comp should be always unsigned
     
     // special function names
     private static final Set<String> specialFunctionNames = new HashSet<>();
@@ -114,7 +122,6 @@ public class SAPCompiler extends NSTCompiler {
     HashMap<String, String> stringConstants = new HashMap<>();              // string constants can't just be slapped into program code, put them at the end
     ContextStack contextStack = new ContextStack(new AllocatedContextMarker(new HashMap<>(), 0));
     HashMap<String, String> knownLibraryNames = new HashMap<>();            // library names for refernce validation
-    int contextCounter = 0;
     HashMap<String, TypedValue> compilerDefinitions = new HashMap<>();      // maps names to values
     HashMap<String, NSTLType> typeDefinitions = new HashMap<>();            // defined types
     HashMap<String, FunctionHeader> functionDefinitions = new HashMap<>();  // defined functions
@@ -127,11 +134,11 @@ public class SAPCompiler extends NSTCompiler {
             regLUsed = false;
     int stackAllocationSize = 0,
         endifLabelCounter = 0,
-        whileLabelCounter = 0,
-        endwhileLabelCounter = 0,
+        loopLabelCounter = 0,
+        endLoopLabelCounter = 0,
         longComparisonCounter = 0;
     boolean inConditionalContext = false,
-            inWhileContext = false,
+            inLoopContext = false,
             lastWasReturn = false;
     String functionName = "";
     FunctionHeader functionHeader = null;
@@ -153,7 +160,6 @@ public class SAPCompiler extends NSTCompiler {
         globalComponents = new HashMap<>();
         stringConstants = new HashMap<>();
         knownLibraryNames = new HashMap<>();
-        contextCounter = 0;
         compilerDefinitions = new HashMap<>();
         typeDefinitions = generateDefaultTypemap();
         functionDefinitions = new HashMap<>();
@@ -161,49 +167,99 @@ public class SAPCompiler extends NSTCompiler {
         errorsEncountered = false;
         
         knownLibraryNames.put("std", "std");
+        knownLibraryNames.put(defaultLibName, defaultLibName);
         
         // create base context
         contextStack = new ContextStack(new AllocatedContextMarker(new HashMap<>(), 0));
+        contextStack.pushSymbol(new ContextSymbol("true", new TypedRaw(new ResolvableConstant(1), RawType.BOOLEAN)));
+        contextStack.pushSymbol(new ContextSymbol("false", new TypedRaw(new ResolvableConstant(0), RawType.BOOLEAN)));
         contextStack.pushSymbol(new ContextSymbol("%ji", RawType.PTR, new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI)));
+        
+        // library headers
+        List<ASTNode> headerCode = new ArrayList<>();
+        headerCode.addAll(astRoot.getChildren());
+        
+        // include our own header if possible
+        ASTNode headerNode = this.getHeaderContents(Paths.get(libraryName), libraryName, locator);
+        
+        if(headerNode != null) {
+            // we can't addAll as we don't want external defs of our own functions
+            headerCode.addAll(headerNode.getChildren());
+        }
         
         // define type, function, and libraray names
         LOG.fine("Evaluating names");
-        for(ASTNode topNode : astRoot.getChildren()) {
+        for(int i = 0; i < headerCode.size(); i++) {
+            ASTNode topNode = headerCode.get(i);
             String n;
             
             switch(topNode.getSymbol().getID()) {
-                case NstlgrammarParser.ID.VARIABLE_TYPE_DEFINITION:
+                case NstlgrammarParser.ID.VARIABLE_STRUCTURE_DEFINITION:
+                    // name the structure
                     n = topNode.getChildren().get(0).getValue();
                     checkNameConflicts(n);
                     LOG.finer("Named structure " + n);
                     typeDefinitions.put(n, new StructureType(n));
                     break;
+                
+                case NstlgrammarParser.ID.VARIABLE_TYPE_ALIAS:
+                    // name the alias
+                    n = topNode.getChildren().get(0).getValue();
+                    checkNameConflicts(n);
+                    LOG.finer("Named alias " + n);
+                    typeDefinitions.put(n, new AliasType(n));
+                    break;
                     
                 case NstlgrammarParser.ID.VARIABLE_LIBRARY_INCLUSION:
-                    compileLibraryInclusion(topNode, locator);
+                    headerNode = compileLibraryInclusion(topNode, locator);
+                    
+                    if(headerNode != null) {
+                        headerCode.addAll(headerNode.getChildren());
+                    }
                     break;
                     
                 default:
             }
         }
         
-        // define libraries, functions, constants, and globals
-        LOG.fine("Creating definitions");
-        for(ASTNode topNode : astRoot.getChildren()) {
+        // finalize types
+        LOG.fine("Finalizing types");;
+        for(ASTNode topNode : headerCode) {
             String n;
-            //NSTLType t;
             
             switch(topNode.getSymbol().getID()) {
-                case NstlgrammarParser.ID.VARIABLE_TYPE_DEFINITION:
+                case NstlgrammarParser.ID.VARIABLE_TYPE_ALIAS:
+                    // fill in the alias
+                    n = topNode.getChildren().get(0).getValue();
+                    NSTLType t = constructType(topNode.getChildren().get(1)); 
+                    
+                    LOG.finest("Defined type alias " + n + " = " + t);
+                    
+                    ((AliasType) typeDefinitions.get(n)).setRealType(t);
+                    break;
+                
+                case NstlgrammarParser.ID.VARIABLE_STRUCTURE_DEFINITION:
+                    // fill in the structure
                     n = topNode.getChildren().get(0).getValue();
                     //checkNameConflicts(n); //already done
-                    StructureType st = (StructureType) compileTypeDef(n, topNode.getChildren().get(1));
+                    StructureType st = (StructureType) compileStructureDefinition(n, topNode.getChildren().get(1));
                     
                     LOG.finest("Defined incomplete structure " + n + " = " + st);
                     
                     ((StructureType) typeDefinitions.get(n)).addMembers(st.getMemberNames(), st.getMemberTypes());
                     break;
                 
+                default:
+            }
+        }
+        
+        // define libraries, functions, constants, and globals
+        LOG.fine("Creating definitions");
+        for(ASTNode topNode : headerCode) {
+            String n;
+            //NSTLType t;
+            
+            switch(topNode.getSymbol().getID()) {
                 case NstlgrammarParser.ID.VARIABLE_FUNCTION_DEFINITION:
                     FunctionHeader fh = compileFunctionHeader(topNode.getChildren().get(0));
                     functionDefinitions.put(fh.getName(), fh);
@@ -233,6 +289,8 @@ public class SAPCompiler extends NSTCompiler {
                     break;
                 
                 case NstlgrammarParser.ID.VARIABLE_LIBRARY_INCLUSION:
+                case NstlgrammarParser.ID.VARIABLE_STRUCTURE_DEFINITION:
+                case NstlgrammarParser.ID.VARIABLE_TYPE_ALIAS:
                     // already handled
                     break;
                 
@@ -286,8 +344,8 @@ public class SAPCompiler extends NSTCompiler {
             LOG.finest(ce.toString());
         }
         
-        if(contextCounter != 0) {
-            LOG.severe("Error: malformed final context. Counter: " + contextCounter);
+        if(contextStack.getContextCounter() != 0) {
+            LOG.severe("Error: malformed final context. Counter: " + contextStack.getContextCounter());
             errorsEncountered = true;
         }
         
@@ -382,6 +440,7 @@ public class SAPCompiler extends NSTCompiler {
                                 ptrVal,
                                 i3.hasFixedSize()
                             ));
+                            
                             allInstructions.set(i, nullComponent);
                             LOG.finest("Eliminated LEA as address");
                         } else if(src.getMemory().getOffset().value() == 0) {
@@ -458,6 +517,10 @@ public class SAPCompiler extends NSTCompiler {
                         // move-overwrite elimination
                         // only apply to register dest in case of side effects
                         // however, we can't implement this without dealing with MOV <dst>, <src>; MOV <dst>, [<dst>] and the like
+                        if(dd0.equals(dd1) && dd0.getType() == LocationType.REGISTER && sd0.getType() == LocationType.REGISTER && sd1.getType() == LocationType.REGISTER) {
+                            allInstructions.set(i - 3, nullComponent);
+                            LOG.finest("Eliminated move-overwrite");
+                        }
                     } else if(i0.getOpcode() == Opcode.MOV_RIM && i1.getOpcode() == Opcode.MOV_RIM) {
                         // move-via-accumulator elimination
                         ResolvableLocationDescriptor sd0 = i0.getSourceDescriptor(),
@@ -487,6 +550,10 @@ public class SAPCompiler extends NSTCompiler {
                         // move-overwrite elimination
                         // only apply to register dest in case of side effects
                         // however, we can't implement this without dealing with MOV <dst>, <src>; MOV <dst>, [<dst>] and the like
+                        if(dd0.equals(dd1) && dd0.getType() == LocationType.REGISTER && sd0.getType() == LocationType.REGISTER && sd1.getType() == LocationType.REGISTER) {
+                            allInstructions.set(i - 3, nullComponent);
+                            LOG.finest("Eliminated move-overwrite");
+                        }
                     }
                 }
             }
@@ -553,7 +620,6 @@ public class SAPCompiler extends NSTCompiler {
         
         // create context
         contextStack.pushContext();
-        contextCounter++;
         
         regIUsed = false;
         regJUsed = false;
@@ -561,10 +627,10 @@ public class SAPCompiler extends NSTCompiler {
         regLUsed = false;
         stackAllocationSize = 0;
         inConditionalContext = false;
-        inWhileContext = false;
+        inLoopContext = false;
         endifLabelCounter = 0;
-        whileLabelCounter = 0;
-        endwhileLabelCounter = 0;
+        loopLabelCounter = 0;
+        endLoopLabelCounter = 0;
         longComparisonCounter = 0;
         functionName = name;
         
@@ -697,7 +763,6 @@ public class SAPCompiler extends NSTCompiler {
         allInstructions.add(new Instruction(Opcode.RET, true));
         
         contextStack.popContext();
-        contextCounter--;
     }
     
     /**
@@ -771,6 +836,10 @@ public class SAPCompiler extends NSTCompiler {
                     compileWhileConstruct(codeNode, true, localCode, localLabelMap);
                     break;
                 
+                case NstlgrammarParser.ID.VARIABLE_FOR_CONSTRUCT:
+                    compileForConstruct(codeNode, localCode, localLabelMap);
+                    break;
+                
                 case NstlgrammarParser.ID.VARIABLE_RETURN:
                     lastWasReturn = true;
                     List<ASTNode> children = codeNode.getChildren();
@@ -791,16 +860,16 @@ public class SAPCompiler extends NSTCompiler {
                     break;
                 
                 case NstlgrammarParser.ID.VARIABLE_BREAK:
-                    if(inWhileContext) {
+                    if(inLoopContext) {
                         List<ASTNode> c = codeNode.getChildren();
                         String target;
                         
                         if(c.size() > 0) {
-                            // named break, jump to %lbl_<name>
+                            // named break, jump to %lbl_<name>%end
                             target = "%lbl_" + c.get(0).getValue() + "%end";
                         } else {
-                            // unnamed break, jump to current endwhile
-                            target = functionName + ".endwhile" + (whileLabelCounter - 1); 
+                            // unnamed break, jump to current endloop
+                            target = functionName + ".endloop" + (loopLabelCounter - 1); 
                         }
                         
                         localCode.add(new Instruction(
@@ -809,22 +878,22 @@ public class SAPCompiler extends NSTCompiler {
                             false, false
                         ));
                     } else {
-                        LOG.severe("Cannot break when outside of while or until statement");
+                        LOG.severe("Cannot break when outside of while, until, or for statement");
                         errorsEncountered = true;
                     }
                     break;
                 
                 case NstlgrammarParser.ID.VARIABLE_CONTINUE:
-                    if(inWhileContext) {
+                    if(inLoopContext) {
                         List<ASTNode> c = codeNode.getChildren();
                         String target;
                         
                         if(c.size() > 0) {
-                            // named break, jump to %lbl_<name>
-                            target = "%lbl_" + c.get(0).getValue() + "%start";
+                            // named continue, jump to %lbl_<name>%next
+                            target = "%lbl_" + c.get(0).getValue() + "%next";
                         } else {
-                            // unnamed break, jump to current endwhile
-                            target = functionName + ".while" + (whileLabelCounter - 1); 
+                            // unnamed break, jump to current loop's next
+                            target = functionName + ".next" + (loopLabelCounter - 1); 
                         }
                         
                         localCode.add(new Instruction(
@@ -833,9 +902,10 @@ public class SAPCompiler extends NSTCompiler {
                             false, false
                         ));
                     } else {
-                        LOG.severe("Cannot continue when outside of while or until statement");
+                        LOG.severe("Cannot continue when outside of while, until, or for statement");
                         errorsEncountered = true;
                     }
+                    break;
                 
                 case NstlgrammarParser.ID.VARIABLE_FUNCTION_CALL:
                     compileFunctionCall(codeNode, localCode, localLabelMap);
@@ -901,10 +971,8 @@ public class SAPCompiler extends NSTCompiler {
             compileConditionalBranch(conditions.get(i), branchTarget, false, localCode, localLabelMap);
             
             contextStack.pushContext();
-            contextCounter++;
             compileFunctionCode(bodies.get(i).getChildren(), localCode, localLabelMap);
             contextStack.popContext();
-            contextCounter--;
             
             if(!lastWasReturn && (i != conditions.size() - 1 || hasElse)) {
                 localCode.add(new Instruction(
@@ -920,10 +988,8 @@ public class SAPCompiler extends NSTCompiler {
             localLabelMap.put(elseLabel, localCode.size());
             
             contextStack.pushContext();
-            contextCounter++;
             compileFunctionCode(bodies.get(bodies.size() - 1).getChildren(), localCode, localLabelMap);
             contextStack.popContext();
-            contextCounter--;
         }
         
         localLabelMap.put(endifLabel, localCode.size());
@@ -956,25 +1022,27 @@ public class SAPCompiler extends NSTCompiler {
     }
     
     /**
-     * Compiles a WHILE construct
+     * Compiles a WHILE or UNTIL construct
      * 
      * @param node
      * @param localCode
      */
     private void compileWhileConstruct(ASTNode node, boolean until, List<Component> localCode, Map<String, Integer> localLabelMap) {
         boolean wasConditionalContext = inConditionalContext,
-                wasWhileContext = inWhileContext;
+                wasLoopContext = inLoopContext;
         inConditionalContext = true;
-        inWhileContext = true;
+        inLoopContext = true;
         
-        int whileLabelNumber = whileLabelCounter++;
-        String whileLabel = functionName + ".while" + whileLabelNumber,
-               startCodeLabel = functionName + ".start" + whileLabelNumber,
-               endwhileLabel = functionName + ".endwhile" + whileLabelNumber,
-               userLabelStart = "",
+        int loopLabelNumber = loopLabelCounter++;
+        String loopLabel = functionName + ".loop" + loopLabelNumber,        // start of the conditional
+               nextLabel = functionName + ".next" + loopLabelNumber,        // start of the conditional, for continues
+               startCodeLabel = functionName + ".start" + loopLabelNumber,  // start of body code
+               endloopLabel = functionName + ".endloop" + loopLabelNumber,  // end of body code
+               userLabelNext = "",
                userLabelEnd = "";
         
         LOG.finest(until ? "Compiling UNTIL construct" : "Compiling WHILE construct");
+        contextStack.pushContext();
         
         List<ASTNode> children = node.getChildren();
         
@@ -990,40 +1058,128 @@ public class SAPCompiler extends NSTCompiler {
         // handle labeled loops
         if(children.get(0).getChildren().size() != 0) {
             String userLabel = children.get(0).getChildren().get(0).getChildren().get(0).getValue(); // lol
-            userLabelStart = "%lbl_" + userLabel + "%start";
+            
+            userLabelNext = "%lbl_" + userLabel + "%next";
             userLabelEnd = "%lbl_" + userLabel + "%end";
             
-            contextStack.pushSymbol(new ContextSymbol(userLabelStart, new TypedRaw(new ResolvableConstant(0), RawType.NONE)));
+            checkNameConflicts(userLabelNext);
+            checkNameConflicts(userLabelEnd);
+            
+            contextStack.pushSymbol(new ContextSymbol(userLabelNext, new TypedRaw(new ResolvableConstant(0), RawType.NONE)));
             contextStack.pushSymbol(new ContextSymbol(userLabelEnd, new TypedRaw(new ResolvableConstant(0), RawType.NONE)));
         }
         
-        if(!userLabelEnd.equals("")) localLabelMap.put(userLabelStart, localCode.size());
-        localLabelMap.put(whileLabel, localCode.size());
+        if(!userLabelEnd.equals("")) localLabelMap.put(userLabelNext, localCode.size());
+        localLabelMap.put(loopLabel, localCode.size());
+        localLabelMap.put(nextLabel, localCode.size());
         
         // handle conditional
-        compileConditionalBranch(children.get(1), endwhileLabel, until, localCode, localLabelMap);
+        compileConditionalBranch(children.get(1), endloopLabel, until, localCode, localLabelMap);
         
         localLabelMap.put(startCodeLabel, localCode.size());
         
         // compile code
-        contextStack.pushContext();
-        contextCounter++;
         compileFunctionCode(children.get(2).getChildren(), localCode, localLabelMap);
-        contextStack.popContext();
-        contextCounter--;
         
         // jump back to conditional
         localCode.add(new Instruction(
             Opcode.JMP_I32,
-            new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(whileLabel)),
+            new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(loopLabel)),
             false, false
         ));
         
         if(!userLabelEnd.equals("")) localLabelMap.put(userLabelEnd, localCode.size());
-        localLabelMap.put(endwhileLabel, localCode.size());
+        localLabelMap.put(endloopLabel, localCode.size());
+        
+        contextStack.popContext();
         
         inConditionalContext = wasConditionalContext;
-        inWhileContext = wasWhileContext;
+        inLoopContext = wasLoopContext;
+    }
+    
+    /**
+     * Compiles a FOR construct
+     * 
+     * @param node
+     * @param localCode
+     * @param localLabelMap
+     */
+    private void compileForConstruct(ASTNode node, List<Component> localCode, Map<String, Integer> localLabelMap) {
+       boolean wasConditionalContext = inConditionalContext,
+               wasLoopContext = inLoopContext;
+       inConditionalContext = true;
+       inLoopContext = true;
+       
+       int loopLabelNumber = loopLabelCounter++;
+       String loopLabel = functionName + ".loop" + loopLabelNumber,         // start of the conditional
+              startCodeLabel = functionName + ".start" + loopLabelNumber,   // start of body code
+              nextLabel = functionName + ".next" + loopLabelNumber,         // start of iterator code
+              endloopLabel = functionName + ".endloop" + loopLabelNumber,   // after iterator code
+              userLabelNext = "",
+              userLabelEnd = "";
+       
+       LOG.finest("Compiling FOR construct");
+       contextStack.pushContext();
+       
+       List<ASTNode> children = node.getChildren(),
+                     initChildren = children.get(1).getChildren(),
+                     iterChildren = children.get(3).getChildren();
+       
+       // compile initializer
+       String iteratorName = initChildren.get(0).getValue();
+       NSTLType iteratorType = constructType(initChildren.get(1));
+       ContextSymbol iteratorSymbol = allocateLocalVariable(iteratorName, iteratorType);
+       
+       if(!iterChildren.get(0).getValue().equals(iteratorName)) {
+           LOG.severe(String.format("For loop iterator does not update its iterated variable. Expected %s, got %s.", iteratorName, iterChildren.get(0).getValue()));
+           errorsEncountered = true;
+       }
+       
+       compileValueComputation(initChildren.get(2), localCode, localLabelMap, iteratorName, iteratorType, false);
+       
+       // handle labeled loops
+       if(children.get(0).getChildren().size() != 0) {
+           String userLabel = children.get(0).getChildren().get(0).getChildren().get(0).getValue(); // lol
+           
+           userLabelNext = "%lbl_" + userLabel + "%next";
+           userLabelEnd = "%lbl_" + userLabel + "%end";
+           
+           checkNameConflicts(userLabelNext);
+           checkNameConflicts(userLabelEnd);
+           
+           contextStack.pushSymbol(new ContextSymbol(userLabelNext, new TypedRaw(new ResolvableConstant(0), RawType.NONE)));
+           contextStack.pushSymbol(new ContextSymbol(userLabelEnd, new TypedRaw(new ResolvableConstant(0), RawType.NONE)));
+       }
+       
+       localLabelMap.put(loopLabel, localCode.size());
+       
+       // compile conditional
+       compileConditionalBranch(children.get(2), endloopLabel, false, localCode, localLabelMap);
+       
+       localLabelMap.put(startCodeLabel, localCode.size());
+       
+       // compile body code
+       compileFunctionCode(children.get(4).getChildren(), localCode, localLabelMap);
+       
+       // compile iterator code
+       if(!userLabelEnd.equals("")) localLabelMap.put(userLabelNext, localCode.size());
+       localLabelMap.put(nextLabel, localCode.size());
+       
+       compileValueComputation(iterChildren.get(1), localCode, localLabelMap, iteratorName, iteratorType, false);
+       
+       localCode.add(new Instruction(
+            Opcode.JMP_I32,
+            new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(loopLabel)),
+            false, false
+        ));
+       
+       if(!userLabelEnd.equals("")) localLabelMap.put(userLabelEnd, localCode.size());
+       localLabelMap.put(endloopLabel, localCode.size());
+       
+       contextStack.popContext();
+       
+       inConditionalContext = wasConditionalContext;
+       inLoopContext = wasLoopContext;
     }
     
     /**
@@ -1079,14 +1235,14 @@ public class SAPCompiler extends NSTCompiler {
                         ContextSymbol cs = contextStack.getSymbol(s);
                         
                         // 4 byte = via accumulator
-                        if(cs.type.getSize() == 4) {
+                        if(cs.getType().getSize() == 4) {
                             generateVariableMove(s, "%accumulator", 4, localCode);
                             generateCompareAccumulatorZero(localCode, 4);
-                        } else if(cs.type.getSize() <= 2) {
+                        } else if(cs.getType().getSize() <= 2) {
                             // direct
                             localCode.add(new Instruction(
                                 Opcode.CMP_RIM_0,
-                                cs.variableDescriptor,
+                                cs.getVariableDescriptor(),
                                 true, false
                             ));
                         } else {
@@ -1158,14 +1314,14 @@ public class SAPCompiler extends NSTCompiler {
                         
                         if(leftConstant) {
                             tv = computeConstant(leftNode);
-                            direct = rightDirect && rightSymbol.type.getSize() != 4 && (rightSymbol.variableDescriptor.getType() == LocationType.REGISTER || rightSymbol.type.getSize() == 1);
-                            vType = direct ? rightSymbol.type : compileValueComputation(rightNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
-                            rld = direct ? rightSymbol.variableDescriptor : null;
+                            direct = rightDirect && rightSymbol.getType().getSize() != 4 && (rightSymbol.getVariableDescriptor().getType() == LocationType.REGISTER || rightSymbol.getType().getSize() == 1);
+                            vType = direct ? rightSymbol.getType() : compileValueComputation(rightNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
+                            rld = direct ? rightSymbol.getVariableDescriptor() : null;
                         } else {
                             tv = computeConstant(rightNode);
-                            direct = leftDirect && leftSymbol.type.getSize() != 4 && (leftSymbol.variableDescriptor.getType() == LocationType.REGISTER || leftSymbol.type.getSize() == 1);
-                            vType = direct ? leftSymbol.type : compileValueComputation(leftNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
-                            rld = direct ? leftSymbol.variableDescriptor : null;
+                            direct = leftDirect && leftSymbol.getType().getSize() != 4 && (leftSymbol.getVariableDescriptor().getType() == LocationType.REGISTER || leftSymbol.getType().getSize() == 1);
+                            vType = direct ? leftSymbol.getType() : compileValueComputation(leftNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
+                            rld = direct ? leftSymbol.getVariableDescriptor() : null;
                         }
                         
                         // if the value is a pointer, make it raw
@@ -1239,10 +1395,10 @@ public class SAPCompiler extends NSTCompiler {
                                 // we need multiple comparisons
                                 // equals                   compare jne(false) compare jne(false)
                                 // not equal                compare jne(true) compare je(false)
-                                // signed greater           compare(upper) jl(false) jg(true) compare(lower) jle(false)
-                                // signed greater equal     compare(upper) jl(false) jg(true) compare(lower) jl(false)
-                                // signed less              compare(upper) jg(false) jl(true) compare(lower) jge(false)
-                                // signed less equal        compare(upper) jg(false) jl(true) compare(lower) jg(false)
+                                // signed greater           compare(upper) jl(false) jg(true) compare(lower) jbe(false)
+                                // signed greater equal     compare(upper) jl(false) jg(true) compare(lower) jb(false)
+                                // signed less              compare(upper) jg(false) jl(true) compare(lower) jae(false)
+                                // signed less equal        compare(upper) jg(false) jl(true) compare(lower) ja(false)
                                 // unsigned greater         compare(upper) jb(false) ja(true) compare(lower) jbe(false)
                                 // unsigned greater equal   compare(upper) jb(false) ja(true) compare(lower) jb(false)
                                 // unsigned less            compare(upper) ja(false) jb(true) compare(lower) jae(false)
@@ -1271,10 +1427,10 @@ public class SAPCompiler extends NSTCompiler {
                                 Opcode thirdJOp = switch(transformedOperator) {
                                     case NstlgrammarLexer.ID.TERMINAL_OP_EQUAL          -> Opcode.JNZ_RIM;
                                     case NstlgrammarLexer.ID.TERMINAL_OP_NOT_EQUAL      -> Opcode.JZ_RIM;
-                                    case NstlgrammarLexer.ID.TERMINAL_OP_GREATER        -> signed ? Opcode.JLE_RIM : Opcode.JBE_RIM;
-                                    case NstlgrammarLexer.ID.TERMINAL_OP_GREATER_EQUAL  -> signed ? Opcode.JL_RIM : Opcode.JC_RIM;
-                                    case NstlgrammarLexer.ID.TERMINAL_OP_LESS           -> signed ? Opcode.JGE_RIM : Opcode.JNC_RIM;
-                                    case NstlgrammarLexer.ID.TERMINAL_OP_LESS_EQUAL     -> signed ? Opcode.JG_RIM : Opcode.JA_RIM;
+                                    case NstlgrammarLexer.ID.TERMINAL_OP_GREATER        -> Opcode.JBE_RIM;
+                                    case NstlgrammarLexer.ID.TERMINAL_OP_GREATER_EQUAL  -> Opcode.JC_RIM;
+                                    case NstlgrammarLexer.ID.TERMINAL_OP_LESS           -> Opcode.JNC_RIM;
+                                    case NstlgrammarLexer.ID.TERMINAL_OP_LESS_EQUAL     -> Opcode.JA_RIM;
                                     default                                             -> Opcode.NOP;
                                 };
                                 
@@ -1355,31 +1511,31 @@ public class SAPCompiler extends NSTCompiler {
                             
                             if(contextStack.hasSymbol(refName)) {
                                 ContextSymbol cs = contextStack.getSymbol(refName);
-                                NSTLType accType = compileValueComputation(accNode, localCode, localLabelMap, "%accumulator", cs.type, true);
+                                NSTLType accType = compileValueComputation(accNode, localCode, localLabelMap, "%accumulator", cs.getType(), true);
                                 
-                                if(!accType.equals(cs.type)) { 
+                                if(!accType.equals(cs.getType())) { 
                                     LOG.severe("Comparison types do not match");
                                     errorsEncountered = true;
                                 }
                                 
-                                comparisonSize = cs.type.getSize();
+                                comparisonSize = cs.getType().getSize();
                                 
                                 if(left) {
-                                    leftSideDescriptor = cs.variableDescriptor;
+                                    leftSideDescriptor = cs.getVariableDescriptor();
                                     rightSideDescriptor = switch(comparisonSize) {
                                         case 1  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL);
                                         case 2  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A);
                                         case 4  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA);
-                                        default -> contextStack.getSymbol("%accumulator").variableDescriptor;
+                                        default -> contextStack.getSymbol("%accumulator").getVariableDescriptor();
                                     };
                                 } else {
                                     leftSideDescriptor = switch(comparisonSize) {
                                         case 1  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL);
                                         case 2  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A);
                                         case 4  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA);
-                                        default -> contextStack.getSymbol("%accumulator").variableDescriptor;
+                                        default -> contextStack.getSymbol("%accumulator").getVariableDescriptor();
                                     };
-                                    rightSideDescriptor = cs.variableDescriptor;
+                                    rightSideDescriptor = cs.getVariableDescriptor();
                                 }
                             } else {
                                 LOG.severe("Unknown reference " + refName + " in comparison");
@@ -1392,13 +1548,12 @@ public class SAPCompiler extends NSTCompiler {
                             
                             // save right side
                             contextStack.pushContext();
-                            contextCounter++;
                             usesTmp = true;
                             
                             ContextSymbol tmpSymbol = allocateLocalVariable("%tmp", rightType);
                             generateVariableMove("%accumulator", "%tmp", rightType.getSize(), localCode);
                             
-                            rightSideDescriptor = tmpSymbol.variableDescriptor;
+                            rightSideDescriptor = tmpSymbol.getVariableDescriptor();
                             
                             // compute left side
                             NSTLType leftType = compileValueComputation(leftNode, localCode, localLabelMap, "%accumulator", RawType.NONE, true);
@@ -1413,7 +1568,7 @@ public class SAPCompiler extends NSTCompiler {
                                     case 1  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL);
                                     case 2  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A);
                                     case 4  -> new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA);
-                                    default -> contextStack.getSymbol("%accumulator").variableDescriptor;
+                                    default -> contextStack.getSymbol("%accumulator").getVariableDescriptor();
                                 };
                             } else {
                                 LOG.severe("Comparison arguments are of mismatched size or not comparable");
@@ -1472,7 +1627,6 @@ public class SAPCompiler extends NSTCompiler {
                         
                         if(usesTmp) {
                             contextStack.popContext();
-                            contextCounter--;
                         }
                     }
                     break;
@@ -1544,7 +1698,6 @@ public class SAPCompiler extends NSTCompiler {
                 
                 // this consumes the irregular accumulator
                 contextStack.popContext();
-                contextCounter--;
             } else {
                 LOG.severe("No symbol for irregular accumulator");
                 errorsEncountered = true;
@@ -1623,10 +1776,10 @@ public class SAPCompiler extends NSTCompiler {
                 NSTLType t = inferType ? actualType : expectedType;
                 
                 // move
-                if(t.getSize() <= 4) {
+                if(t.getSize() <= 4 && !(t instanceof StructureType st)) {
                     generateOffsetPointerStore(0, t.getSize(), localCode);
                 } else {
-                    generateVariableMove("%accumulator" + contextCounter--, "%jipointer", t.getSize(), localCode);
+                    generateVariableMove("%accumulator" + contextStack.getContextCounter(), "%jipointer", t.getSize(), localCode);
                     contextStack.popContext();
                 }
                 
@@ -1652,7 +1805,7 @@ public class SAPCompiler extends NSTCompiler {
                     
                     if(contextStack.hasSymbol(targetName)) {
                         // good to go, compile value computation with the given target
-                        compileValueComputation(value, localCode, localLabelMap, targetName, contextStack.getSymbol(targetName).type, false);
+                        compileValueComputation(value, localCode, localLabelMap, targetName, contextStack.getSymbol(targetName).getType(), false);
                     } else {
                         // oh no
                         LOG.severe("Unknown symbol " + targetName + " as assignment target");
@@ -1669,14 +1822,28 @@ public class SAPCompiler extends NSTCompiler {
                     if(contextStack.hasSymbol(targetName)) {
                         ContextSymbol cs = contextStack.getSymbol(targetName);
                         
-                        // do we have the right type
-                        if(!cs.isConstant && cs.type instanceof StructureType st) {
+                        StructureType st = null;
+                        boolean isStructPointer = false,
+                                isStruct = false;
+                        
+                        // do we have an applicable type
+                        if(!cs.getIsConstant()) {
+                            if(cs.getType() instanceof StructureType st2) {
+                                st = st2;
+                                isStruct = true;
+                            } else if(cs.getType() instanceof PointerType pt && pt.getPointedType() instanceof StructureType pst) {
+                                st = pst;
+                                isStructPointer = true;
+                            }
+                        }
+                        
+                        if(isStruct || isStructPointer) {
                             // member offset & type
                             String memberName = tChildren.get(2).getValue();
                             
                             if(st.getMemberNames().contains(memberName)) {
                                 targetType = st.getMemberType(memberName);
-                                Pair<ContextSymbol, Boolean> info = generateDirectMemberSymbol(cs, memberName, st, targetType, "%target", localCode);
+                                Pair<ContextSymbol, Boolean> info = generateDirectMemberSymbol(cs, memberName, st, targetType, "%target", localCode, isStructPointer);
                                 ContextSymbol tcs = info.a;
                                 boolean evictedJI = info.b;
                                 
@@ -1689,12 +1856,13 @@ public class SAPCompiler extends NSTCompiler {
                                 
                                 if(evictedJI) generateRestoreJI(localCode);
                             } else {
+                                // member doesn't exist
                                 LOG.severe("Structure type " + st + " for assignment to " + targetName + " does not have member " + memberName);
                                 errorsEncountered = true;
                             }
                         } else {
                             // we don't
-                            LOG.severe("Structure assignment target symbol " + targetName + " is not a structure");
+                            LOG.severe("Structure assignment target symbol " + targetName + " is not a structure or structure pointer");
                             errorsEncountered = true;
                         }
                     } else {
@@ -1711,7 +1879,15 @@ public class SAPCompiler extends NSTCompiler {
                     // compute pointer to JI
                     // subreference DOT name computes the subreference, others the full reference
                     if(tChildren.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_DOT) {
-                        targetType = ((PointerType) compilePointerComputation(tChildren.get(0), localCode, localLabelMap, "%ji")).getPointedType();
+                        NSTLType subrefType = inferReferenceType(tChildren.get(0));
+                        
+                        if(subrefType instanceof PointerType pt) { 
+                            // If the subreference is a structure pointer, compute the value
+                            targetType = ((PointerType) compileValueComputation(tChildren.get(0), localCode, localLabelMap, "%ji", pt, true)).getPointedType();
+                        } else {
+                            // If the subreference isn't, compute the pointer
+                            targetType = ((PointerType) compilePointerComputation(tChildren.get(0), localCode, localLabelMap, "%ji")).getPointedType();
+                        }
                         
                         // we expect the name to be of a field in a structure type
                         if(targetType instanceof StructureType st) {
@@ -1742,22 +1918,26 @@ public class SAPCompiler extends NSTCompiler {
                         targetType = ((PointerType) compilePointerComputation(target, localCode, localLabelMap, "%ji")).getPointedType();
                     }
                     
-                    // get value to accumulator
-                    compileValueComputation(value, localCode, localLabelMap, "%accumulator", targetType, false);
-                    
-                    // move the value
-                    if(tChildren.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_DOT) {
-                        // structure member = include member offset
+                    // if the target type is a structure, do in parts
+                    if(targetType instanceof StructureType st) {
+                        // allocate space for the structure
+                        contextStack.pushContext();
+                        
+                        allocateLocalVariable("%tmp", targetType);
+                        compileValueComputation(value, localCode, localLabelMap, "%tmp", targetType, false);
+                        
+                        generateVariableMove("%tmp", "%jipointer", targetType.getSize(), localCode);
+                        
+                        contextStack.popContext();
+                    } else {
+                        // get value to accumulator
+                        compileValueComputation(value, localCode, localLabelMap, "%accumulator", targetType, false);
+                        
+                        // move the value
                         if(targetType.getSize() != 3 && targetType.getSize() <= 4) {
                             generateOffsetPointerStore(structureOffset, targetType.getSize(), localCode);
                         } else {
                             // except here where we already dealt with it
-                            generateVariableMove("%accumulator", "%jipointer", targetType.getSize(), localCode);
-                        }
-                    } else {
-                        if(targetType.getSize() != 3 && targetType.getSize() <= 4) {
-                            generateOffsetPointerStore(0, targetType.getSize(), localCode);
-                        } else {
                             generateVariableMove("%accumulator", "%jipointer", targetType.getSize(), localCode);
                         }
                     }
@@ -1781,42 +1961,56 @@ public class SAPCompiler extends NSTCompiler {
      * @param localCode
      * @return
      */
-    private Pair<ContextSymbol, Boolean> generateDirectMemberSymbol(ContextSymbol structureSymbol, String memberName, StructureType structureType, NSTLType memberType, String symbolName, List<Component> localCode) {
+    private Pair<ContextSymbol, Boolean> generateDirectMemberSymbol(ContextSymbol structureSymbol, String memberName, StructureType structureType, NSTLType memberType, String symbolName, List<Component> localCode, boolean symbolIsPointer) {
+        LOG.finest("Generating direct member symbol " + symbolName + " for member " + memberName + " of symbol " + structureSymbol);
+        
         ContextSymbol cs = null;
         boolean evictedJI = false;
         
         int offset = structureType.getMemberOffset(memberName);
         
-        // get and modify descriptor to access member
-        // since only raws are allocated to registers, this should be a memory
-        ResolvableMemory originalMemory = structureSymbol.variableDescriptor.getMemory(),
-                         targetMemory;
+        ResolvableMemory targetMemory;
         
-        // if the symbol is on the stack (BP + x) we can add the offset to x to get our descriptor
-        // if the symbol is a global, we don't know its location at compile time and need to use a pointer
-        if(originalMemory.getBase() == Register.BP) {
-            // local, direct
-            targetMemory = new ResolvableMemory(Register.BP, Register.NONE, 0, (int)(originalMemory.getOffset().value() + offset));
-        } else {
-            // global, indirect
+        // get and modify descriptor to access member
+        // if the symbol is a pointer, move it to JI and return JI + member offset
+        // otherwise, symbol will be memory
+        if(symbolIsPointer) {
             generateEvictJI(localCode);
             evictedJI = true;
             
-            localCode.add(new Instruction(
-                Opcode.MOVW_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
-                new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, originalMemory.getOffset().copy()),
-                false
-            ));
+            this.generateVariableMove(structureSymbol.getName(), "%ptr", 4, localCode);
             
-            localCode.add(new Instruction(
-                Opcode.LEA_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
-                new ResolvableLocationDescriptor(LocationType.MEMORY, 0, new ResolvableMemory(Register.JI, Register.NONE, 0, offset)),
-                true
-            ));
+            targetMemory = new ResolvableMemory(Register.JI, Register.NONE, 0, offset);
+        } else {
+            // since only raws are allocated to registers, this should be a memory
+            ResolvableMemory originalMemory = structureSymbol.getVariableDescriptor().getMemory();
             
-            targetMemory = new ResolvableMemory(Register.JI, Register.NONE, 0, 0);
+            // if the symbol is on the stack (BP + x) we can add the offset to x to get our descriptor
+            // if the symbol is a global, we don't know its location at compile time and need to use a pointer
+            if(originalMemory.getBase() == Register.BP && !symbolIsPointer) {
+                // local, direct
+                targetMemory = new ResolvableMemory(Register.BP, Register.NONE, 0, (int)(originalMemory.getOffset().value() + offset));
+            } else {
+                // global, indirect
+                generateEvictJI(localCode);
+                evictedJI = true;
+                
+                localCode.add(new Instruction(
+                    Opcode.MOVW_RIM,
+                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
+                    new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, originalMemory.getOffset().copy()),
+                    false
+                ));
+                
+                localCode.add(new Instruction(
+                    Opcode.LEA_RIM,
+                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
+                    new ResolvableLocationDescriptor(LocationType.MEMORY, 0, new ResolvableMemory(Register.JI, Register.NONE, 0, offset)),
+                    true
+                ));
+                
+                targetMemory = new ResolvableMemory(Register.JI, Register.NONE, 0, 0);
+            }
         }
         
         // make symbol 
@@ -1889,7 +2083,7 @@ public class SAPCompiler extends NSTCompiler {
         jiptrDescriptor = new ResolvableLocationDescriptor(LocationType.MEMORY, size, new ResolvableMemory(Register.JI, Register.NONE, 0, 0));
         
         if(contextStack.hasSymbol(source)) {
-            sourceDescriptor = contextStack.getSymbol(source).variableDescriptor;
+            sourceDescriptor = contextStack.getSymbol(source).getVariableDescriptor();
         } else if(source.equals("%accumulator")) {
             // accumulator
             sourceDescriptor = accumulatorDescriptor;
@@ -1904,7 +2098,7 @@ public class SAPCompiler extends NSTCompiler {
         }
         
         if(contextStack.hasSymbol(destination)) {
-            destinationDescriptor = contextStack.getSymbol(destination).variableDescriptor;
+            destinationDescriptor = contextStack.getSymbol(destination).getVariableDescriptor();
         } else if(destination.equals("%accumulator") || destination.equals("%stack")) {
             // accumulator
             destinationDescriptor = accumulatorDescriptor;
@@ -2139,7 +2333,6 @@ public class SAPCompiler extends NSTCompiler {
         LOG.finest("Evicting JI");
         
         contextStack.pushContext();
-        contextCounter++;
         
         regJUsed = true;
         regIUsed = true;
@@ -2165,28 +2358,28 @@ public class SAPCompiler extends NSTCompiler {
             // yes we do
             if(hadJIAllocated) { 
                 // single value, single allocation, single move
-                NSTLType jiType = contextStack.getSymbol(jiName).type;
+                NSTLType jiType = contextStack.getSymbol(jiName).getType();
                 
                 ContextSymbol cs = allocateLocalVariable(jiName, jiType);
-                contextStack.pushSymbol(new ContextSymbol("%jitmp", RawType.PTR, cs.variableDescriptor));
+                contextStack.pushSymbol(new ContextSymbol("%jitmp", RawType.PTR, cs.getVariableDescriptor()));
                 
                 localCode.add(new Instruction(
                     Opcode.MOVW_RIM,
-                    cs.variableDescriptor,
+                    cs.getVariableDescriptor(),
                     new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
                     true
                 ));
             } else {
                 if(hadJAllocated) {
                     // same as JI but just J
-                    NSTLType jType = contextStack.getSymbol(jName).type;
+                    NSTLType jType = contextStack.getSymbol(jName).getType();
                     
                     ContextSymbol cs = allocateLocalVariable(jName, jType);
-                    contextStack.pushSymbol(new ContextSymbol("%jtmp", RawType.U16, cs.variableDescriptor));
+                    contextStack.pushSymbol(new ContextSymbol("%jtmp", RawType.U16, cs.getVariableDescriptor()));
                     
                     localCode.add(new Instruction(
                         Opcode.MOV_RIM,
-                        cs.variableDescriptor,
+                        cs.getVariableDescriptor(),
                         new ResolvableLocationDescriptor(LocationType.REGISTER, Register.J),
                         true
                     ));
@@ -2194,14 +2387,14 @@ public class SAPCompiler extends NSTCompiler {
                 
                 if(hadIAllocated) {
                     // same as JI but just I
-                    NSTLType iType = contextStack.getSymbol(iName).type;
+                    NSTLType iType = contextStack.getSymbol(iName).getType();
                     
                     ContextSymbol cs = allocateLocalVariable(iName, iType);
-                    contextStack.pushSymbol(new ContextSymbol("%itmp", RawType.U16, cs.variableDescriptor));
+                    contextStack.pushSymbol(new ContextSymbol("%itmp", RawType.U16, cs.getVariableDescriptor()));
                     
                     localCode.add(new Instruction(
                         Opcode.MOV_RIM,
-                        cs.variableDescriptor,
+                        cs.getVariableDescriptor(),
                         new ResolvableLocationDescriptor(LocationType.REGISTER, Register.I),
                         true
                     ));
@@ -2230,14 +2423,13 @@ public class SAPCompiler extends NSTCompiler {
                       itmpSymbol = (contextStack.hasLocalSymbol("%itmp")) ? contextStack.getSymbol("%itmp") : null;
         
         contextStack.popContext();
-        contextCounter--;
         
         if(jitmpSymbol != null) {
             // had a symbol in JI
             localCode.add(new Instruction(
                 Opcode.MOVW_RIM,
                 new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
-                jitmpSymbol.variableDescriptor,
+                jitmpSymbol.getVariableDescriptor(),
                 true
             ));
         } else {
@@ -2246,7 +2438,7 @@ public class SAPCompiler extends NSTCompiler {
                 localCode.add(new Instruction(
                     Opcode.MOV_RIM,
                     new ResolvableLocationDescriptor(LocationType.REGISTER, Register.J),
-                    jtmpSymbol.variableDescriptor,
+                    jtmpSymbol.getVariableDescriptor(),
                     true
                 ));
             }
@@ -2256,7 +2448,7 @@ public class SAPCompiler extends NSTCompiler {
                 localCode.add(new Instruction(
                     Opcode.MOV_RIM,
                     new ResolvableLocationDescriptor(LocationType.REGISTER, Register.I),
-                    itmpSymbol.variableDescriptor,
+                    itmpSymbol.getVariableDescriptor(),
                     true
                 ));
             }
@@ -2327,42 +2519,39 @@ public class SAPCompiler extends NSTCompiler {
                         // stack allocation of %accumulator<counter>
                         // whatever is asking for this to be in the accumulator will pop the context
                         contextStack.pushContext();
-                        contextCounter++;
                         
-                        ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextCounter, type);
+                        ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextStack.getContextCounter(), type);
                         generateLongConstantMove(accSymbol, constantValue, localCode, localLabelMap);
                     }
                 } else if(target.equals("%stack")) {
                     // %stack is the stack
                     // defer to compilePushLocalVariable via temporary constant
                     contextStack.pushContext();
-                    contextCounter++;
                     
                     contextStack.pushSymbol(new ContextSymbol("%tmp", constantValue));
                     generatePushLocalVariable("%tmp", localCode);
                     
                     contextStack.popContext();
-                    contextCounter--;
                 } else if(contextStack.hasSymbol(target)) {
                     // symbol target
                     ContextSymbol cs = contextStack.getSymbol(target);
                     if(type == RawType.NONE) {
-                        type = cs.type;
-                        inferredType = cs.type;
+                        type = cs.getType();
+                        inferredType = cs.getType();
                     }
                     
-                    if(cs.isConstant) {
+                    if(cs.getIsConstant()) {
                         LOG.severe("Cannot use constant " + target + " as computation target");
                         errorsEncountered = true;
                     } else {
-                        boolean wide = cs.variableDescriptor.getSize() == 4,
-                                thin = cs.variableDescriptor.getSize() == 1;
+                        boolean wide = cs.getVariableDescriptor().getSize() == 4,
+                                thin = cs.getVariableDescriptor().getSize() == 1;
                         
-                        if(cs.variableDescriptor.getType() == LocationType.REGISTER) {
+                        if(cs.getVariableDescriptor().getType() == LocationType.REGISTER) {
                             // register target, write directly
                             localCode.add(new Instruction(
                                 wide ? Opcode.MOVW_RIM : Opcode.MOV_RIM,
-                                cs.variableDescriptor,
+                                cs.getVariableDescriptor(),
                                 new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(constantValue.toLong())),
                                 false
                             ));
@@ -2377,7 +2566,7 @@ public class SAPCompiler extends NSTCompiler {
                             
                             localCode.add(new Instruction(
                                 wide ? Opcode.MOVW_RIM : Opcode.MOV_RIM,
-                                cs.variableDescriptor,
+                                cs.getVariableDescriptor(),
                                 new ResolvableLocationDescriptor(LocationType.REGISTER, wide ? Register.DA : (thin ? Register.AL : Register.A)),
                                 false
                             ));
@@ -2410,8 +2599,8 @@ public class SAPCompiler extends NSTCompiler {
                     ContextSymbol cs = contextStack.getSymbol(n);
                     
                     // PTR promotes
-                    if(type.equals(RawType.PTR) && !cs.type.equals(RawType.PTR)) {
-                        checkType(RawType.NONE, cs.type, "from name reference");
+                    if(type.equals(RawType.PTR) && !cs.getType().equals(RawType.PTR)) {
+                        checkType(RawType.NONE, cs.getType(), "from name reference");
                         compilePointerPromotion(cs, localCode);
                         
                         if(!target.equals("%accumulator")) {
@@ -2421,10 +2610,10 @@ public class SAPCompiler extends NSTCompiler {
                         return RawType.PTR;
                     } else {
                         // check types
-                        type = checkType(type, cs.type, "from name reference");
+                        type = checkType(type, cs.getType(), "from name reference");
                         
-                        generateVariableMove(n, target, cs.type.getSize(), localCode);
-                        return cs.type;
+                        generateVariableMove(n, target, cs.getType().getSize(), localCode);
+                        return cs.getType();
                     }
                 } else {
                     LOG.severe("Unknown symbol " + n + " in variable value computation");
@@ -2441,8 +2630,8 @@ public class SAPCompiler extends NSTCompiler {
                     ContextSymbol cs = contextStack.getSymbol(n);
                     
                     // PTR promotes
-                    if(type.equals(RawType.PTR) && !cs.type.equals(RawType.PTR)) {
-                        checkType(RawType.NONE, cs.type, "from name reference");
+                    if(type.equals(RawType.PTR) && !cs.getType().equals(RawType.PTR)) {
+                        checkType(RawType.NONE, cs.getType(), "from name reference");
                         compilePointerPromotion(cs, localCode);
                         
                         if(!target.equals("%accumulator")) {
@@ -2452,10 +2641,10 @@ public class SAPCompiler extends NSTCompiler {
                         return RawType.PTR;
                     } else {
                         // check types
-                        type = checkType(type, cs.type, "from name reference");
+                        type = checkType(type, cs.getType(), "from name reference");
                         
-                        generateVariableMove(n, target, cs.type.getSize(), localCode);
-                        return cs.type;
+                        generateVariableMove(n, target, cs.getType().getSize(), localCode);
+                        return cs.getType();
                     }
                 } else {
                     LOG.severe("Unknown symbol " + n + " in variable value computation");
@@ -2494,8 +2683,8 @@ public class SAPCompiler extends NSTCompiler {
                         if(contextStack.hasSymbol(n)) {
                             ContextSymbol cs = contextStack.getSymbol(n);
                             
-                            generateVariableMove(n, target, cs.type.getSize(), localCode);
-                            return cs.type;
+                            generateVariableMove(n, target, cs.getType().getSize(), localCode);
+                            return cs.getType();
                         } else {
                             LOG.severe("Unknown symbol " + n + " in variable value computation");
                             errorsEncountered = true;
@@ -2522,9 +2711,22 @@ public class SAPCompiler extends NSTCompiler {
                         if(contextStack.hasSymbol(structureName)) {
                             ContextSymbol cs = contextStack.getSymbol(structureName);
                             
+                            StructureType st = null;
+                            
+                            boolean isStruct = false,
+                                    isStructPointer = false;
+                            
+                            if(cs.getType() instanceof StructureType st2) {
+                                st = st2;
+                                isStruct = true;
+                            } else if(cs.getType() instanceof PointerType pt && pt.getPointedType() instanceof StructureType pst) {
+                                st = pst;
+                                isStructPointer = true;
+                            }
+                            
                             // do we have the right type
-                            if(cs.type instanceof StructureType st) {
-                                if(cs.isConstant) {
+                            if(isStruct || isStructPointer) {
+                                if(cs.getIsConstant()) {
                                     LOG.severe("Invalid state: found constant structure symbol for variable");
                                     errorsEncountered = true;
                                 } else {
@@ -2536,7 +2738,7 @@ public class SAPCompiler extends NSTCompiler {
                                         
                                         checkType(type, memberType, "from structure member " + memberName + " of " + st);
                                         
-                                        Pair<ContextSymbol, Boolean> info = generateDirectMemberSymbol(cs, memberName, st, memberType, "%member", localCode);
+                                        Pair<ContextSymbol, Boolean> info = generateDirectMemberSymbol(cs, memberName, st, memberType, "%member", localCode, isStructPointer);
                                         ContextSymbol tcs = info.a;
                                         boolean evictedJI = info.b;
                                         
@@ -2547,8 +2749,8 @@ public class SAPCompiler extends NSTCompiler {
                                             
                                             // do we need a memory acc
                                             if(memberType.getSize() > 4) {                                                
-                                                ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextCounter, memberType);
-                                                generateVariableMove("%member", accSymbol.name, memberType.getSize(), localCode);
+                                                ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextStack.getContextCounter(), memberType);
+                                                generateVariableMove("%member", accSymbol.getName(), memberType.getSize(), localCode);
                                                 
                                                 contextStack.popContext();
                                                 generateRestoreJI(localCode);
@@ -2556,7 +2758,7 @@ public class SAPCompiler extends NSTCompiler {
                                                 contextStack.pushContext();
                                                 contextStack.pushSymbol(accSymbol);
                                                 
-                                                generateVariableMove(accSymbol.name, target, memberType.getSize(), localCode);
+                                                generateVariableMove(accSymbol.getName(), target, memberType.getSize(), localCode);
                                                 contextStack.popContext();
                                             } else {
                                                 // simple
@@ -2567,9 +2769,8 @@ public class SAPCompiler extends NSTCompiler {
                                                 
                                                 generateVariableMove("%accumulator", target, memberType.getSize(), localCode);
                                             }
-                                            
-                                            
                                         } else {
+                                            // direct move
                                             contextStack.pushContext();
                                             contextStack.pushSymbol(tcs);
                                             
@@ -2587,7 +2788,7 @@ public class SAPCompiler extends NSTCompiler {
                                 }
                             } else {
                                 // we don't
-                                LOG.severe("Structure reference symbol " + structureName + " is not a structure");
+                                LOG.severe("Structure reference symbol " + structureName + " is not a structure or structure pointer");
                                 errorsEncountered = true;
                             }
                         } else {
@@ -2632,7 +2833,7 @@ public class SAPCompiler extends NSTCompiler {
                     errorsEncountered = true;
                 }
                 
-                NSTLType definedType = checkType(type, typeDefinitions.get(typeName), "from structure");
+                NSTLType definedType = checkType(type, typeDefinitions.get(typeName).getRealType(), "from structure");
                 StructureType structType;
                 
                 if(definedType instanceof StructureType st) {
@@ -2677,10 +2878,9 @@ public class SAPCompiler extends NSTCompiler {
                 if(target.equals("%accumulator") && !contextStack.hasLocalSymbol("%accumulator")) {
                     // no memory accumulator available, make one
                     contextStack.pushContext();
-                    contextCounter++;
                     
-                    ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextCounter, type);
-                    compileValueComputation(node, localCode, localLabelMap, accSymbol.name, type, returnInferred); // defer to below
+                    ContextSymbol accSymbol = allocateLocalVariable("%accumulator" + contextStack.getContextCounter(), type);
+                    compileValueComputation(node, localCode, localLabelMap, accSymbol.getName(), type, returnInferred); // defer to below
                 } else if(target.equals("%stack")) {
                     // push in reverse member order
                     for(int i = memberNames.size() - 1; i >= 0; i--) {
@@ -2693,7 +2893,7 @@ public class SAPCompiler extends NSTCompiler {
                     // should be a memory symbol
                     ContextSymbol cs = contextStack.getSymbol(target);
                     
-                    checkType(definedType, cs.type, "from target symbol " + cs + " of structure");
+                    checkType(definedType, cs.getType(), "from target symbol " + cs + " of structure");
                     
                     // evaluate in member order
                     // get pointer to target in JI, use offsets from it
@@ -2702,7 +2902,7 @@ public class SAPCompiler extends NSTCompiler {
                     localCode.add(new Instruction(
                         Opcode.LEA_RIM,
                         new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
-                        cs.variableDescriptor,
+                        cs.getVariableDescriptor(),
                         true
                     ));
                     
@@ -2827,7 +3027,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_ARITH_SHIFT_RIGHT:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SHR_RIM, false, localCode, localLabelMap);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SAR_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot shift non-raw types");
                     errorsEncountered = true;
@@ -2836,7 +3036,7 @@ public class SAPCompiler extends NSTCompiler {
             
             case NstlgrammarLexer.ID.TERMINAL_OP_LOGIC_SHIFT_RIGHT:
                 if(type instanceof RawType || type instanceof PointerType) {
-                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SAR_RIM, false, localCode, localLabelMap);
+                    return compileGenericOperation(target, children.get(0), children.get(1), type, Opcode.SHR_RIM, false, localCode, localLabelMap);
                 } else {
                     LOG.severe("Cannot shift non-raw types");
                     errorsEncountered = true;
@@ -2923,9 +3123,9 @@ public class SAPCompiler extends NSTCompiler {
                         } else if(target.equals(name)) {
                             // target direct = do directly
                             ContextSymbol cs = contextStack.getSymbol(name);
-                            ResolvableLocationDescriptor rld = cs.variableDescriptor;
-                            if(type.equals(RawType.NONE)) type = cs.type;
-                            else checkType(type, cs.type, "from symbol " + cs);
+                            ResolvableLocationDescriptor rld = cs.getVariableDescriptor();
+                            if(type.equals(RawType.NONE)) type = cs.getType();
+                            else checkType(type, cs.getType(), "from symbol " + cs);
                             
                             if(type.getSize() == 1 || type.getSize() == 2) {
                                 localCode.add(new Instruction(
@@ -3216,14 +3416,14 @@ public class SAPCompiler extends NSTCompiler {
                 ContextSymbol cs = contextStack.getSymbol(refName);
                 
                 if(inferType) {
-                    if(cs.type instanceof RawType rt) {
+                    if(cs.getType() instanceof RawType rt) {
                         targetType = rt;
                     } else {
-                        LOG.severe("Generic operations must use raw types, found " + cs.type);
+                        LOG.severe("Generic operations must use raw types, found " + cs.getType());
                         errorsEncountered = true;
                     }
                 } else {
-                    checkType(targetType, cs.type, "from reference " + cs + " in generic operation " + op);
+                    checkType(targetType, cs.getType(), "from reference " + cs + " in generic operation " + op);
                 }
                 
                 // compute
@@ -3236,7 +3436,7 @@ public class SAPCompiler extends NSTCompiler {
                     default -> accumulatorDescriptor4;
                 };
                 
-                generateGenericOperation(accDescriptor, cs.variableDescriptor, op, targetBoolean, localCode, localLabelMap);
+                generateGenericOperation(accDescriptor, cs.getVariableDescriptor(), op, targetBoolean, localCode, localLabelMap);
                 return isComparison ? RawType.BOOLEAN : targetType;
             } else {
                 // The long way. Compute the right side to the stack, the left side to the accumulator, then apply the operation and clean up.
@@ -3278,7 +3478,7 @@ public class SAPCompiler extends NSTCompiler {
             }
         } else {
             // setup values so we don't have to duplicate code
-            boolean targetIsRegister = contextStack.hasSymbol(target) && contextStack.getSymbol(target).variableDescriptor.getType() == LocationType.REGISTER,
+            boolean targetIsRegister = contextStack.hasSymbol(target) && contextStack.getSymbol(target).getVariableDescriptor().getType() == LocationType.REGISTER,
                     rightSideDirect = leftIsTarget ? rightIsDirectReference : leftIsDirectReference;
             
             // The target is not the accumulator. We might be able to use it as an argument 
@@ -3295,14 +3495,14 @@ public class SAPCompiler extends NSTCompiler {
                 
                 // infer target type if needed
                 if(inferType) {
-                    if(targetSymbol.type instanceof RawType rt) {
+                    if(targetSymbol.getType() instanceof RawType rt) {
                         targetType = rt;
                     } else {
                         LOG.severe("Target of generic operation is not a raw type: " + targetSymbol);
                         errorsEncountered = true;
                     }
                 } else {
-                    checkType(targetType, targetSymbol.type, "from " + targetSymbol + " in generic operation " + op);
+                    checkType(targetType, targetSymbol.getType(), "from " + targetSymbol + " in generic operation " + op);
                 }
                 
                 if(rightSideDirect) {
@@ -3315,11 +3515,11 @@ public class SAPCompiler extends NSTCompiler {
                     }
                     
                     ContextSymbol rightSideSymbol = contextStack.getSymbol(leftIsTarget ? rightReferenceName : leftReferenceName);
-                    checkType(targetType, rightSideSymbol.type, "from " + rightSideSymbol + " in generic operation " + op);
+                    checkType(targetType, rightSideSymbol.getType(), "from " + rightSideSymbol + " in generic operation " + op);
                     
-                    if(targetSymbol.variableDescriptor.getType() == LocationType.REGISTER || rightSideSymbol.variableDescriptor.getType() == LocationType.REGISTER) {
+                    if(targetSymbol.getVariableDescriptor().getType() == LocationType.REGISTER || rightSideSymbol.getVariableDescriptor().getType() == LocationType.REGISTER) {
                         // can go directly
-                        generateGenericOperation(targetSymbol.variableDescriptor, rightSideSymbol.variableDescriptor, op, targetBoolean, localCode, localLabelMap);
+                        generateGenericOperation(targetSymbol.getVariableDescriptor(), rightSideSymbol.getVariableDescriptor(), op, targetBoolean, localCode, localLabelMap);
                         return isComparison ? RawType.BOOLEAN : targetType;
                     } else {
                         // via accumulator
@@ -3332,7 +3532,7 @@ public class SAPCompiler extends NSTCompiler {
                             default -> accumulatorDescriptor4;
                         };
                         
-                        generateGenericOperation(targetSymbol.variableDescriptor, rightDescriptor, op, targetBoolean, localCode, localLabelMap);
+                        generateGenericOperation(targetSymbol.getVariableDescriptor(), rightDescriptor, op, targetBoolean, localCode, localLabelMap);
                         return isComparison ? RawType.BOOLEAN : targetType;
                     }
                 } else {
@@ -3347,7 +3547,7 @@ public class SAPCompiler extends NSTCompiler {
                         default -> accumulatorDescriptor4;
                     };
                     
-                    generateGenericOperation(targetSymbol.variableDescriptor, rightDescriptor, op, targetBoolean, localCode, localLabelMap);
+                    generateGenericOperation(targetSymbol.getVariableDescriptor(), rightDescriptor, op, targetBoolean, localCode, localLabelMap);
                     return isComparison ? RawType.BOOLEAN : targetType;
                 }
             } else if((leftIsTarget && rightIsConstant) || (rightIsTarget && commutative && leftIsConstant)) {
@@ -3359,9 +3559,9 @@ public class SAPCompiler extends NSTCompiler {
                 ContextSymbol targetSymbol = contextStack.getSymbol(leftIsTarget ? leftReferenceName : rightReferenceName);
                 
                 if(inferType) {
-                    targetType = targetSymbol.type;
+                    targetType = targetSymbol.getType();
                 } else {
-                    checkType(targetType, targetSymbol.type, "from target symbol " + targetSymbol);
+                    checkType(targetType, targetSymbol.getType(), "from target symbol " + targetSymbol);
                 }
                 
                 TypedValue tv = computeConstant(leftIsTarget ? right : left);
@@ -3371,7 +3571,7 @@ public class SAPCompiler extends NSTCompiler {
                 if(targetIsRegister || ((op == Opcode.ADD_RIM || op == Opcode.SUB_RIM) && ((TypedRaw) tv).getValue().value() == 1)) {
                     // The target is a register and the other value is a constant, or the value is 1. We can compute this
                     ResolvableLocationDescriptor constantDescriptor = new ResolvableLocationDescriptor(LocationType.IMMEDIATE, targetType.getSize(), ((TypedRaw) tv).getValue());
-                    generateGenericOperation(contextStack.getSymbol(target).variableDescriptor, constantDescriptor, op, targetBoolean, localCode, localLabelMap);
+                    generateGenericOperation(contextStack.getSymbol(target).getVariableDescriptor(), constantDescriptor, op, targetBoolean, localCode, localLabelMap);
                     return isComparison ? RawType.BOOLEAN : targetType;
                 }
                 
@@ -3454,7 +3654,7 @@ public class SAPCompiler extends NSTCompiler {
                 case JBE_RIM    -> Opcode.JC_RIM;
                 case JGE_RIM    -> Opcode.JG_RIM;
                 case JLE_RIM    -> Opcode.JL_RIM;
-                default         -> op;
+                default         -> oppositeJmp;
             };
             
             // evaluate conditional
@@ -3676,6 +3876,32 @@ public class SAPCompiler extends NSTCompiler {
                         ));
                         break;
                     
+                    case SHL_RIM:
+                        if(right.getType() == LocationType.IMMEDIATE && right.getImmediate().isResolved() && right.getImmediate().value() == 16) {
+                            localCode.add(new Instruction(
+                                Opcode.MOV_RIM,
+                                leftHigh, leftLow,
+                                false
+                            ));
+                        } else {
+                            LOG.severe("Unsupported dword operation: " + op + " with arbitrary value");
+                            errorsEncountered = true;
+                        }
+                        break;
+                        
+                    case SHR_RIM:
+                        if(right.getType() == LocationType.IMMEDIATE && right.getImmediate().isResolved() && right.getImmediate().value() == 16) {
+                            localCode.add(new Instruction(
+                                Opcode.MOV_RIM,
+                                leftLow, leftHigh,
+                                false
+                            ));
+                        } else {
+                            LOG.severe("Unsupported dword operation: " + op + " with arbitrary value");
+                            errorsEncountered = true;
+                        }
+                        break;
+                    
                     // TODO more operations
                     
                     default:
@@ -3747,7 +3973,7 @@ public class SAPCompiler extends NSTCompiler {
         if(name.equals("%ji") || name.equals("%jipointer")) return true;
         
         if(contextStack.hasSymbol(name)) {
-            ResolvableLocationDescriptor rld = contextStack.getSymbol(name).variableDescriptor;
+            ResolvableLocationDescriptor rld = contextStack.getSymbol(name).getVariableDescriptor();
             
             if(rld.getType() == LocationType.REGISTER) {
                 return rld.getRegister() == Register.JI ||
@@ -3774,7 +4000,7 @@ public class SAPCompiler extends NSTCompiler {
         
         ContextSymbol targetSymbol = (contextStack.hasSymbol(target) ? contextStack.getSymbol(target) : null);
         boolean targetIsRegister = target.equals("%accumulator") || target.equals("%ji") ||
-                (targetSymbol != null && !targetSymbol.isConstant && targetSymbol.variableDescriptor.getType() == LocationType.REGISTER);
+                (targetSymbol != null && !targetSymbol.getIsConstant() && targetSymbol.getVariableDescriptor().getType() == LocationType.REGISTER);
         
         /*
          * Reference
@@ -3798,7 +4024,7 @@ public class SAPCompiler extends NSTCompiler {
                 LOG.severe("Cannot generate pointer to intermediate value TO " + children.get(1));
                 errorsEncountered = true;
             } else {
-                // AT subreference
+                // AT subreference = subreference
                 if(children.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_AT) {
                     // untyped or overridden
                     compileValueComputation(children.get(2), localCode, localLabelMap, target, RawType.PTR, true);
@@ -3820,8 +4046,16 @@ public class SAPCompiler extends NSTCompiler {
             // Subreference
             if(children.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_DOT) {
                 // Structure member
-                // get structure pointer & infer type
-                NSTLType structType = ((PointerType) compilePointerComputation(children.get(0), localCode, localLabelMap, "%accumulator")).getPointedType();
+                // what are we getting a member from
+                NSTLType structType, inferredType = inferReferenceType(children.get(0));
+                
+                if(inferredType instanceof PointerType pt) {
+                    structType = ((PointerType) inferredType).getPointedType();
+                    compileValueComputation(children.get(0), localCode, localLabelMap, "%accumulator", inferredType, true);
+                } else {
+                    structType = inferredType;
+                    compilePointerComputation(children.get(0), localCode, localLabelMap, "%accumulator");
+                }
                 
                 if(structType instanceof StructureType st) {
                     String mName = children.get(2).getValue();
@@ -3832,9 +4066,10 @@ public class SAPCompiler extends NSTCompiler {
                         
                         if(offset != 0) {
                             localCode.add(new Instruction(
-                                Opcode.ADD_A_I16,
+                                Opcode.ADD_RIM,
+                                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
                                 new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(offset & 0xFFFF)),
-                                false, false
+                                false
                             ));
                             
                             if(offset < 0x1_0000) {
@@ -3846,9 +4081,10 @@ public class SAPCompiler extends NSTCompiler {
                             } else {
                                 // this is unlikely but I'm thorough
                                 localCode.add(new Instruction(
-                                    Opcode.ADD_D_I16,
+                                    Opcode.ADC_RIM,
+                                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.D),
                                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant((offset >> 16) & 0xFFFF)),
-                                    false, false
+                                    false
                                 ));
                             }
                         }
@@ -3928,10 +4164,11 @@ public class SAPCompiler extends NSTCompiler {
                     }
                     
                     // compute offset
-                    NSTLType offsetType = compileValueComputation(children.get(2), localCode, localLabelMap, "%accumulator", RawType.NONE, false);
+                    NSTLType offsetType = compileValueComputation(children.get(2), localCode, localLabelMap, "%accumulator", RawType.NONE, true);
                     
                     // multiply & extend to ptr
                     if(offsetType instanceof RawType rt) {
+                        //LOG.finest("" + rt);
                         if(rt.getSize() == 1) {
                             if(elementType.getSize() == 1) {
                                 localCode.add(new Instruction(
@@ -4039,20 +4276,20 @@ public class SAPCompiler extends NSTCompiler {
                     ContextSymbol pointedSymbol = contextStack.getSymbol(name);
                     
                     // string constants can be pointed to
-                    if(pointedSymbol.isConstant) {
-                        if(pointedSymbol.type instanceof StringType st) {
+                    if(pointedSymbol.getIsConstant()) {
+                        if(pointedSymbol.getType() instanceof StringType st) {
                             if(targetIsRegister) {
                                 // register = put directly
                                 localCode.add(new Instruction(
                                     Opcode.MOVW_RIM,
-                                    target.equals("%accumulator") ? new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA) : targetSymbol.variableDescriptor,
+                                    target.equals("%accumulator") ? new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA) : targetSymbol.getVariableDescriptor(),
                                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                                     true
                                 ));
                             } else if(target.equals("%stack")) {
                                 // we can push constants straight to the stack
                                 localCode.add(new Instruction(
-                                    Opcode.PUSH_I32,
+                                    Opcode.PUSHW_I32,
                                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                                     false, true
                                 ));
@@ -4067,19 +4304,19 @@ public class SAPCompiler extends NSTCompiler {
                                 
                                 localCode.add(new Instruction(
                                     Opcode.MOVW_RIM,
-                                    targetSymbol.variableDescriptor,
+                                    targetSymbol.getVariableDescriptor(),
                                     new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
                                     true
                                 ));
                             }
                             
-                            return new PointerType(pointedSymbol.type);
+                            return new PointerType(pointedSymbol.getType());
                         } else {
                             // any other constants are invalid
                             LOG.severe("Cannot create a pointer to constant " + name);
                             errorsEncountered = true;
                         }
-                    } else if(pointedSymbol.variableDescriptor.getType() == LocationType.REGISTER) {
+                    } else if(pointedSymbol.getVariableDescriptor().getType() == LocationType.REGISTER) {
                         // TODO: make this possible
                         LOG.severe("Cannot create pointer to local register value " + name + ". Please add this feature.");
                         errorsEncountered = true;
@@ -4090,8 +4327,8 @@ public class SAPCompiler extends NSTCompiler {
                         // register = put directly
                         localCode.add(new Instruction(
                             Opcode.LEA_RIM,
-                            target.equals("%accumulator") ? new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA) : targetSymbol.variableDescriptor,
-                            pointedSymbol.variableDescriptor,
+                            target.equals("%accumulator") ? new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA) : targetSymbol.getVariableDescriptor(),
+                            pointedSymbol.getVariableDescriptor(),
                             true
                         ));
                     } else {
@@ -4099,7 +4336,7 @@ public class SAPCompiler extends NSTCompiler {
                         localCode.add(new Instruction(
                             Opcode.LEA_RIM,
                             new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
-                            pointedSymbol.variableDescriptor,
+                            pointedSymbol.getVariableDescriptor(),
                             true
                         ));
                         
@@ -4110,27 +4347,27 @@ public class SAPCompiler extends NSTCompiler {
                         } else {
                             localCode.add(new Instruction(
                                 Opcode.MOVW_RIM,
-                                targetSymbol.variableDescriptor,
+                                targetSymbol.getVariableDescriptor(),
                                 new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
                                 true
                             ));
                         }
                     }
                     
-                    return new PointerType(pointedSymbol.type);
+                    return new PointerType(pointedSymbol.getType());
                 } else if(functionDefinitions.containsKey(name)) {
                     // function pointers are a thing
                     if(targetIsRegister) {
                         localCode.add(new Instruction(
                             Opcode.MOVW_RIM,
-                            target.equals("%accumulator") ? new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA) : targetSymbol.variableDescriptor,
+                            target.equals("%accumulator") ? new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA) : targetSymbol.getVariableDescriptor(),
                             new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                             true
                         ));
                     } else if(target.equals("%stack")) {
                         // we can push constants straight to the stack
                         localCode.add(new Instruction(
-                            Opcode.PUSH_I32,
+                            Opcode.PUSHW_I32,
                             new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                             false, true
                         ));
@@ -4145,7 +4382,7 @@ public class SAPCompiler extends NSTCompiler {
                         
                         localCode.add(new Instruction(
                             Opcode.MOVW_RIM,
-                            targetSymbol.variableDescriptor,
+                            targetSymbol.getVariableDescriptor(),
                             new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
                             true
                         ));
@@ -4159,14 +4396,14 @@ public class SAPCompiler extends NSTCompiler {
                     if(targetIsRegister) {
                         localCode.add(new Instruction(
                             Opcode.MOVW_RIM,
-                            target.equals("%accumulator") ? new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA) : targetSymbol.variableDescriptor,
+                            target.equals("%accumulator") ? new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA) : targetSymbol.getVariableDescriptor(),
                             new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                             true
                         ));
                     } else if(target.equals("%stack")) {
                         // we can push constants straight to the stack
                         localCode.add(new Instruction(
-                            Opcode.PUSH_I32,
+                            Opcode.PUSHW_I32,
                             new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                             false, true
                         ));
@@ -4181,7 +4418,7 @@ public class SAPCompiler extends NSTCompiler {
                         
                         localCode.add(new Instruction(
                             Opcode.MOVW_RIM,
-                            targetSymbol.variableDescriptor,
+                            targetSymbol.getVariableDescriptor(),
                             new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
                             true
                         ));
@@ -4206,6 +4443,8 @@ public class SAPCompiler extends NSTCompiler {
      * @param value
      */
     private void generateWideConstantMultiply(Register reg, int value, boolean signed, List<Component> localCode) {
+        LOG.finest("Generating wide constant " + (signed ? "signed" : "unsigned") + " multiply: " + reg + " *= " + value);
+        
         if(value == 1) return;
         
         Register high = switch(reg) {
@@ -4389,7 +4628,7 @@ public class SAPCompiler extends NSTCompiler {
             String n = node.getValue();
             
             if(contextStack.hasSymbol(n)) {
-                return contextStack.getSymbol(n).type;
+                return contextStack.getSymbol(n).getType();
             } else {
                 LOG.severe("Unknown symbol: " + n);
                 errorsEncountered = true;
@@ -4411,8 +4650,15 @@ public class SAPCompiler extends NSTCompiler {
             if(children.size() == 1) {
                 return inferReferenceType(children.get(0));
             } else if(children.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_DOT) {
+                // <subref>.name
                 String memberName = children.get(2).getValue();
-                NSTLType t = inferReferenceType(children.get(0));
+                NSTLType t = inferReferenceType(children.get(0)),
+                         t2 = t;
+                
+                // allow access to structure pointers
+                if(t instanceof PointerType pt) {
+                    t = pt.getPointedType();
+                }
                 
                 if(t instanceof StructureType st) {
                     if(st.getMemberNames().contains(memberName)) {
@@ -4423,7 +4669,7 @@ public class SAPCompiler extends NSTCompiler {
                         return RawType.NONE;
                     }
                 } else {
-                    LOG.severe("Reference for structure access is not a structure: " + detailed(children.get(0)));
+                    LOG.severe("Reference for structure access is not a structure or structure pointer: " + detailed(children.get(0)) + " inferred as " + t2);
                     errorsEncountered = true;
                     return RawType.NONE;
                 }
@@ -4590,19 +4836,19 @@ public class SAPCompiler extends NSTCompiler {
                 ContextSymbol cs = contextStack.getSymbol(targetName);
                 
                 // Constant or variable
-                if(cs.isConstant) {
-                    if(cs.type instanceof RawType rt) {
+                if(cs.getIsConstant()) {
+                    if(cs.getType() instanceof RawType rt) {
                         // constant raw = just call it
                         localCode.add(new Instruction(
                             Opcode.CALLA_I32,
-                            new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, ((TypedRaw) cs.constantValue).getValue()),
+                            new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, ((TypedRaw) cs.getConstantValue()).getValue()),
                             false, true
                         ));
                         
                         LOG.finer("Emitted indirect function call to constant value of " + targetName);
-                    } else if(cs.type.getSize() == 4) {
+                    } else if(cs.getType().getSize() == 4) {
                         // 4 bytes = call value
-                        long v = cs.constantValue.toLong();
+                        long v = cs.getConstantValue().toLong();
                         
                         localCode.add(new Instruction(
                             Opcode.CALLA_I32,
@@ -4618,11 +4864,11 @@ public class SAPCompiler extends NSTCompiler {
                     }
                 } else {
                     // rawtype = promote if needed & call
-                    if(cs.type instanceof RawType rt) {
+                    if(cs.getType() instanceof RawType rt) {
                         if(rt.getSize() == 4) {
                             localCode.add(new Instruction(
                                 Opcode.CALLA_RIM32,
-                                cs.variableDescriptor,
+                                cs.getVariableDescriptor(),
                                 false, true
                             ));
                         } else {
@@ -4636,11 +4882,11 @@ public class SAPCompiler extends NSTCompiler {
                         }
                         
                         LOG.finer("Emitted indirect function call to value of " + targetName);
-                    } else if(cs.type.getSize() == 4) {
+                    } else if(cs.getType().getSize() == 4) {
                         // 4 bytes = call value
                         localCode.add(new Instruction(
                             Opcode.CALLA_RIM32,
-                            cs.variableDescriptor,
+                            cs.getVariableDescriptor(),
                             false, true
                         ));
                         
@@ -4889,30 +5135,36 @@ public class SAPCompiler extends NSTCompiler {
     private void compilePointerPromotion(ContextSymbol cs, List<Component> localCode) {
         LOG.finest("Promoting " + cs + " to ptr");
         
-        RawType rt = (RawType) cs.type;
-        if(rt.getSize() == 1) {
-            // 1 -> 4 = double MOVS/MOVZ
-            localCode.add(new Instruction(
-                rt.isSigned() ? Opcode.MOVS_RIM : Opcode.MOVZ_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
-                cs.variableDescriptor,
-                true
-            ));
-            
-            localCode.add(new Instruction(
-                rt.isSigned() ? Opcode.MOVS_RIM : Opcode.MOVZ_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
-                true
-            ));
+        if(cs.getType() instanceof RawType rt) {
+            if(rt.getSize() == 1) {
+                // 1 -> 4 = double MOVS/MOVZ
+                localCode.add(new Instruction(
+                    rt.isSigned() ? Opcode.MOVS_RIM : Opcode.MOVZ_RIM,
+                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                    cs.getVariableDescriptor(),
+                    true
+                ));
+                
+                localCode.add(new Instruction(
+                    rt.isSigned() ? Opcode.MOVS_RIM : Opcode.MOVZ_RIM,
+                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
+                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                    true
+                ));
+            } else {
+                // 2 -> 4 = single MOVS/MOVZ
+                localCode.add(new Instruction(
+                    rt.isSigned() ? Opcode.MOVS_RIM : Opcode.MOVZ_RIM,
+                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
+                    cs.getVariableDescriptor(),
+                    true
+                ));
+            }
         } else {
-            // 2 -> 4 = single MOVS/MOVZ
-            localCode.add(new Instruction(
-                rt.isSigned() ? Opcode.MOVS_RIM : Opcode.MOVZ_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
-                cs.variableDescriptor,
-                true
-            ));
+            // uuuuuh error
+            // TODO
+            LOG.severe("Cannot treat " + cs + " as a ptr");
+            errorsEncountered = true;
         }
     }
     
@@ -4924,9 +5176,9 @@ public class SAPCompiler extends NSTCompiler {
         
         LOG.finest("Pushing local variable " + cs);
         
-        if(cs.isConstant) {
+        if(cs.getIsConstant()) {
             // Constant = push the value
-            byte[] value = cs.constantValue.getBytes();
+            byte[] value = cs.getConstantValue().getBytes();
             
             // high bytes to low bytes, as many at a time as we can
             for(int i = value.length; i > 0;) {
@@ -4936,10 +5188,10 @@ public class SAPCompiler extends NSTCompiler {
                     // PUSH I32
                     i -= 4;
                     
-                    val = cs.constantValue.toLong();
+                    val = cs.getConstantValue().toLong();
                     
                     localCode.add(new Instruction(
-                        Opcode.PUSH_I32,
+                        Opcode.PUSHW_I32,
                         new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(val)),
                         false, true
                     ));
@@ -4968,17 +5220,17 @@ public class SAPCompiler extends NSTCompiler {
                 }
             }
         } else {
-            ResolvableLocationDescriptor rld = cs.variableDescriptor;
+            ResolvableLocationDescriptor rld = cs.getVariableDescriptor();
             
             // if the location is a register or byte/word we can push directly
             int size = rld.getSize();
-            if(cs.type.getSize() == size && (size == 1 || size == 2)) {
+            if(cs.getType().getSize() == size && (size == 1 || size == 2)) {
                 localCode.add(new Instruction(
                     Opcode.PUSH_RIM,
                     rld,
                     false, false
                 ));
-            } else if(cs.type.getSize() == size && size == 4 && rld.getType() == LocationType.REGISTER) {
+            } else if(cs.getType().getSize() == size && size == 4 && rld.getType() == LocationType.REGISTER) {
                 // push pair
                 localCode.add(new Instruction(
                     switch(rld.getRegister()) {
@@ -5087,7 +5339,7 @@ public class SAPCompiler extends NSTCompiler {
             
             LOG.finer("Assigned local constant " + tv.getType().getName() + " " + name + " = " + tv);
             contextStack.pushSymbol(new ContextSymbol(name, tv));
-        } else if(contextCounter == 0) {
+        } else if(contextStack.getContextCounter() == 0) {
             // global variables
             // allocate
             contextStack.pushSymbol(new ContextSymbol(name, type, new ResolvableLocationDescriptor(LocationType.MEMORY, type.getSize(), new ResolvableMemory(Register.NONE, Register.NONE, 0, new ResolvableConstant(name)))));
@@ -5233,17 +5485,17 @@ public class SAPCompiler extends NSTCompiler {
             
             // if it's defined, return it
             if(typeDefinitions.containsKey(name)) {
-                return typeDefinitions.get(name);
+                return typeDefinitions.get(name).getRealType();
             } else {
                 // check string constants and arrays
                 if(contextStack.hasSymbol(name)) {
                     ContextSymbol cs = contextStack.getSymbol(name);
                     
-                    if(cs.isConstant) {
-                        NSTLType t = cs.constantValue.getType();
+                    if(cs.getIsConstant()) {
+                        NSTLType t = cs.getConstantValue().getType().getRealType();
                         
                         if(t instanceof StringType st) return t;
-                    } else if(cs.type instanceof ArrayType at) {
+                    } else if(cs.getType() instanceof ArrayType at) {
                         return at;
                     }
                 }
@@ -5253,7 +5505,7 @@ public class SAPCompiler extends NSTCompiler {
                 errorsEncountered = true;
             }
         } else {
-            NSTLType t = constructType(children.get(0));
+            NSTLType t = constructType(children.get(0)).getRealType();
             
             // pointer or expression
             if(children.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_POINTER) {
@@ -5290,12 +5542,12 @@ public class SAPCompiler extends NSTCompiler {
      * @param node
      * @return
      */
-    private NSTLType compileTypeDef(String name, ASTNode node) {
+    private NSTLType compileStructureDefinition(String name, ASTNode node) {
         List<ASTNode> members = node.getChildren();
         List<String> memberNames = new ArrayList<>();
         List<NSTLType> memberTypes = new ArrayList<>();
         
-        LOG.finest("Compiling type definition " + name);
+        LOG.finest("Compiling structure definition " + name);
         
         for(ASTNode member : members) {
             List<ASTNode> children = member.getChildren();
@@ -5403,8 +5655,8 @@ public class SAPCompiler extends NSTCompiler {
                         // check definitions
                         if(compilerDefinitions.containsKey(s1)) {
                             return compilerDefinitions.get(s1);
-                        } else if((cs1 = contextStack.getSymbol(s1)) != null && cs1.isConstant) {
-                            return cs1.constantValue;
+                        } else if((cs1 = contextStack.getSymbol(s1)) != null && cs1.getIsConstant()) {
+                            return cs1.getConstantValue();
                         } else {
                             LOG.severe("Unknown or non-constant symbol " + s1 + " in constant expression");
                             errorsEncountered = true;
@@ -5722,6 +5974,24 @@ public class SAPCompiler extends NSTCompiler {
                 }
                 break;
             
+            case NstlgrammarParser.ID.VARIABLE_REFERENCE:
+                c1 = children.get(1);
+                
+                if(c0.getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_TO && c1.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_SUBREFERENCE && c1.getChildren().get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_NAME) {
+                    String pointedName = c1.getChildren().get(0).getValue();
+                    
+                    if(contextStack.hasSymbol(pointedName)) {
+                        return new TypedRaw(new ResolvableConstant(pointedName), RawType.PTR);
+                    } else {
+                        LOG.severe("Unknown symbol in constant TO: " + pointedName);
+                        errorsEncountered = true;
+                    }
+                } else {
+                    LOG.severe("Unexpected node in constant parse: " + detailed(node));
+                    errorsEncountered = true;                    
+                }
+                break;
+            
             default:
                 LOG.severe("Unexpected node in constant parse: " + detailed(node));
                 errorsEncountered = true;
@@ -5884,7 +6154,7 @@ public class SAPCompiler extends NSTCompiler {
         checkNameConflicts(defName);
         TypedValue value = computeConstant(children.get(1));
         
-        LOG.fine("Defining " + defName +" = " + value);
+        LOG.finer("Defining " + defName +" = " + value);
         
         compilerDefinitions.put(defName, value);
     }
@@ -5894,7 +6164,7 @@ public class SAPCompiler extends NSTCompiler {
      * 
      * @param node
      */
-    private void compileLibraryInclusion(ASTNode node, FileLocator locator) {
+    private ASTNode compileLibraryInclusion(ASTNode node, FileLocator locator) {
         List<ASTNode> children = node.getChildren();
         
         // first child is always LNAME, might be local name
@@ -5904,6 +6174,8 @@ public class SAPCompiler extends NSTCompiler {
         String libname = children.get(0).getValue().substring(1),
                localLibname = libname,
                filename = "";
+        
+        LOG.finest("Including library " + libname);
         
         // second LNAME = canonical name, STRING = file
         if(children.size() == 2) {
@@ -5935,20 +6207,73 @@ public class SAPCompiler extends NSTCompiler {
             hasFile = true;
         }
         
+        if(knownLibraryNames.containsValue(libname)) {
+            LOG.finest("Included library " + libname + " as " + localLibname + " from existing library");
+            
+            knownLibraryNames.put(localLibname, libname);
+            return null;
+        }
+        
         knownLibraryNames.put(localLibname, libname);
         
         Path givenPath = hasFile ? Paths.get(filename) : Paths.get(libname);
         if(!locator.addFile(givenPath)) {
             LOG.severe("Could not find file for library " + libname);
             errorsEncountered = true;
-            return;
+            return null;
         }
         
         Path truePath = locator.getSourceFile(givenPath);
         filename = truePath.toString();
         libraryFilesMap.put(truePath.toFile(), localLibname);
         
-        LOG.finest("Including library " + libname + " as " + localLibname + " from " + filename);
+        LOG.finest("Included library " + libname + " as " + localLibname + " from " + filename);
+        
+        // if we have a header file, insert it into the tree
+        return getHeaderContents(givenPath, libname, locator);
+    }
+    
+    /**
+     * Gets the contents of a header file
+     * @param headerPath
+     * @return
+     */
+    private ASTNode getHeaderContents(Path givenPath, String libname, FileLocator locator) {
+        Path headerPath = locator.getHeaderFile(givenPath);
+        
+        if(headerPath == null) {
+            LOG.finer("No header file for " + libname);
+            return null;
+        }
+        
+        LOG.finer("Including header contents for " + libname + " from " + headerPath);
+        
+        try {
+            NstlgrammarLexer lexer = new NstlgrammarLexer(new InputStreamReader(Files.newInputStream(headerPath)));
+            NstlgrammarParser parser = new NstlgrammarParser(lexer);
+            
+            ParseResult result = parser.parse();
+            
+            if(result.getErrors().size() != 0) {
+                LOG.severe("Encountered errors parsing " + headerPath);
+                for(ParseError pe : result.getErrors()) {
+                    LOG.severe("ParseError: " + pe);
+                }
+                
+                errorsEncountered = true;
+            } else {
+                ASTNode headerRoot = result.getRoot();
+                return headerRoot;
+            }
+        } catch(IOException e) {
+            LOG.severe("IOException parsing header file: " + headerPath);
+            e.printStackTrace();
+        } catch(InitializationException e) {
+            LOG.severe("InitializationException parsing header file: " + headerPath);
+            e.printStackTrace();
+        }
+        
+        return null;
     }
     
     /**
@@ -5992,7 +6317,7 @@ public class SAPCompiler extends NSTCompiler {
                     return n.getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_INTEGER ||
                            n.getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_STRING ||
                            compilerDefinitions.containsKey(n.getValue()) ||
-                           (contextStack.hasSymbol(n.getValue()) && contextStack.getSymbol(n.getValue()).isConstant);
+                           (contextStack.hasSymbol(n.getValue()) && contextStack.getSymbol(n.getValue()).getIsConstant());
                 } else {
                     return true;
                 }

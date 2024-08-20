@@ -12,7 +12,7 @@ public class PointerType implements NSTLType {
     private NSTLType pointedType;
     
     public PointerType(NSTLType pointedType) {
-        this.pointedType = pointedType;
+        this.pointedType = pointedType.getRealType();
     }
 
     @Override
@@ -20,7 +20,7 @@ public class PointerType implements NSTLType {
         return 4;
     }
     
-    public NSTLType getPointedType() { return this.pointedType; }
+    public NSTLType getPointedType() { return this.pointedType.getRealType(); }
     
     @Override
     public String toString() {
@@ -34,9 +34,14 @@ public class PointerType implements NSTLType {
 
     @Override
     public boolean equals(NSTLType t) {
+        t = t.getRealType();
+        
         if(t instanceof PointerType pt) {
             NSTLType t1 = this.pointedType,
                      t2 = pt.pointedType;
+            
+            // none pointers are whatever you want them to be :)
+            if(t1.equals(RawType.NONE) || t2.equals(RawType.NONE)) return true; 
             
             // pointers to strings are equivalent to pointers to u8s
             if(t1 instanceof StringType st) t1 = RawType.U8;

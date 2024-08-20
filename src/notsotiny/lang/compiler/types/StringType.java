@@ -63,6 +63,8 @@ public class StringType implements NSTLType, TypedValue {
 
     @Override
     public boolean convertType(NSTLType newType) {
+        newType = newType.getRealType();
+        
         // no conversions allowed
         if(newType instanceof StringType st) {
             return st.getSize() == this.str.length() || st.str.equals("");
@@ -73,6 +75,8 @@ public class StringType implements NSTLType, TypedValue {
 
     @Override
     public boolean equals(NSTLType t) {
+        t.getRealType();
+        
         if(t instanceof StringType st) {
             return st.getSize() == this.str.length();
         }

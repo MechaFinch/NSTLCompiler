@@ -94,7 +94,7 @@ public class NSTLCompiler {
              execFile,
              sourceDir = sourceFile.toAbsolutePath().getParent(),
              outDir = hasOutputDir ? Paths.get(outputArg) : sourceDir.resolve("out"),
-             standardDir = Paths.get("C:\\Users\\wetca\\Desktop\\silly  code\\architecture\\NotSoTiny\\programming\\standard library");
+             standardDir = Paths.get("C:\\Users\\wetca\\data\\silly  code\\architecture\\NotSoTiny\\programming\\standard library");
         
         if(hasExecFile) {
             execFile = Paths.get(execFileArg);
@@ -104,7 +104,7 @@ public class NSTLCompiler {
             execFile = sourceFile.resolveSibling(sourceName);
         }
         
-        FileLocator locator = new FileLocator(sourceDir, standardDir, List.of(".obj", ".asm", ".nstl"));
+        FileLocator locator = new FileLocator(sourceDir, standardDir, List.of(".obj", ".asm", ".nstl"), List.of(".nsth"));
         locator.addFile(sourceFile);
         
         List<AssemblyObject> compiledObjects = new ArrayList<>();
@@ -205,7 +205,7 @@ public class NSTLCompiler {
             LOG.finest(() -> "Naming \"" + f + "\" " + name);
             
             for(RenameableRelocatableObject obj : assembledObjects) {
-                obj.renameLibrary(f, name);
+                obj.renameLibraryFile(f, name);
             }
         }
         
@@ -215,25 +215,48 @@ public class NSTLCompiler {
         // compact names if debug isn't enabled
         if(!debug) {
             LOG.fine("Compacting references");
-            Map<String, String> nameIDMap = new HashMap<>();
+            Map<String, String> nameIDMap = new HashMap<>(),
+                                libraryIDMap = new HashMap<>();
             
             // generate compact names
+            int lid = 0;
             for(RenameableRelocatableObject obj : assembledObjects) {
+                libraryIDMap.put(obj.getName(), Integer.toHexString(lid++));
+                LOG.fine("Renamed " + obj.getName() + " to " + libraryIDMap.get(obj.getName()));
+                
                 String n = obj.getName() + ".";
                 int id = 0;
                 
                 for(String s : obj.getOutgoingReferenceNames()) {
                     // dont modify special references
-                    if((n + s).equals(entrySymbolName) || s.equals("ORIGIN")) continue;
+                    if(s.equals("ORIGIN")) continue;
                     
-                    nameIDMap.put(n + s, n + Integer.toHexString(id++));
+                    String oldName = n + s,
+                           newName = n + Integer.toHexString(id++);
+                    
+                    // track changes to entry symbol
+                    if(oldName.equals(entrySymbolName)) {
+                        entrySymbolName = newName;
+                    }
+                    
+                    nameIDMap.put(oldName, newName);
                 }
             }
             
-            // rename
+            // rename references
             for(RenameableRelocatableObject obj : assembledObjects) {
                 for(String old : nameIDMap.keySet()) {
                     obj.renameGlobal(old, nameIDMap.get(old));
+                }
+            }
+            
+            // rename libraries
+            int entryIndex = entrySymbolName.indexOf('.');
+            entrySymbolName = libraryIDMap.get(entrySymbolName.substring(0, entryIndex)) + entrySymbolName.substring(entryIndex);
+            
+            for(RenameableRelocatableObject obj : assembledObjects) {
+                for(String old : libraryIDMap.keySet()) {
+                    obj.renameLibrary(old, libraryIDMap.get(old));
                 }
             }
         }
@@ -269,6 +292,8 @@ public class NSTLCompiler {
             // object files
             objectFileNames.forEach(execWriter::println);
         }
+        
+        LOG.info("Done.");
     }
     
     public static void printTree(ASTNode node, boolean[] crossings) {

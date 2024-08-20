@@ -52,6 +52,8 @@ public class TypedRaw implements TypedValue {
 
     @Override
     public boolean convertType(NSTLType newType) {
+        newType = newType.getRealType();
+        
         if(newType instanceof RawType tr) {
             if(newType.getSize() != 0) this.t = tr;
             return true;

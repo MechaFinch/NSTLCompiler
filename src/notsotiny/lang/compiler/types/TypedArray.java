@@ -49,6 +49,8 @@ public class TypedArray implements TypedValue {
 
     @Override
     public boolean convertType(NSTLType newType) {
+        newType = newType.getRealType();
+        
         // no conversions
         if(newType instanceof ArrayType at) {
             return this.t.getLength() == at.getLength() && this.t.getMemberType().equals(at.getMemberType());

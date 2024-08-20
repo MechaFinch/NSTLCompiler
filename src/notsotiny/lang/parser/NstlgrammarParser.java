@@ -31,207 +31,219 @@ public class NstlgrammarParser extends RNGLRParser {
         /**
          * The unique identifier for variable program
          */
-        public static final int VARIABLE_PROGRAM = 0x0069;
+        public static final int VARIABLE_PROGRAM = 0x006A;
         /**
          * The unique identifier for variable top_level_code
          */
-        public static final int VARIABLE_TOP_LEVEL_CODE = 0x006A;
+        public static final int VARIABLE_TOP_LEVEL_CODE = 0x006B;
         /**
          * The unique identifier for variable library_inclusion
          */
-        public static final int VARIABLE_LIBRARY_INCLUSION = 0x006B;
+        public static final int VARIABLE_LIBRARY_INCLUSION = 0x006C;
         /**
          * The unique identifier for variable compiler_definition
          */
-        public static final int VARIABLE_COMPILER_DEFINITION = 0x006C;
+        public static final int VARIABLE_COMPILER_DEFINITION = 0x006D;
         /**
          * The unique identifier for variable type_definition
          */
-        public static final int VARIABLE_TYPE_DEFINITION = 0x006D;
+        public static final int VARIABLE_TYPE_DEFINITION = 0x006E;
+        /**
+         * The unique identifier for variable type_alias
+         */
+        public static final int VARIABLE_TYPE_ALIAS = 0x006F;
+        /**
+         * The unique identifier for variable structure_definition
+         */
+        public static final int VARIABLE_STRUCTURE_DEFINITION = 0x0070;
         /**
          * The unique identifier for variable member
          */
-        public static final int VARIABLE_MEMBER = 0x006E;
+        public static final int VARIABLE_MEMBER = 0x0071;
         /**
          * The unique identifier for variable type
          */
-        public static final int VARIABLE_TYPE = 0x006F;
+        public static final int VARIABLE_TYPE = 0x0072;
         /**
          * The unique identifier for variable function_definition
          */
-        public static final int VARIABLE_FUNCTION_DEFINITION = 0x0070;
+        public static final int VARIABLE_FUNCTION_DEFINITION = 0x0073;
         /**
          * The unique identifier for variable internal_function_header
          */
-        public static final int VARIABLE_INTERNAL_FUNCTION_HEADER = 0x0071;
+        public static final int VARIABLE_INTERNAL_FUNCTION_HEADER = 0x0074;
         /**
          * The unique identifier for variable external_function_header
          */
-        public static final int VARIABLE_EXTERNAL_FUNCTION_HEADER = 0x0072;
+        public static final int VARIABLE_EXTERNAL_FUNCTION_HEADER = 0x0075;
         /**
          * The unique identifier for variable named_argument_list
          */
-        public static final int VARIABLE_NAMED_ARGUMENT_LIST = 0x0073;
+        public static final int VARIABLE_NAMED_ARGUMENT_LIST = 0x0076;
         /**
          * The unique identifier for variable named_argument
          */
-        public static final int VARIABLE_NAMED_ARGUMENT = 0x0074;
+        public static final int VARIABLE_NAMED_ARGUMENT = 0x0077;
         /**
          * The unique identifier for variable nameless_argument_list
          */
-        public static final int VARIABLE_NAMELESS_ARGUMENT_LIST = 0x0075;
+        public static final int VARIABLE_NAMELESS_ARGUMENT_LIST = 0x0078;
         /**
          * The unique identifier for variable nameless_argument
          */
-        public static final int VARIABLE_NAMELESS_ARGUMENT = 0x0076;
+        public static final int VARIABLE_NAMELESS_ARGUMENT = 0x0079;
         /**
          * The unique identifier for variable constant_expression
          */
-        public static final int VARIABLE_CONSTANT_EXPRESSION = 0x0077;
+        public static final int VARIABLE_CONSTANT_EXPRESSION = 0x007A;
         /**
          * The unique identifier for variable constant_comparison
          */
-        public static final int VARIABLE_CONSTANT_COMPARISON = 0x0078;
+        public static final int VARIABLE_CONSTANT_COMPARISON = 0x007B;
         /**
          * The unique identifier for variable constant_shift
          */
-        public static final int VARIABLE_CONSTANT_SHIFT = 0x0079;
+        public static final int VARIABLE_CONSTANT_SHIFT = 0x007C;
         /**
          * The unique identifier for variable constant_sum
          */
-        public static final int VARIABLE_CONSTANT_SUM = 0x007A;
+        public static final int VARIABLE_CONSTANT_SUM = 0x007D;
         /**
          * The unique identifier for variable constant_factor
          */
-        public static final int VARIABLE_CONSTANT_FACTOR = 0x007B;
+        public static final int VARIABLE_CONSTANT_FACTOR = 0x007E;
         /**
          * The unique identifier for variable constant_unary
          */
-        public static final int VARIABLE_CONSTANT_UNARY = 0x007C;
+        public static final int VARIABLE_CONSTANT_UNARY = 0x007F;
         /**
          * The unique identifier for variable constant_cast
          */
-        public static final int VARIABLE_CONSTANT_CAST = 0x007D;
+        public static final int VARIABLE_CONSTANT_CAST = 0x0080;
         /**
          * The unique identifier for variable constant_value
          */
-        public static final int VARIABLE_CONSTANT_VALUE = 0x007E;
+        public static final int VARIABLE_CONSTANT_VALUE = 0x0081;
         /**
          * The unique identifier for variable variable_expression
          */
-        public static final int VARIABLE_VARIABLE_EXPRESSION = 0x007F;
+        public static final int VARIABLE_VARIABLE_EXPRESSION = 0x0082;
         /**
          * The unique identifier for variable variable_comparison
          */
-        public static final int VARIABLE_VARIABLE_COMPARISON = 0x0080;
+        public static final int VARIABLE_VARIABLE_COMPARISON = 0x0083;
         /**
          * The unique identifier for variable variable_shift
          */
-        public static final int VARIABLE_VARIABLE_SHIFT = 0x0081;
+        public static final int VARIABLE_VARIABLE_SHIFT = 0x0084;
         /**
          * The unique identifier for variable variable_sum
          */
-        public static final int VARIABLE_VARIABLE_SUM = 0x0082;
+        public static final int VARIABLE_VARIABLE_SUM = 0x0085;
         /**
          * The unique identifier for variable variable_factor
          */
-        public static final int VARIABLE_VARIABLE_FACTOR = 0x0083;
+        public static final int VARIABLE_VARIABLE_FACTOR = 0x0086;
         /**
          * The unique identifier for variable variable_unary
          */
-        public static final int VARIABLE_VARIABLE_UNARY = 0x0084;
+        public static final int VARIABLE_VARIABLE_UNARY = 0x0087;
         /**
          * The unique identifier for variable variable_cast
          */
-        public static final int VARIABLE_VARIABLE_CAST = 0x0085;
+        public static final int VARIABLE_VARIABLE_CAST = 0x0088;
         /**
          * The unique identifier for variable variable_value
          */
-        public static final int VARIABLE_VARIABLE_VALUE = 0x0086;
+        public static final int VARIABLE_VARIABLE_VALUE = 0x0089;
         /**
          * The unique identifier for variable variable_nonconstant
          */
-        public static final int VARIABLE_VARIABLE_NONCONSTANT = 0x0087;
+        public static final int VARIABLE_VARIABLE_NONCONSTANT = 0x008A;
         /**
          * The unique identifier for variable variable_structure
          */
-        public static final int VARIABLE_VARIABLE_STRUCTURE = 0x0088;
+        public static final int VARIABLE_VARIABLE_STRUCTURE = 0x008B;
         /**
          * The unique identifier for variable variable_assignment_list
          */
-        public static final int VARIABLE_VARIABLE_ASSIGNMENT_LIST = 0x0089;
+        public static final int VARIABLE_VARIABLE_ASSIGNMENT_LIST = 0x008C;
         /**
          * The unique identifier for variable variable_array
          */
-        public static final int VARIABLE_VARIABLE_ARRAY = 0x008A;
+        public static final int VARIABLE_VARIABLE_ARRAY = 0x008D;
         /**
          * The unique identifier for variable reference
          */
-        public static final int VARIABLE_REFERENCE = 0x008B;
+        public static final int VARIABLE_REFERENCE = 0x008E;
         /**
          * The unique identifier for variable subreference
          */
-        public static final int VARIABLE_SUBREFERENCE = 0x008C;
+        public static final int VARIABLE_SUBREFERENCE = 0x008F;
         /**
          * The unique identifier for variable function_call
          */
-        public static final int VARIABLE_FUNCTION_CALL = 0x008D;
+        public static final int VARIABLE_FUNCTION_CALL = 0x0090;
         /**
          * The unique identifier for variable argument_list
          */
-        public static final int VARIABLE_ARGUMENT_LIST = 0x008E;
+        public static final int VARIABLE_ARGUMENT_LIST = 0x0091;
         /**
          * The unique identifier for variable function_code
          */
-        public static final int VARIABLE_FUNCTION_CODE = 0x008F;
+        public static final int VARIABLE_FUNCTION_CODE = 0x0092;
         /**
          * The unique identifier for variable assignment
          */
-        public static final int VARIABLE_ASSIGNMENT = 0x0090;
+        public static final int VARIABLE_ASSIGNMENT = 0x0093;
         /**
          * The unique identifier for variable return
          */
-        public static final int VARIABLE_RETURN = 0x0091;
+        public static final int VARIABLE_RETURN = 0x0094;
         /**
          * The unique identifier for variable if_construct
          */
-        public static final int VARIABLE_IF_CONSTRUCT = 0x0092;
+        public static final int VARIABLE_IF_CONSTRUCT = 0x0095;
         /**
          * The unique identifier for variable if_tail
          */
-        public static final int VARIABLE_IF_TAIL = 0x0093;
+        public static final int VARIABLE_IF_TAIL = 0x0096;
         /**
          * The unique identifier for variable while_construct
          */
-        public static final int VARIABLE_WHILE_CONSTRUCT = 0x0094;
+        public static final int VARIABLE_WHILE_CONSTRUCT = 0x0097;
         /**
          * The unique identifier for variable until_construct
          */
-        public static final int VARIABLE_UNTIL_CONSTRUCT = 0x0095;
+        public static final int VARIABLE_UNTIL_CONSTRUCT = 0x0098;
+        /**
+         * The unique identifier for variable for_construct
+         */
+        public static final int VARIABLE_FOR_CONSTRUCT = 0x0099;
         /**
          * The unique identifier for variable label
          */
-        public static final int VARIABLE_LABEL = 0x0096;
+        public static final int VARIABLE_LABEL = 0x009A;
         /**
          * The unique identifier for variable break
          */
-        public static final int VARIABLE_BREAK = 0x0097;
+        public static final int VARIABLE_BREAK = 0x009B;
         /**
          * The unique identifier for variable continue
          */
-        public static final int VARIABLE_CONTINUE = 0x0098;
+        public static final int VARIABLE_CONTINUE = 0x009C;
         /**
          * The unique identifier for variable value_creation
          */
-        public static final int VARIABLE_VALUE_CREATION = 0x0099;
+        public static final int VARIABLE_VALUE_CREATION = 0x009D;
         /**
          * The unique identifier for variable constant_structure
          */
-        public static final int VARIABLE_CONSTANT_STRUCTURE = 0x009A;
+        public static final int VARIABLE_CONSTANT_STRUCTURE = 0x009E;
         /**
          * The unique identifier for variable constant_assignment_list
          */
-        public static final int VARIABLE_CONSTANT_ASSIGNMENT_LIST = 0x009B;
+        public static final int VARIABLE_CONSTANT_ASSIGNMENT_LIST = 0x009F;
     }
     /**
      * The collection of variables matched by this parser
@@ -240,61 +252,60 @@ public class NstlgrammarParser extends RNGLRParser {
      * so that variable indices in the automaton can be used to retrieve the variables in this table
      */
     private static final Symbol[] variables = {
-        new Symbol(0x0069, "program"), 
-        new Symbol(0x006A, "top_level_code"), 
-        new Symbol(0x006B, "library_inclusion"), 
-        new Symbol(0x006C, "compiler_definition"), 
-        new Symbol(0x006D, "type_definition"), 
-        new Symbol(0x006E, "member"), 
-        new Symbol(0x006F, "type"), 
-        new Symbol(0x0070, "function_definition"), 
-        new Symbol(0x0071, "internal_function_header"), 
-        new Symbol(0x0072, "external_function_header"), 
-        new Symbol(0x0073, "named_argument_list"), 
-        new Symbol(0x0074, "named_argument"), 
-        new Symbol(0x0075, "nameless_argument_list"), 
-        new Symbol(0x0076, "nameless_argument"), 
-        new Symbol(0x0077, "constant_expression"), 
-        new Symbol(0x0078, "constant_comparison"), 
-        new Symbol(0x0079, "constant_shift"), 
-        new Symbol(0x007A, "constant_sum"), 
-        new Symbol(0x007B, "constant_factor"), 
-        new Symbol(0x007C, "constant_unary"), 
-        new Symbol(0x007D, "constant_cast"), 
-        new Symbol(0x007E, "constant_value"), 
-        new Symbol(0x007F, "variable_expression"), 
-        new Symbol(0x0080, "variable_comparison"), 
-        new Symbol(0x0081, "variable_shift"), 
-        new Symbol(0x0082, "variable_sum"), 
-        new Symbol(0x0083, "variable_factor"), 
-        new Symbol(0x0084, "variable_unary"), 
-        new Symbol(0x0085, "variable_cast"), 
-        new Symbol(0x0086, "variable_value"), 
-        new Symbol(0x0087, "variable_nonconstant"), 
-        new Symbol(0x0088, "variable_structure"), 
-        new Symbol(0x0089, "variable_assignment_list"), 
-        new Symbol(0x008A, "variable_array"), 
-        new Symbol(0x008B, "reference"), 
-        new Symbol(0x008C, "subreference"), 
-        new Symbol(0x008D, "function_call"), 
-        new Symbol(0x008E, "argument_list"), 
-        new Symbol(0x008F, "function_code"), 
-        new Symbol(0x0090, "assignment"), 
-        new Symbol(0x0091, "return"), 
-        new Symbol(0x0092, "if_construct"), 
-        new Symbol(0x0093, "if_tail"), 
-        new Symbol(0x0094, "while_construct"), 
-        new Symbol(0x0095, "until_construct"), 
-        new Symbol(0x0096, "label"), 
-        new Symbol(0x0097, "break"), 
-        new Symbol(0x0098, "continue"), 
-        new Symbol(0x0099, "value_creation"), 
-        new Symbol(0x009A, "constant_structure"), 
-        new Symbol(0x009B, "constant_assignment_list"), 
-        new Symbol(0x009C, "__V156"), 
-        new Symbol(0x009D, "__V157"), 
-        new Symbol(0x009E, "__V158"), 
-        new Symbol(0x009F, "__V159"), 
+        new Symbol(0x006A, "program"), 
+        new Symbol(0x006B, "top_level_code"), 
+        new Symbol(0x006C, "library_inclusion"), 
+        new Symbol(0x006D, "compiler_definition"), 
+        new Symbol(0x006E, "type_definition"), 
+        new Symbol(0x006F, "type_alias"), 
+        new Symbol(0x0070, "structure_definition"), 
+        new Symbol(0x0071, "member"), 
+        new Symbol(0x0072, "type"), 
+        new Symbol(0x0073, "function_definition"), 
+        new Symbol(0x0074, "internal_function_header"), 
+        new Symbol(0x0075, "external_function_header"), 
+        new Symbol(0x0076, "named_argument_list"), 
+        new Symbol(0x0077, "named_argument"), 
+        new Symbol(0x0078, "nameless_argument_list"), 
+        new Symbol(0x0079, "nameless_argument"), 
+        new Symbol(0x007A, "constant_expression"), 
+        new Symbol(0x007B, "constant_comparison"), 
+        new Symbol(0x007C, "constant_shift"), 
+        new Symbol(0x007D, "constant_sum"), 
+        new Symbol(0x007E, "constant_factor"), 
+        new Symbol(0x007F, "constant_unary"), 
+        new Symbol(0x0080, "constant_cast"), 
+        new Symbol(0x0081, "constant_value"), 
+        new Symbol(0x0082, "variable_expression"), 
+        new Symbol(0x0083, "variable_comparison"), 
+        new Symbol(0x0084, "variable_shift"), 
+        new Symbol(0x0085, "variable_sum"), 
+        new Symbol(0x0086, "variable_factor"), 
+        new Symbol(0x0087, "variable_unary"), 
+        new Symbol(0x0088, "variable_cast"), 
+        new Symbol(0x0089, "variable_value"), 
+        new Symbol(0x008A, "variable_nonconstant"), 
+        new Symbol(0x008B, "variable_structure"), 
+        new Symbol(0x008C, "variable_assignment_list"), 
+        new Symbol(0x008D, "variable_array"), 
+        new Symbol(0x008E, "reference"), 
+        new Symbol(0x008F, "subreference"), 
+        new Symbol(0x0090, "function_call"), 
+        new Symbol(0x0091, "argument_list"), 
+        new Symbol(0x0092, "function_code"), 
+        new Symbol(0x0093, "assignment"), 
+        new Symbol(0x0094, "return"), 
+        new Symbol(0x0095, "if_construct"), 
+        new Symbol(0x0096, "if_tail"), 
+        new Symbol(0x0097, "while_construct"), 
+        new Symbol(0x0098, "until_construct"), 
+        new Symbol(0x0099, "for_construct"), 
+        new Symbol(0x009A, "label"), 
+        new Symbol(0x009B, "break"), 
+        new Symbol(0x009C, "continue"), 
+        new Symbol(0x009D, "value_creation"), 
+        new Symbol(0x009E, "constant_structure"), 
+        new Symbol(0x009F, "constant_assignment_list"), 
         new Symbol(0x00A0, "__V160"), 
         new Symbol(0x00A1, "__V161"), 
         new Symbol(0x00A2, "__V162"), 
@@ -317,7 +328,16 @@ public class NstlgrammarParser extends RNGLRParser {
         new Symbol(0x00B3, "__V179"), 
         new Symbol(0x00B4, "__V180"), 
         new Symbol(0x00B5, "__V181"), 
-        new Symbol(0x00B6, "__VAxiom") };
+        new Symbol(0x00B6, "__V182"), 
+        new Symbol(0x00B7, "__V183"), 
+        new Symbol(0x00B8, "__V184"), 
+        new Symbol(0x00B9, "__V185"), 
+        new Symbol(0x00BA, "__V186"), 
+        new Symbol(0x00BB, "__V187"), 
+        new Symbol(0x00BC, "__V188"), 
+        new Symbol(0x00BD, "__V189"), 
+        new Symbol(0x00BE, "__V190"), 
+        new Symbol(0x00BF, "__VAxiom") };
     /**
      * The collection of virtuals matched by this parser
      *
@@ -393,6 +413,7 @@ public class NstlgrammarParser extends RNGLRParser {
         public void onTerminalKwBreak(ASTNode node) {}
         public void onTerminalKwContinue(ASTNode node) {}
         public void onTerminalKwUntil(ASTNode node) {}
+        public void onTerminalKwFor(ASTNode node) {}
         public void onTerminalOpGreater(ASTNode node) {}
         public void onTerminalOpLess(ASTNode node) {}
         public void onTerminalOpGreaterEqual(ASTNode node) {}
@@ -413,6 +434,8 @@ public class NstlgrammarParser extends RNGLRParser {
         public void onVariableLibraryInclusion(ASTNode node) {}
         public void onVariableCompilerDefinition(ASTNode node) {}
         public void onVariableTypeDefinition(ASTNode node) {}
+        public void onVariableTypeAlias(ASTNode node) {}
+        public void onVariableStructureDefinition(ASTNode node) {}
         public void onVariableMember(ASTNode node) {}
         public void onVariableType(ASTNode node) {}
         public void onVariableFunctionDefinition(ASTNode node) {}
@@ -453,6 +476,7 @@ public class NstlgrammarParser extends RNGLRParser {
         public void onVariableIfTail(ASTNode node) {}
         public void onVariableWhileConstruct(ASTNode node) {}
         public void onVariableUntilConstruct(ASTNode node) {}
+        public void onVariableForConstruct(ASTNode node) {}
         public void onVariableLabel(ASTNode node) {}
         public void onVariableBreak(ASTNode node) {}
         public void onVariableContinue(ASTNode node) {}
@@ -535,72 +559,76 @@ public class NstlgrammarParser extends RNGLRParser {
             case 0x0057: visitor.onTerminalKwBreak(node); break;
             case 0x0058: visitor.onTerminalKwContinue(node); break;
             case 0x0059: visitor.onTerminalKwUntil(node); break;
-            case 0x005A: visitor.onTerminalOpGreater(node); break;
-            case 0x005B: visitor.onTerminalOpLess(node); break;
-            case 0x005C: visitor.onTerminalOpGreaterEqual(node); break;
-            case 0x005D: visitor.onTerminalOpLessEqual(node); break;
-            case 0x005E: visitor.onTerminalOpEqual(node); break;
-            case 0x005F: visitor.onTerminalOpNotEqual(node); break;
-            case 0x0060: visitor.onTerminalOpAdd(node); break;
-            case 0x0061: visitor.onTerminalOpSubtract(node); break;
-            case 0x0062: visitor.onTerminalOpMultiply(node); break;
-            case 0x0063: visitor.onTerminalOpDivide(node); break;
-            case 0x0064: visitor.onTerminalOpRemainder(node); break;
-            case 0x0065: visitor.onTerminalOpShiftLeft(node); break;
-            case 0x0066: visitor.onTerminalOpArithShiftRight(node); break;
-            case 0x0067: visitor.onTerminalOpLogicShiftRight(node); break;
-            case 0x0068: visitor.onTerminalString(node); break;
-            case 0x0069: visitor.onVariableProgram(node); break;
-            case 0x006A: visitor.onVariableTopLevelCode(node); break;
-            case 0x006B: visitor.onVariableLibraryInclusion(node); break;
-            case 0x006C: visitor.onVariableCompilerDefinition(node); break;
-            case 0x006D: visitor.onVariableTypeDefinition(node); break;
-            case 0x006E: visitor.onVariableMember(node); break;
-            case 0x006F: visitor.onVariableType(node); break;
-            case 0x0070: visitor.onVariableFunctionDefinition(node); break;
-            case 0x0071: visitor.onVariableInternalFunctionHeader(node); break;
-            case 0x0072: visitor.onVariableExternalFunctionHeader(node); break;
-            case 0x0073: visitor.onVariableNamedArgumentList(node); break;
-            case 0x0074: visitor.onVariableNamedArgument(node); break;
-            case 0x0075: visitor.onVariableNamelessArgumentList(node); break;
-            case 0x0076: visitor.onVariableNamelessArgument(node); break;
-            case 0x0077: visitor.onVariableConstantExpression(node); break;
-            case 0x0078: visitor.onVariableConstantComparison(node); break;
-            case 0x0079: visitor.onVariableConstantShift(node); break;
-            case 0x007A: visitor.onVariableConstantSum(node); break;
-            case 0x007B: visitor.onVariableConstantFactor(node); break;
-            case 0x007C: visitor.onVariableConstantUnary(node); break;
-            case 0x007D: visitor.onVariableConstantCast(node); break;
-            case 0x007E: visitor.onVariableConstantValue(node); break;
-            case 0x007F: visitor.onVariableVariableExpression(node); break;
-            case 0x0080: visitor.onVariableVariableComparison(node); break;
-            case 0x0081: visitor.onVariableVariableShift(node); break;
-            case 0x0082: visitor.onVariableVariableSum(node); break;
-            case 0x0083: visitor.onVariableVariableFactor(node); break;
-            case 0x0084: visitor.onVariableVariableUnary(node); break;
-            case 0x0085: visitor.onVariableVariableCast(node); break;
-            case 0x0086: visitor.onVariableVariableValue(node); break;
-            case 0x0087: visitor.onVariableVariableNonconstant(node); break;
-            case 0x0088: visitor.onVariableVariableStructure(node); break;
-            case 0x0089: visitor.onVariableVariableAssignmentList(node); break;
-            case 0x008A: visitor.onVariableVariableArray(node); break;
-            case 0x008B: visitor.onVariableReference(node); break;
-            case 0x008C: visitor.onVariableSubreference(node); break;
-            case 0x008D: visitor.onVariableFunctionCall(node); break;
-            case 0x008E: visitor.onVariableArgumentList(node); break;
-            case 0x008F: visitor.onVariableFunctionCode(node); break;
-            case 0x0090: visitor.onVariableAssignment(node); break;
-            case 0x0091: visitor.onVariableReturn(node); break;
-            case 0x0092: visitor.onVariableIfConstruct(node); break;
-            case 0x0093: visitor.onVariableIfTail(node); break;
-            case 0x0094: visitor.onVariableWhileConstruct(node); break;
-            case 0x0095: visitor.onVariableUntilConstruct(node); break;
-            case 0x0096: visitor.onVariableLabel(node); break;
-            case 0x0097: visitor.onVariableBreak(node); break;
-            case 0x0098: visitor.onVariableContinue(node); break;
-            case 0x0099: visitor.onVariableValueCreation(node); break;
-            case 0x009A: visitor.onVariableConstantStructure(node); break;
-            case 0x009B: visitor.onVariableConstantAssignmentList(node); break;
+            case 0x005A: visitor.onTerminalKwFor(node); break;
+            case 0x005B: visitor.onTerminalOpGreater(node); break;
+            case 0x005C: visitor.onTerminalOpLess(node); break;
+            case 0x005D: visitor.onTerminalOpGreaterEqual(node); break;
+            case 0x005E: visitor.onTerminalOpLessEqual(node); break;
+            case 0x005F: visitor.onTerminalOpEqual(node); break;
+            case 0x0060: visitor.onTerminalOpNotEqual(node); break;
+            case 0x0061: visitor.onTerminalOpAdd(node); break;
+            case 0x0062: visitor.onTerminalOpSubtract(node); break;
+            case 0x0063: visitor.onTerminalOpMultiply(node); break;
+            case 0x0064: visitor.onTerminalOpDivide(node); break;
+            case 0x0065: visitor.onTerminalOpRemainder(node); break;
+            case 0x0066: visitor.onTerminalOpShiftLeft(node); break;
+            case 0x0067: visitor.onTerminalOpArithShiftRight(node); break;
+            case 0x0068: visitor.onTerminalOpLogicShiftRight(node); break;
+            case 0x0069: visitor.onTerminalString(node); break;
+            case 0x006A: visitor.onVariableProgram(node); break;
+            case 0x006B: visitor.onVariableTopLevelCode(node); break;
+            case 0x006C: visitor.onVariableLibraryInclusion(node); break;
+            case 0x006D: visitor.onVariableCompilerDefinition(node); break;
+            case 0x006E: visitor.onVariableTypeDefinition(node); break;
+            case 0x006F: visitor.onVariableTypeAlias(node); break;
+            case 0x0070: visitor.onVariableStructureDefinition(node); break;
+            case 0x0071: visitor.onVariableMember(node); break;
+            case 0x0072: visitor.onVariableType(node); break;
+            case 0x0073: visitor.onVariableFunctionDefinition(node); break;
+            case 0x0074: visitor.onVariableInternalFunctionHeader(node); break;
+            case 0x0075: visitor.onVariableExternalFunctionHeader(node); break;
+            case 0x0076: visitor.onVariableNamedArgumentList(node); break;
+            case 0x0077: visitor.onVariableNamedArgument(node); break;
+            case 0x0078: visitor.onVariableNamelessArgumentList(node); break;
+            case 0x0079: visitor.onVariableNamelessArgument(node); break;
+            case 0x007A: visitor.onVariableConstantExpression(node); break;
+            case 0x007B: visitor.onVariableConstantComparison(node); break;
+            case 0x007C: visitor.onVariableConstantShift(node); break;
+            case 0x007D: visitor.onVariableConstantSum(node); break;
+            case 0x007E: visitor.onVariableConstantFactor(node); break;
+            case 0x007F: visitor.onVariableConstantUnary(node); break;
+            case 0x0080: visitor.onVariableConstantCast(node); break;
+            case 0x0081: visitor.onVariableConstantValue(node); break;
+            case 0x0082: visitor.onVariableVariableExpression(node); break;
+            case 0x0083: visitor.onVariableVariableComparison(node); break;
+            case 0x0084: visitor.onVariableVariableShift(node); break;
+            case 0x0085: visitor.onVariableVariableSum(node); break;
+            case 0x0086: visitor.onVariableVariableFactor(node); break;
+            case 0x0087: visitor.onVariableVariableUnary(node); break;
+            case 0x0088: visitor.onVariableVariableCast(node); break;
+            case 0x0089: visitor.onVariableVariableValue(node); break;
+            case 0x008A: visitor.onVariableVariableNonconstant(node); break;
+            case 0x008B: visitor.onVariableVariableStructure(node); break;
+            case 0x008C: visitor.onVariableVariableAssignmentList(node); break;
+            case 0x008D: visitor.onVariableVariableArray(node); break;
+            case 0x008E: visitor.onVariableReference(node); break;
+            case 0x008F: visitor.onVariableSubreference(node); break;
+            case 0x0090: visitor.onVariableFunctionCall(node); break;
+            case 0x0091: visitor.onVariableArgumentList(node); break;
+            case 0x0092: visitor.onVariableFunctionCode(node); break;
+            case 0x0093: visitor.onVariableAssignment(node); break;
+            case 0x0094: visitor.onVariableReturn(node); break;
+            case 0x0095: visitor.onVariableIfConstruct(node); break;
+            case 0x0096: visitor.onVariableIfTail(node); break;
+            case 0x0097: visitor.onVariableWhileConstruct(node); break;
+            case 0x0098: visitor.onVariableUntilConstruct(node); break;
+            case 0x0099: visitor.onVariableForConstruct(node); break;
+            case 0x009A: visitor.onVariableLabel(node); break;
+            case 0x009B: visitor.onVariableBreak(node); break;
+            case 0x009C: visitor.onVariableContinue(node); break;
+            case 0x009D: visitor.onVariableValueCreation(node); break;
+            case 0x009E: visitor.onVariableConstantStructure(node); break;
+            case 0x009F: visitor.onVariableConstantAssignmentList(node); break;
         }
     }
 }
