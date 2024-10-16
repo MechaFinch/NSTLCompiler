@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.sim.ops.Opcode;
 import notsotiny.sim.ops.Operation;
 
-public class SAPCompiler extends NSTCompiler {
+public class SAPCompiler implements NSTCompiler {
     
     private static Logger LOG = Logger.getLogger(SAPCompiler.class.getName());
     
@@ -144,7 +145,7 @@ public class SAPCompiler extends NSTCompiler {
     FunctionHeader functionHeader = null;
     
     @Override
-    public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) {
+    public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) throws NoSuchFileException {
         LOG.info(() -> "Compiling file " + defaultLibName);
         
         // initialize state
@@ -180,11 +181,17 @@ public class SAPCompiler extends NSTCompiler {
         headerCode.addAll(astRoot.getChildren());
         
         // include our own header if possible
-        ASTNode headerNode = this.getHeaderContents(Paths.get(libraryName), libraryName, locator);
+        ASTNode headerNode;
         
-        if(headerNode != null) {
-            // we can't addAll as we don't want external defs of our own functions
-            headerCode.addAll(headerNode.getChildren());
+        try {
+            headerNode = this.getHeaderContents(Paths.get(libraryName), libraryName, locator);
+            
+            if(headerNode != null) {
+                // we can't addAll as we don't want external defs of our own functions
+                headerCode.addAll(headerNode.getChildren());
+            }
+        } catch(NoSuchFileException e) {
+            
         }
         
         // define type, function, and libraray names
@@ -3877,12 +3884,30 @@ public class SAPCompiler extends NSTCompiler {
                         break;
                     
                     case SHL_RIM:
-                        if(right.getType() == LocationType.IMMEDIATE && right.getImmediate().isResolved() && right.getImmediate().value() == 16) {
-                            localCode.add(new Instruction(
-                                Opcode.MOV_RIM,
-                                leftHigh, leftLow,
-                                false
-                            ));
+                        if(right.getType() == LocationType.IMMEDIATE && right.getImmediate().isResolved()) {
+                            if(right.getImmediate().value() == 16) {
+                                localCode.add(new Instruction(
+                                    Opcode.MOV_RIM,
+                                    leftHigh, leftLow,
+                                    false
+                                ));
+                            } else if(right.getImmediate().value() == 1) {
+                                localCode.add(new Instruction(
+                                    Opcode.SHL_RIM,
+                                    leftLow,
+                                    right,
+                                    false
+                                ));
+                                localCode.add(new Instruction(
+                                    Opcode.RCL_RIM,
+                                    leftHigh,
+                                    right,
+                                    false
+                                ));
+                            } else {
+                                LOG.severe("Unsupported dword operation: " + op + " with arbitrary value");
+                                errorsEncountered = true;
+                            }
                         } else {
                             LOG.severe("Unsupported dword operation: " + op + " with arbitrary value");
                             errorsEncountered = true;
@@ -4939,7 +4964,7 @@ public class SAPCompiler extends NSTCompiler {
             localCode.add(new Instruction(Opcode.POP_B, true));
         }
         
-        return header.getReturnType();
+        return (header == null) ? RawType.NONE : header.getReturnType();
     }
     
     /**
@@ -6163,8 +6188,9 @@ public class SAPCompiler extends NSTCompiler {
      * Handles a library inclusion node
      * 
      * @param node
+     * @throws NoSuchFileException 
      */
-    private ASTNode compileLibraryInclusion(ASTNode node, FileLocator locator) {
+    private ASTNode compileLibraryInclusion(ASTNode node, FileLocator locator) throws NoSuchFileException {
         List<ASTNode> children = node.getChildren();
         
         // first child is always LNAME, might be local name
@@ -6237,8 +6263,9 @@ public class SAPCompiler extends NSTCompiler {
      * Gets the contents of a header file
      * @param headerPath
      * @return
+     * @throws NoSuchFileException 
      */
-    private ASTNode getHeaderContents(Path givenPath, String libname, FileLocator locator) {
+    private ASTNode getHeaderContents(Path givenPath, String libname, FileLocator locator) throws NoSuchFileException {
         Path headerPath = locator.getHeaderFile(givenPath);
         
         if(headerPath == null) {

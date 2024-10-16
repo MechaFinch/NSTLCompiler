@@ -1,5 +1,7 @@
 package notsotiny.lang.compiler;
 
+import java.nio.file.NoSuchFileException;
+
 import asmlib.util.FileLocator;
 import fr.cenotelie.hime.redist.ASTNode;
 import notsotiny.asm.Assembler.AssemblyObject;
@@ -9,6 +11,6 @@ import notsotiny.asm.Assembler.AssemblyObject;
  * 
  * @author Mechafinch
  */
-public abstract class NSTCompiler {
-    public abstract AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator);
+public interface NSTCompiler {
+    public abstract AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) throws NoSuchFileException;
 }

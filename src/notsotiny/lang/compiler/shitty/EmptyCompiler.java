@@ -18,7 +18,7 @@ import notsotiny.lang.compiler.NSTCompiler;
  * 
  * @author Mechafinch
  */
-public class EmptyCompiler extends NSTCompiler {
+public class EmptyCompiler implements NSTCompiler {
     
     private static Logger LOG = Logger.getLogger(EmptyCompiler.class.getName());
 

@@ -1,0 +1,35 @@
+
+define bufsize is 2048;
+variable buf is u8 array size bufsize;
+variable halter is u8 array size 2;
+
+function main of none begin
+
+	call sieve with to buf, bufsize;
+	
+	halter index 0 gets 0x01;
+	halter index 1 gets 0xE0;
+	
+	while true do
+		call (to halter) with none;
+	end while
+end function
+
+function sieve of u8 pointer flags, u32 max begin
+	for i is u32 gets 0; i < max; i gets i + 1 do
+		flags index i gets 0xFF;
+	end for
+	
+	variable p is u32 gets 2;
+	while p < max do
+		if (flags index p) != 0xFF then
+			p gets p + 1;
+		end if
+		
+		for i is u32 gets (p << 1); i < max; i gets i + p do
+			flags index i gets 0;
+		end for
+		
+		p gets p + 1;
+	end while
+end function

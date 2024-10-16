@@ -27,6 +27,10 @@ import fr.cenotelie.hime.redist.ParseResult;
 import fr.cenotelie.hime.redist.parsers.InitializationException;
 import notsotiny.asm.Assembler;
 import notsotiny.asm.Assembler.AssemblyObject;
+import notsotiny.lang.compiler.codegen.EmptyCodeGenerator;
+import notsotiny.lang.compiler.compilers.IRCompiler;
+import notsotiny.lang.compiler.irgen.EmptyIRGenerator;
+import notsotiny.lang.compiler.optimization.EmptyIROptimizer;
 import notsotiny.lang.compiler.shitty.SAPCompiler;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
@@ -44,6 +48,7 @@ public class NSTLCompiler {
             System.out.println("\t-x <exec file>\t\tExec File. Specifies the .oex file to output. Default <input file>.oex");
             System.out.println("\t-e <entry function>\tEntry. Specifies an entry function. Default main");
             System.out.println("\t-o <output directory>\tOutput. Specifies the location of output object files. Default <working directory>\\out");
+            System.out.println("\t-c <compiler name>\tCompiler. Specifies which compiler variant to use. Options: shit, ir. Default: ir");
             return; 
         }
         
@@ -55,6 +60,7 @@ public class NSTLCompiler {
         String inputFileArg = "",
                execFileArg = "",
                outputArg = "",
+               compilerName = "ir",
                entry = "main";
         
         out:
@@ -67,19 +73,19 @@ public class NSTLCompiler {
                 
                 case "-e":
                     flagCount += 2;
-                    entry = args[flagCount + 1];
+                    entry = args[flagCount - 1];
                     break;
                 
                 case "-x":
                     flagCount += 2;
                     hasExecFile = true;
-                    execFileArg = args[flagCount + 1];
+                    execFileArg = args[flagCount - 1];
                     break;
                 
                 case "-o":
                     flagCount += 2;
                     hasOutputDir = true;
-                    outputArg = args[flagCount + 1];
+                    outputArg = args[flagCount - 1];
                     break;
                 
                 default:
@@ -105,7 +111,10 @@ public class NSTLCompiler {
         }
         
         FileLocator locator = new FileLocator(sourceDir, standardDir, List.of(".obj", ".asm", ".nstl"), List.of(".nsth"));
-        locator.addFile(sourceFile);
+        if(!locator.addFile(sourceFile.toAbsolutePath())) {
+            LOG.severe("Could not fine sounce file " + sourceFile);
+            return;
+        }
         
         List<AssemblyObject> compiledObjects = new ArrayList<>();
         List<RenameableRelocatableObject> assembledObjects = new ArrayList<>();
@@ -130,7 +139,11 @@ public class NSTLCompiler {
                     // compile
                     NstlgrammarLexer lexer = new NstlgrammarLexer(new InputStreamReader(Files.newInputStream(workingFile)));
                     NstlgrammarParser parser = new NstlgrammarParser(lexer);
-                    NSTCompiler comp = new SAPCompiler();
+                    NSTCompiler comp = switch(compilerName) {
+                        case "ir"   -> new IRCompiler(new EmptyIRGenerator(), new EmptyIROptimizer(), new EmptyCodeGenerator());
+                        case "shit" -> new SAPCompiler();
+                        default     -> throw new IllegalArgumentException("Unknown compiler: " + compilerName);
+                    };
                     
                     ParseResult result = parser.parse();
                     
@@ -263,7 +276,7 @@ public class NSTLCompiler {
         
         // write output
         LOG.fine("Writing output files");
-        Path execRelativeOutputDir = execFile.getParent().relativize(outDir);
+        Path execRelativeOutputDir = execFile.toAbsolutePath().getParent().relativize(outDir);
         
         // make the output directory if it doesn't exist
         if(!Files.exists(outDir)) {
