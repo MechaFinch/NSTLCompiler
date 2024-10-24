@@ -33,6 +33,7 @@ import notsotiny.asm.resolution.ResolvableLocationDescriptor;
 import notsotiny.asm.resolution.ResolvableLocationDescriptor.LocationType;
 import notsotiny.asm.resolution.ResolvableMemory;
 import notsotiny.asm.resolution.ResolvableValue;
+import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.NSTCompiler;
 import notsotiny.lang.compiler.context.*;
 import notsotiny.lang.compiler.types.*;
@@ -145,7 +146,7 @@ public class SAPCompiler implements NSTCompiler {
     FunctionHeader functionHeader = null;
     
     @Override
-    public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) throws NoSuchFileException {
+    public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) throws CompilationException {
         LOG.info(() -> "Compiling file " + defaultLibName);
         
         // initialize state
@@ -218,10 +219,15 @@ public class SAPCompiler implements NSTCompiler {
                     break;
                     
                 case NstlgrammarParser.ID.VARIABLE_LIBRARY_INCLUSION:
-                    headerNode = compileLibraryInclusion(topNode, locator);
-                    
-                    if(headerNode != null) {
-                        headerCode.addAll(headerNode.getChildren());
+                    try {
+                        headerNode = compileLibraryInclusion(topNode, locator);
+                        
+                        if(headerNode != null) {
+                            headerCode.addAll(headerNode.getChildren());
+                        }
+                    } catch(NoSuchFileException e) {
+                        LOG.severe("Could not find header");
+                        throw new CompilationException();
                     }
                     break;
                     
@@ -3891,6 +3897,11 @@ public class SAPCompiler implements NSTCompiler {
                                     leftHigh, leftLow,
                                     false
                                 ));
+                                localCode.add(new Instruction(
+                                    Opcode.MOV_RIM,
+                                    leftLow, new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(0)),
+                                    false
+                                ));
                             } else if(right.getImmediate().value() == 1) {
                                 localCode.add(new Instruction(
                                     Opcode.SHL_RIM,
@@ -3915,12 +3926,30 @@ public class SAPCompiler implements NSTCompiler {
                         break;
                         
                     case SHR_RIM:
-                        if(right.getType() == LocationType.IMMEDIATE && right.getImmediate().isResolved() && right.getImmediate().value() == 16) {
-                            localCode.add(new Instruction(
-                                Opcode.MOV_RIM,
-                                leftLow, leftHigh,
-                                false
-                            ));
+                        if(right.getType() == LocationType.IMMEDIATE && right.getImmediate().isResolved()) {
+                            if(right.getImmediate().value() == 16) {
+                                localCode.add(new Instruction(
+                                    Opcode.MOV_RIM,
+                                    left, leftHigh,
+                                    false
+                                ));
+                            } else if(right.getImmediate().value() == 1) {
+                                localCode.add(new Instruction(
+                                    Opcode.SHR_RIM,
+                                    leftHigh,
+                                    right,
+                                    false
+                                ));
+                                localCode.add(new Instruction(
+                                    Opcode.RCR_RIM,
+                                    leftLow,
+                                    right,
+                                    false
+                                ));
+                            } else {
+                                LOG.severe("Unsupported dword operation: " + op + " with arbitrary value");
+                                errorsEncountered = true;
+                            }
                         } else {
                             LOG.severe("Unsupported dword operation: " + op + " with arbitrary value");
                             errorsEncountered = true;
@@ -6295,9 +6324,11 @@ public class SAPCompiler implements NSTCompiler {
         } catch(IOException e) {
             LOG.severe("IOException parsing header file: " + headerPath);
             e.printStackTrace();
+            errorsEncountered = true;
         } catch(InitializationException e) {
             LOG.severe("InitializationException parsing header file: " + headerPath);
             e.printStackTrace();
+            errorsEncountered = true;
         }
         
         return null;

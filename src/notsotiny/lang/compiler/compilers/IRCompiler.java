@@ -1,10 +1,12 @@
 package notsotiny.lang.compiler.compilers;
 
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 
 import asmlib.util.FileLocator;
 import fr.cenotelie.hime.redist.ASTNode;
 import notsotiny.asm.Assembler.AssemblyObject;
+import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.NSTCompiler;
 import notsotiny.lang.compiler.codegen.CodeGenerator;
 import notsotiny.lang.compiler.irgen.IRGenerator;
@@ -28,8 +30,13 @@ public class IRCompiler implements NSTCompiler {
     }
 
     @Override
-    public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) throws NoSuchFileException {
+    public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) throws CompilationException {
         return this.codegen.generate(this.optimizer.optimize(this.irgen.generate(astRoot, defaultLibName, locator)));
+    }
+    
+    @Override
+    public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator, Path sourcePath) throws CompilationException {
+        return this.codegen.generate(this.optimizer.optimize(this.irgen.generate(astRoot, defaultLibName, locator, sourcePath)));
     }
     
 }

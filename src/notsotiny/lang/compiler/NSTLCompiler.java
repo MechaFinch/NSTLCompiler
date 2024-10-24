@@ -30,6 +30,7 @@ import notsotiny.asm.Assembler.AssemblyObject;
 import notsotiny.lang.compiler.codegen.EmptyCodeGenerator;
 import notsotiny.lang.compiler.compilers.IRCompiler;
 import notsotiny.lang.compiler.irgen.EmptyIRGenerator;
+import notsotiny.lang.compiler.irgen.IRGenV1;
 import notsotiny.lang.compiler.optimization.EmptyIROptimizer;
 import notsotiny.lang.compiler.shitty.SAPCompiler;
 import notsotiny.lang.parser.NstlgrammarLexer;
@@ -88,6 +89,11 @@ public class NSTLCompiler {
                     outputArg = args[flagCount - 1];
                     break;
                 
+                case "-c":
+                    flagCount += 2;
+                    compilerName = args[flagCount - 1];
+                    break;
+                
                 default:
                     break out;
             }
@@ -127,7 +133,7 @@ public class NSTLCompiler {
         LOG.fine("Compiling files");
         while(locator.hasUnconsumed()) {
             Path workingFile = locator.consume();
-            LOG.fine(() -> "Processing file " + workingFile);
+            LOG.info("Processing file " + workingFile);
             
             String fileName = workingFile.getFileName().toString(),
                    extension = fileName.substring(fileName.indexOf('.'));
@@ -140,7 +146,7 @@ public class NSTLCompiler {
                     NstlgrammarLexer lexer = new NstlgrammarLexer(new InputStreamReader(Files.newInputStream(workingFile)));
                     NstlgrammarParser parser = new NstlgrammarParser(lexer);
                     NSTCompiler comp = switch(compilerName) {
-                        case "ir"   -> new IRCompiler(new EmptyIRGenerator(), new EmptyIROptimizer(), new EmptyCodeGenerator());
+                        case "ir"   -> new IRCompiler(new IRGenV1(), new EmptyIROptimizer(), new EmptyCodeGenerator());
                         case "shit" -> new SAPCompiler();
                         default     -> throw new IllegalArgumentException("Unknown compiler: " + compilerName);
                     };
@@ -167,6 +173,8 @@ public class NSTLCompiler {
                             
                             compiledObjects.add(obj);
                             libraryNameMap.put(libname, workingFile);
+                        } catch(CompilationException e) {
+                            errorsEncountered = true;
                         } catch(IllegalStateException e) {
                             LOG.severe(e.getMessage());
                             errorsEncountered = true;

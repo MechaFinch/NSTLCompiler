@@ -7,8 +7,15 @@ package notsotiny.lang.ir;
  */
 public class IRIdentifier extends IRValue {
     
+    // Name
     private String name;
     
+    /*
+     * Class
+     * LOCAL    Identifies a virtual register. Evaluates to its value, may be I8, I16, I32
+     * GLOBAL   Identifies a static memory location. Evaluates to a pointer/I32
+     * BLOCK    Identifies a basic block
+     */
     private IRIdentifierClass idclass;
     
     /**

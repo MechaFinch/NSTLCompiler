@@ -17,14 +17,19 @@ public class IRGlobal {
     // Content constants
     private List<IRValue> contents;
     
+    // Are the contents of the global constant?
+    private boolean constant;
+    
     /**
      * Full constructor
      * @param id
-     * @param constants
+     * @param contents
+     * @param constant
      */
-    public IRGlobal(IRIdentifier id, List<IRValue> contents) {
+    public IRGlobal(IRIdentifier id, List<IRValue> contents, boolean constant) {
         this.id = id;
         this.contents = contents;
+        this.constant = constant;
     }
     
     /**
@@ -32,9 +37,10 @@ public class IRGlobal {
      * @param id
      * @param charType
      * @param value
+     * @param constant
      */
-    public IRGlobal(IRIdentifier id, IRType charType, String value) {
-        this(id, new ArrayList<>());
+    public IRGlobal(IRIdentifier id, IRType charType, String value, boolean constant) {
+        this(id, new ArrayList<>(), constant);
         
         for(int i = 0; i < value.length(); i++) {
             this.contents.add(new IRConstant(value.charAt(i), charType));
@@ -45,9 +51,10 @@ public class IRGlobal {
      * Single-value constructor
      * @param id
      * @param value
+     * @param constant
      */
-    public IRGlobal(IRIdentifier id, IRValue value) {
-        this(id, new ArrayList<>());
+    public IRGlobal(IRIdentifier id, IRValue value, boolean constant) {
+        this(id, new ArrayList<>(), constant);
         this.contents.add(value);
     }
     
@@ -55,19 +62,20 @@ public class IRGlobal {
      * Empty constructor
      * @param id
      */
-    public IRGlobal(IRIdentifier id) {
-        this(id, new ArrayList<>());
+    public IRGlobal(IRIdentifier id, boolean constant) {
+        this(id, new ArrayList<>(), constant);
     }
     
     /**
-     * Add a constant to the value of this global
-     * @param con
+     * Add a value to the contents of this global
+     * @param val
      */
-    public void addConstant(IRConstant con) {
-        this.contents.add(con);
+    public void addValue(IRValue val) {
+        this.contents.add(val);
     }
     
     public IRIdentifier getID() { return this.id; }
     public List<IRValue> getContents() { return this.contents; }
+    public boolean isConstant() { return this.constant; }
     
 }

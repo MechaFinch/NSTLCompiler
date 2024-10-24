@@ -1,11 +1,27 @@
 
-define bufsize is 2048;
-variable buf is u8 array size bufsize;
+type x is u8;
+type y is u8 pointer;
+type z is y pointer;
+type b is u8 array size 12;
+
+type a is structure of
+	x is u8,
+	y is u16,
+	z is u32
+end type
+
+define bufsize is 320 * 240;
+variable buf is u8 pointer gets 0xF0020000;
 variable halter is u8 array size 2;
+variable test is u16 gets busize - (buf index 0);
 
 function main of none begin
 
-	call sieve with to buf, bufsize;
+    buf index (320 * 240) + (0xFF * 3) + 0 gets 0xFF;
+    buf index (320 * 240) + (0xFF * 3) + 1 gets 0xFF;
+    buf index (320 * 240) + (0xFF * 3) + 2 gets 0xFF; 
+
+	call sieve with buf, bufsize;
 	
 	halter index 0 gets 0x01;
 	halter index 1 gets 0xE0;
@@ -24,6 +40,7 @@ function sieve of u8 pointer flags, u32 max begin
 	while p < max do
 		if (flags index p) != 0xFF then
 			p gets p + 1;
+			continue;
 		end if
 		
 		for i is u32 gets (p << 1); i < max; i gets i + p do
