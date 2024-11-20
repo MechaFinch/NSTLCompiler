@@ -31,7 +31,11 @@ import notsotiny.lang.compiler.codegen.EmptyCodeGenerator;
 import notsotiny.lang.compiler.compilers.IRCompiler;
 import notsotiny.lang.compiler.irgen.EmptyIRGenerator;
 import notsotiny.lang.compiler.irgen.IRGenV1;
+import notsotiny.lang.compiler.irgen.IRGenerator;
 import notsotiny.lang.compiler.optimization.EmptyIROptimizer;
+import notsotiny.lang.compiler.optimization.IROptV1;
+import notsotiny.lang.compiler.optimization.IROptimizationLevel;
+import notsotiny.lang.compiler.optimization.IROptimizer;
 import notsotiny.lang.compiler.shitty.SAPCompiler;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
@@ -42,7 +46,7 @@ public class NSTLCompiler {
     
     public static void main(String[] args) throws IOException, InitializationException {
         // handle arguments
-        if(args.length < 1 || args.length > 8) {
+        if(args.length < 1 || args.length > 16) {
             System.out.println("Usage: NSTLCompiler [options] <input file>");
             System.out.println("Flags:");
             System.out.println("\t-d\t\t\tEnable debug-friendly object files. If enabled, references are verbose and files much larger.");
@@ -50,17 +54,26 @@ public class NSTLCompiler {
             System.out.println("\t-e <entry function>\tEntry. Specifies an entry function. Default main");
             System.out.println("\t-o <output directory>\tOutput. Specifies the location of output object files. Default <working directory>\\out");
             System.out.println("\t-c <compiler name>\tCompiler. Specifies which compiler variant to use. Options: shit, ir. Default: ir");
+            System.out.println("\t-cfg <type>\t\tShow function CFGs. Type = ast, ir");
+            System.out.println("\t-irfu <output directory>\tUnoptimized IR Output. Specifies where to output unoptimized IR and enables unoptimized IR file output");
+            System.out.println("\t-irfo <output directory>\tOptimized IR Output. Specifies where to output optimzied IR and enables optimized IR file output");
             return; 
         }
         
         int flagCount = 0;
         boolean debug = false,
+                showASTCFG = false,
+                showIRCFG = false,
                 hasExecFile = false,
-                hasOutputDir = false;
+                hasOutputDir = false,
+                hasUIROutputDir = false,
+                hasOIROutputDir = false;
         
         String inputFileArg = "",
                execFileArg = "",
                outputArg = "",
+               uirOutputArg = "",
+               oirOutputArg = "",
                compilerName = "ir",
                entry = "main";
         
@@ -70,6 +83,27 @@ public class NSTLCompiler {
                 case "-d":
                     flagCount++;
                     debug = true;
+                    break;
+                
+                case "-irfu":
+                    flagCount += 2;
+                    hasUIROutputDir = true;
+                    uirOutputArg = args[flagCount - 1];
+                    break;
+                
+                case "-irfo":
+                    flagCount += 2;
+                    hasOIROutputDir = true;
+                    oirOutputArg = args[flagCount - 1];
+                    break;
+                
+                case "-cfg":
+                    flagCount += 2;
+                    if(args[flagCount - 1].equals("ast")) {
+                        showASTCFG = true;
+                    } else if(args[flagCount - 1].equals("ir")) {
+                        showIRCFG = true;
+                    }
                     break;
                 
                 case "-e":
@@ -106,6 +140,8 @@ public class NSTLCompiler {
              execFile,
              sourceDir = sourceFile.toAbsolutePath().getParent(),
              outDir = hasOutputDir ? Paths.get(outputArg) : sourceDir.resolve("out"),
+             uirOutDir = hasUIROutputDir ? Paths.get(uirOutputArg) : null,
+             oirOutDir = hasOIROutputDir ? Paths.get(oirOutputArg) : null,
              standardDir = Paths.get("C:\\Users\\wetca\\data\\silly  code\\architecture\\NotSoTiny\\programming\\standard library");
         
         if(hasExecFile) {
@@ -146,7 +182,37 @@ public class NSTLCompiler {
                     NstlgrammarLexer lexer = new NstlgrammarLexer(new InputStreamReader(Files.newInputStream(workingFile)));
                     NstlgrammarParser parser = new NstlgrammarParser(lexer);
                     NSTCompiler comp = switch(compilerName) {
-                        case "ir"   -> new IRCompiler(new IRGenV1(), new EmptyIROptimizer(), new EmptyCodeGenerator());
+                        case "ir"   -> {
+                            IRGenerator generator = new IRGenV1();
+                            generator.setCFGVisualization(showASTCFG, showIRCFG);
+                            
+                            if(hasUIROutputDir) {
+                                // make the output directory if it doesn't exist
+                                if(!Files.exists(uirOutDir)) {
+                                    LOG.finest(() -> "Creating output directory " + uirOutDir);
+                                    Files.createDirectory(uirOutDir);
+                                }
+                                
+                                generator.setFileOutput(true, uirOutDir);
+                            }
+                            
+                            IROptimizer optimizer = new IROptV1();
+                            
+                            if(hasOIROutputDir) {
+                                // make the output directory if it doesn't exist
+                                if(!Files.exists(oirOutDir)) {
+                                    LOG.finest(() -> "Creating output directory " + oirOutDir);
+                                    Files.createDirectory(oirOutDir);
+                                }
+                                
+                                optimizer.setFileOutput(true, oirOutDir);
+                            }
+                            
+                            // TODO: set level from arg
+                            optimizer.setLevel(IROptimizationLevel.THREE);
+                            
+                            yield new IRCompiler(generator, optimizer, new EmptyCodeGenerator());
+                        }
                         case "shit" -> new SAPCompiler();
                         default     -> throw new IllegalArgumentException("Unknown compiler: " + compilerName);
                     };
@@ -169,7 +235,7 @@ public class NSTLCompiler {
                         libname = libname.substring(0, libname.lastIndexOf('.'));
                         
                         try {
-                            AssemblyObject obj = comp.compile(root, libname, locator);
+                            AssemblyObject obj = comp.compile(root, libname, locator, workingFile);
                             
                             compiledObjects.add(obj);
                             libraryNameMap.put(libname, workingFile);

@@ -1,0 +1,89 @@
+
+define float_bias is 127;
+
+-- Return true if positive
+function is_positive of float32 f returns boolean begin
+	if ((f >> 16) as u16) >> 15 then
+		return false;
+	else
+		return true;
+	end if
+end function
+
+-- Return the exponent
+function get_exponent of float32 f returns u8 begin
+	return ((f >> 16) as u16 >> 14) as u8 and 0x7F;
+end function
+
+-- Return the mantissa
+function get_mantissa of float32 f returns u32 begin
+	return f and 0x007F_FFFF;
+end function
+
+-- Return true if f = +/- inf
+function is_inf of float32 f returns boolean begin
+	if (call get_exponent with f) = 0xFF then
+		if (call get_mantissa with f) = 0 then
+			return true;
+		else
+			return false;
+		end if
+	else
+		return false;
+	end if
+end function
+
+-- Return true if f = nan
+function is_nan of float32 f returns boolean begin
+	if (call get_exponent with f) = 0xFF then
+		if (call get_mantissa with f) = 0 then
+			return false;
+		else
+			return true;
+		end if
+	else
+		return false;
+	end if
+end function
+
+-- Return true if f is subnormal
+function is_subnormal of float32 f returns boolean begin
+	if (call get_exponent with f) = 0 then
+		if (call get_mantissa with f) = 0 then
+			return false;
+		else
+			return true;
+		end if
+	else
+		return false;
+	end if
+end function
+
+-- Return true if f is +/-zero
+function is_zero of float32 f returns boolean begin
+	if (call get_exponent with f) = 0 then
+		if (call get_mantissa with f) = 0 then
+			return true;
+		else
+			return false;
+		end if
+	else
+		return false;
+	end if
+end function
+
+-- Return true if f is normal
+function is_normal of float32 f returns boolean begin
+	variable e is boolean gets (call get_exponent with f);
+	if e = 0 then
+		if (call get_mantissa with f) = 0 then
+			return false;
+		else
+			return true;
+		end if
+	else if e = 0xFF then
+		return false;
+	else
+		return true;
+	end if
+end function

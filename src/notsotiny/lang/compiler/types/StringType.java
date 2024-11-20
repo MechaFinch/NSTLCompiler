@@ -5,6 +5,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.ir.IRType;
+
 /**
  * strings are kinda their own thing
  * 
@@ -35,6 +38,11 @@ public class StringType implements NSTLType, TypedValue {
     }
     
     public String getValue() { return this.str; }
+    
+    @Override
+    public IRType getIRType() throws CompilationException {
+        return IRType.I32;
+    }
 
     @Override
     public int getSize() {

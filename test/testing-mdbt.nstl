@@ -1,0 +1,62 @@
+
+
+-- mandelbrot funny
+
+library _util;
+library _shapes from "simvideo/shapes";
+library _fxp from "math/fixedpoint";
+library _gutil from "simvideo/gutil";
+
+define DEPTH is 128;
+
+function main of none begin
+	-- palette
+	for p is u8 gets 0; p < DEPTH; p gets p + 1 do
+		variable p2 is u8 gets p * (256 / DEPTH);
+		call _gutil.set_color_bytes with p, p2, p2, p2;
+	end for
+	
+	for iter is u8 gets 0; iter < 32; iter gets iter + 1 do
+	call _gutil.clear_screen with 0;
+	
+	for py is i16 gets 0; py < 0x16_00; py gets py + 0x00_20 do
+		for px is i16 gets 0; px < 0x20_00; px gets px + 0x00_20 do
+			variable xz is i16 gets -- ((px * 3.5) / 32) - 2.5
+				(call _fxp.divs88 with
+					(call _fxp.muls88 with px, 0x03_80),
+					0x20_00
+				) - 0x02_80;
+			
+			variable yz is i16 gets -- ((py * 2.0) / 22) - 1.0
+				(call _fxp.divs88 with
+					(call _fxp.muls88 with py, 0x02_00),
+					0x16_00
+				) - 0x01_00;
+			
+			variable x is i16 gets 0x00_00;
+			variable y is i16 gets 0x00_00;
+			variable i is u8 gets 0;
+			
+			until i = (DEPTH - 1) do
+				variable xsqu is i16 gets (call _fxp.muls88 with x, x);
+				variable ysqu is i16 gets (call _fxp.muls88 with y, y);
+				
+				if (xsqu + ysqu) > 0x04_00 then
+					break;
+				end if
+				
+				y gets ((call _fxp.muls88 with x, y) << 1) + yz;
+				x gets (xsqu - ysqu) + xz;
+				i gets i + 1;
+			end until
+			
+			call _shapes.fill_rect with px >> 5, py >> 5, 1, 1, i;
+		end for
+	end for
+	
+	end for
+	
+	while 1 do
+		call _util.halt with none;
+	end while
+end function

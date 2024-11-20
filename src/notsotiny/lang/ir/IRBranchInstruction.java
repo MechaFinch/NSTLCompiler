@@ -36,8 +36,8 @@ public class IRBranchInstruction implements IRSourceInfo {
     // Return value
     private IRValue returnValue;
     
-    // Source module
-    private IRModule module;
+    // Containing basic block
+    private IRBasicBlock bb;
     
     // Line number of the function's header
     private int sourceLineNumber;
@@ -53,10 +53,10 @@ public class IRBranchInstruction implements IRSourceInfo {
      * @param falseBlock
      * @param falseMapping
      * @param returnValue
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRBranchInstruction(IRBranchOperation op, IRCondition cond, IRValue compareA, IRValue compareB, IRIdentifier trueBlock, IRArgumentMapping trueMapping, IRIdentifier falseBlock, IRArgumentMapping falseMapping, IRValue returnValue, IRModule sourceModule, int sourceLineNumber) {
+    public IRBranchInstruction(IRBranchOperation op, IRCondition cond, IRValue compareA, IRValue compareB, IRIdentifier trueBlock, IRArgumentMapping trueMapping, IRIdentifier falseBlock, IRArgumentMapping falseMapping, IRValue returnValue, IRBasicBlock sourceBB, int sourceLineNumber) {
         this.op = op;
         this.cond = cond;
         this.compareA = compareA;
@@ -66,7 +66,7 @@ public class IRBranchInstruction implements IRSourceInfo {
         this.falseBlock = falseBlock;
         this.falseMapping = falseMapping;
         this.returnValue = returnValue;
-        this.module = sourceModule;
+        this.bb = sourceBB;
         this.sourceLineNumber = sourceLineNumber;
     }
     
@@ -80,11 +80,11 @@ public class IRBranchInstruction implements IRSourceInfo {
      * @param trueMapping
      * @param falseBlock
      * @param falseMapping
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRBranchInstruction(IRBranchOperation op, IRCondition cond, IRValue compareA, IRValue compareB, IRIdentifier trueBlock, IRArgumentMapping trueMapping, IRIdentifier falseBlock, IRArgumentMapping falseMapping, IRModule sourceModule, int sourceLineNumber) {
-        this(op, cond, compareA, compareB, trueBlock, trueMapping, falseBlock, falseMapping, null, sourceModule, sourceLineNumber);
+    public IRBranchInstruction(IRBranchOperation op, IRCondition cond, IRValue compareA, IRValue compareB, IRIdentifier trueBlock, IRArgumentMapping trueMapping, IRIdentifier falseBlock, IRArgumentMapping falseMapping, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, cond, compareA, compareB, trueBlock, trueMapping, falseBlock, falseMapping, null, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -107,11 +107,11 @@ public class IRBranchInstruction implements IRSourceInfo {
      * @param op
      * @param block
      * @param mapping
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRBranchInstruction(IRBranchOperation op, IRIdentifier block, IRArgumentMapping mapping, IRModule sourceModule, int sourceLineNumber) {
-        this(op, IRCondition.NONE, null, null, block, mapping, null, null, null, sourceModule, sourceLineNumber);
+    public IRBranchInstruction(IRBranchOperation op, IRIdentifier block, IRArgumentMapping mapping, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, IRCondition.NONE, null, null, block, mapping, null, null, null, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -128,11 +128,11 @@ public class IRBranchInstruction implements IRSourceInfo {
      * RET constructor
      * @param op
      * @param returnValue
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRBranchInstruction(IRBranchOperation op, IRValue returnValue, IRModule sourceModule, int sourceLineNumber) {
-        this(op, IRCondition.NONE, null, null, null, null, null, null, returnValue, sourceModule, sourceLineNumber);
+    public IRBranchInstruction(IRBranchOperation op, IRValue returnValue, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, IRCondition.NONE, null, null, null, null, null, null, returnValue, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -146,13 +146,21 @@ public class IRBranchInstruction implements IRSourceInfo {
 
     @Override
     public Path getSourceFile() {
-        return module.getSourceFile();
+        return this.bb.getSourceFile();
     }
 
     @Override
     public int getSourceLineNumber() {
         return this.sourceLineNumber;
     }
+    
+    public void setCompareLeft(IRValue v) { this.compareA = v; }
+    public void setCompareRight(IRValue v) { this.compareB = v; }
+    public void setReturnValue(IRValue v) { this.returnValue = v; }
+    public void setTrueTargetBlock(IRIdentifier id) { this.trueBlock = id; }
+    public void setFalseTargetBlock(IRIdentifier id) { this.falseBlock = id; }
+    public void setTrueArgumentMapping(IRArgumentMapping map) { this.trueMapping = map; }
+    public void setFalseArgumentMapping(IRArgumentMapping map) { this.falseMapping = map; }
     
     public IRBranchOperation getOp() { return this.op; }
     public IRCondition getCondition() { return this.cond; }
@@ -163,5 +171,6 @@ public class IRBranchInstruction implements IRSourceInfo {
     public IRIdentifier getFalseTargetBlock() { return this.falseBlock; }
     public IRArgumentMapping getTrueArgumentMapping() { return this.trueMapping; }
     public IRArgumentMapping getFalseArgumentMapping() { return this.falseMapping; }
+    public IRBasicBlock getBasicBlock() { return this.bb; }
     
 }

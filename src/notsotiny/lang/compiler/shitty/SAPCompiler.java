@@ -38,6 +38,7 @@ import notsotiny.lang.compiler.NSTCompiler;
 import notsotiny.lang.compiler.context.*;
 import notsotiny.lang.compiler.types.*;
 import notsotiny.lang.parser.NstlgrammarParser;
+import notsotiny.lang.util.Pair;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.sim.ops.Opcode;
 import notsotiny.sim.ops.Operation;
@@ -51,6 +52,7 @@ public class SAPCompiler implements NSTCompiler {
     }
     
     // TODO: multi-word comparisons are wrong, low comp should be always unsigned
+    // TODO: BIO indeces have changed from sign extend to zero extend. This might have broken things
     
     // special function names
     private static final Set<String> specialFunctionNames = new HashSet<>();
@@ -812,7 +814,7 @@ public class SAPCompiler implements NSTCompiler {
         
         checkNameConflicts(name);
         
-        return new FunctionHeader(name, argumentNames, argumentTypes, returnType);
+        return new FunctionHeader(name, argumentNames, argumentTypes, returnType, node);
     }
     
     /**

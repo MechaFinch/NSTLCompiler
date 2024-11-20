@@ -9,6 +9,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import asmlib.util.FileLocator;
@@ -16,10 +17,17 @@ import fr.cenotelie.hime.redist.ASTNode;
 import fr.cenotelie.hime.redist.ParseError;
 import fr.cenotelie.hime.redist.ParseResult;
 import fr.cenotelie.hime.redist.parsers.InitializationException;
+import notsotiny.lang.compiler.ASTUtil;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.types.AliasType;
+import notsotiny.lang.compiler.types.FunctionHeader;
 import notsotiny.lang.compiler.types.NSTLType;
+import notsotiny.lang.compiler.types.PointerType;
+import notsotiny.lang.compiler.types.RawType;
+import notsotiny.lang.compiler.types.StringType;
 import notsotiny.lang.compiler.types.StructureType;
+import notsotiny.lang.compiler.types.TypeContainer;
+import notsotiny.lang.compiler.types.TypedValue;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
 
@@ -32,7 +40,7 @@ public class TopLevelParser {
     private static ASTLogger ALOG = new ASTLogger(LOG);
     
     /**
-     * Parses 'top_level_code' into an ASTModule
+     * Parses a 'program' node into an ASTModule
      * Parses:
      * - Type definitions
      * - Function headers
@@ -46,7 +54,10 @@ public class TopLevelParser {
      * @throws CompilationException 
      */
     public static ASTModule parseTopLevel(String name, ASTNode code, FileLocator locator) throws CompilationException {
-        LOG.finer("Parsing top level code of " + name);
+        // Track errors. By not immediately failing, more issues can be detected per compilation attempt
+        boolean encounteredErrors = false;
+        
+        LOG.fine("----Parsing top level code of " + name + "----");
         ASTModule module = new ASTModule(name);
         
         // source + headers
@@ -62,69 +73,385 @@ public class TopLevelParser {
         }
         
         // Do library inclusions
-        LOG.finer("Parsing library inclusions");
+        LOG.fine("Parsing library inclusions");
         for(int i = 0; i < allCode.size(); i++) {
-            ASTNode topNode = allCode.get(i);
-            
-            if(topNode.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_LIBRARY_INCLUSION) {
-                ASTNode headerNode = includeLibrary(module, topNode, locator);
+            try {
+                ASTNode topNode = allCode.get(i);
                 
-                if(headerNode != null) {
-                    allCode.addAll(headerNode.getChildren());
+                if(topNode.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_LIBRARY_INCLUSION) {
+                    ASTNode headerNode = includeLibrary(module, topNode, locator);
+                    
+                    if(headerNode != null) {
+                        allCode.addAll(headerNode.getChildren());
+                    }
                 }
+            } catch(CompilationException e) {
+                encounteredErrors = true;
             }
         }
         
         // Determine global names (types, global variables, global constants, defines) 
-        LOG.finer("Parsing global names");
+        LOG.fine("Parsing global names");
         for(int i = 0; i < allCode.size(); i++) {
-            ASTNode topNode = allCode.get(i);
-            
-            switch(topNode.getSymbol().getID()) {
-                case NstlgrammarParser.ID.VARIABLE_TYPE_ALIAS:
-                case NstlgrammarParser.ID.VARIABLE_STRUCTURE_DEFINITION:
-                case NstlgrammarParser.ID.VARIABLE_COMPILER_DEFINITION:
-                case NstlgrammarParser.ID.VARIABLE_VALUE_CREATION:
-                    // Send directly
-                    defineName(module, topNode);
-                    break;
+            try {
+                ASTNode topNode = allCode.get(i);
                 
-                case NstlgrammarParser.ID.VARIABLE_FUNCTION_DEFINITION:
-                    // Need to unwrap the header first
-                    defineName(module, topNode.getChildren().get(0));
-                    break;
+                switch(topNode.getSymbol().getID()) {
+                    case NstlgrammarParser.ID.VARIABLE_TYPE_ALIAS:
+                    case NstlgrammarParser.ID.VARIABLE_STRUCTURE_DEFINITION:
+                    case NstlgrammarParser.ID.VARIABLE_COMPILER_DEFINITION:
+                    case NstlgrammarParser.ID.VARIABLE_VALUE_CREATION:
+                        // Send directly
+                        defineName(module, topNode);
+                        break;
                     
-                case NstlgrammarParser.ID.VARIABLE_LIBRARY_INCLUSION:
-                    // No action
-                    break;
-                
-                default:
-                    LOG.severe("Unexpected top-level node: " + topNode);
-                    throw new CompilationException();
+                    case NstlgrammarParser.ID.VARIABLE_FUNCTION_DEFINITION:
+                        // Need to unwrap the header first
+                        defineName(module, topNode.getChildren().get(0));
+                        break;
+                        
+                    case NstlgrammarParser.ID.VARIABLE_LIBRARY_INCLUSION:
+                        // No action
+                        break;
+                    
+                    default:
+                        LOG.severe("Unexpected top-level node: " + topNode);
+                        throw new CompilationException();
+                }
+            } catch(CompilationException e) {
+                encounteredErrors = true;
             }
         }
         
-        // Fill out function headers, type definitions, and constants
+        // Fill out function headers, type definitions, and constants, and initial values
+        LOG.fine("Populating definitions");
         for(int i = 0; i < allCode.size(); i++) {
-            ASTNode topNode = allCode.get(i);
-            
-            /*
-             * Prerequisites
-             * In their own classes
-             * TODO type parsing
-             * TODO constant parsing
-             * Here
-             * TODO structure definitions
-             */
-            
-            switch(topNode.getSymbol().getID()) {
+            try {
+                ASTNode topNode = allCode.get(i);
                 
-                default:
-                    // No action
+                switch(topNode.getSymbol().getID()) {
+                    case NstlgrammarParser.ID.VARIABLE_TYPE_ALIAS:
+                        // Fill in alias
+                        fillTypeAlias(module, topNode);
+                        break;
+                    
+                    case NstlgrammarParser.ID.VARIABLE_STRUCTURE_DEFINITION:
+                        // Fill in structure
+                        fillStructureDefinition(module, topNode);
+                        break;
+                    
+                    case NstlgrammarParser.ID.VARIABLE_COMPILER_DEFINITION:
+                        // Fill compiler definition
+                        fillCompilerDefinition(module, topNode);
+                        break;
+                        
+                    case NstlgrammarParser.ID.VARIABLE_VALUE_CREATION:
+                        // Create a global constant or variable
+                        parseGlobalCreation(module, topNode);
+                        break;
+                    
+                    case NstlgrammarParser.ID.VARIABLE_FUNCTION_DEFINITION:
+                        parseFunctionDefinition(module, topNode);
+                        break;
+                    
+                    default:
+                        // No action
+                }
+            } catch(CompilationException e) {
+                encounteredErrors = true;
             }
+        }
+        
+        // Finalize structure sizes & check recursion
+        LOG.fine("Finalizing structure types");
+        boolean sizeChanged = true;
+        List<String> updatedNames = new ArrayList<>();
+        while(sizeChanged) {
+            sizeChanged = false;
+            updatedNames.clear();
+            
+            for(NSTLType t : module.getTypeDefinitionMap().values()) {
+                sizeChanged |= t.updateSize(updatedNames);
+            }
+        }
+        
+        for(NSTLType t : module.getTypeDefinitionMap().values()) {
+            if(t instanceof StructureType st) {
+                if(st.checkRecursion(new ArrayList<>())) {
+                    LOG.severe("Structure " + st + " is recursive");
+                    encounteredErrors = true;
+                }
+                
+                LOG.finest("Finalized structure " + st);
+            }
+        }
+        
+        // Throw an exception if one was caught before
+        if(encounteredErrors) {
+            throw new CompilationException();
         }
         
         return module;
+    }
+    
+    /**
+     * Parses a function definition
+     * @param module
+     * @param node
+     * @throws CompilationException
+     */
+    private static void parseFunctionDefinition(ASTModule module, ASTNode node) throws CompilationException {
+        List<ASTNode> children = node.getChildren();
+        ASTNode headerNode = children.get(0);
+        
+        if(headerNode.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_INTERNAL_FUNCTION_HEADER) {
+            // Internal
+            ASTNode codeNode = children.get(1);
+            parseInternalFunctionHeader(module, headerNode, codeNode);
+        } else {
+            // External
+            parseExternalFunctionHeader(module, headerNode);
+        }
+    }
+    
+    /**
+     * Parses an internal function header.
+     * @param module
+     * @param node
+     * @throws CompilationException
+     */
+    private static void parseInternalFunctionHeader(ASTModule module, ASTNode headerNode, ASTNode codeNode) throws CompilationException {
+        LOG.finest("Parsing internal function header " + ASTUtil.detailed(headerNode));
+        
+        // Get header
+        FunctionHeader header = parseFunctionHeader(module, headerNode);
+        
+        // Put in the map
+        LOG.finer("Defined internal function header " + header);
+        module.getFunctionMap().put(header.getName(), new ASTFunction(module, header, codeNode.getChildren()));
+    }
+    
+    /**
+     * Parses an external function header.
+     * @param module
+     * @param node
+     * @throws CompilationException
+     */
+    private static void parseExternalFunctionHeader(ASTModule module, ASTNode node) throws CompilationException {
+        LOG.finest("Parsing external function header " + ASTUtil.detailed(node));
+        
+        // just a header
+        FunctionHeader header = parseFunctionHeader(module, node);
+        
+        // Put in the map
+        LOG.finer("Defined external function header " + header);
+        module.getFunctionMap().put(header.getName(), new ASTFunction(module, header));
+    }
+    
+    /**
+     * Parses a function header
+     * @param module
+     * @param node
+     * @return
+     * @throws CompilationException
+     */
+    private static FunctionHeader parseFunctionHeader(ASTModule module, ASTNode node) throws CompilationException {
+        /*
+         * NAME KW_NONE                 No arguments, no return
+         * NAME KW_NONE type            No arguments, has return
+         * NAME KW_NONE KW_NONE         No arguments, no return
+         * NAME argument_list           Has arguments, no return
+         * NAME argument_list KW_NONE   Has arguments, no return
+         * NAME argument_list type      Has arguments, has return
+         * 
+         * named_argument_list -> named_argument (COMMA! named_argument)*;
+         * named_argument -> type NAME;
+         * nameless_argument_list -> nameless_argument (COMMA! nameless_argument)*;
+         * nameless_argument ->
+         *   named_argument^
+         * | type;
+         */
+        
+        List<ASTNode> children = node.getChildren();
+        
+        // Get name
+        String name = children.get(0).getValue();
+        
+        // Get return type
+        NSTLType returnType;
+        
+        if(children.size() == 3) {
+            returnType = TypeParser.parseType(children.get(2), module, module.getContext());
+        } else {
+            returnType = RawType.NONE;
+        }
+        
+        if(!(returnType instanceof RawType || returnType instanceof PointerType)) {
+            ALOG.severe(node, "Invalid return type for function: " + returnType);
+            throw new CompilationException();
+        }
+        
+        // Parse arguments
+        List<ASTNode> arguments = children.get(1).getChildren();
+        List<String> argumentNames = new ArrayList<>();
+        List<NSTLType> argumentTypes = new ArrayList<>();
+        
+        for(int i = 0; i < arguments.size(); i++) {
+            ASTNode argumentNode = arguments.get(i);
+            List<ASTNode> argumentChildren = argumentNode.getChildren();
+            
+            // Type is always first
+            NSTLType argType = TypeParser.parseType(argumentChildren.get(0), module, module.getContext());
+            
+            if(!(argType instanceof RawType || argType instanceof PointerType)) {
+                ALOG.severe(node, "Invalid argument type for function: " + returnType);
+                throw new CompilationException();
+            }
+            
+            argumentTypes.add(argType);
+            
+            // named or nameless?
+            if(argumentNode.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_NAMED_ARGUMENT) {
+                argumentNames.add(argumentChildren.get(1).getValue());
+            } else {
+                argumentNames.add("arg" + i);
+            }
+        }
+        
+        // Assemble into header
+        return new FunctionHeader(name, argumentNames, argumentTypes, returnType, node);
+    }
+    
+    /**
+     * Creates a global constant or variable
+     * @param module
+     * @param node
+     * @throws CompilationException
+     */
+    private static void parseGlobalCreation(ASTModule module, ASTNode node) throws CompilationException {
+        LOG.finest("Parsing global creation " + ASTUtil.detailed(node));
+        
+        /*
+         * value_creation ->
+         *   KW_VARIABLE NAME KW_IS! type SEMI!
+         * | KW_VARIABLE NAME KW_IS! type KW_GETS! variable_expression SEMI!
+         * | KW_CONSTANT NAME KW_IS! type KW_GETS! constant_expression SEMI!
+         * | KW_CONSTANT NAME KW_IS! type KW_GETS! constant_structure SEMI!;
+         * 
+         * VARIABLE NAME type                       Uninitialized global variable
+         * VARIABLE NAME type varaible_expression   Initialized global variable, can be treated as a constant_expression
+         * CONSTANT NAME type constant_expression   Global constant (general)
+         * CONSTANT NAME type constant_structure    Global constant (structure)
+         */
+        
+        List<ASTNode> children = node.getChildren();
+        
+        // Get name & type
+        String name = children.get(1).getValue();
+        NSTLType type = TypeParser.parseType(children.get(2), module, module.getContext());
+        
+        // Variable or constant?
+        if(children.get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_CONSTANT) {
+            // Constant
+            TypedValue initialValue = ConstantParser.parseConstantExpression(children.get(3), module, module.getContext(), type, false, Level.SEVERE);
+            
+            LOG.finer("Defined global constant " + name + " = " + initialValue);
+            module.getGlobalConstantMap().put(name, initialValue);
+        } else {
+            // Variable
+            TypedValue initialValue;
+            
+            // Do we have an initial value?
+            if(children.size() == 4) {
+                // Yes. Get it.
+                initialValue = ConstantParser.parseConstantExpression(children.get(3), module, module.getContext(), type, false, Level.SEVERE);
+            } else {
+                // No.
+                initialValue = new TypeContainer(type);
+            }
+            
+            // Add to map
+            LOG.finer("Defined global variable " + name + " = " + initialValue);
+            module.getGlobalVariableMap().put(name, initialValue);
+        }
+    }
+    
+    /**
+     * Fill out a structure definition
+     * @param module
+     * @param node
+     * @throws CompilationException
+     */
+    private static void fillStructureDefinition(ASTModule module, ASTNode node) throws CompilationException {
+        String name = node.getChildren().get(0).getValue();
+        List<ASTNode> members = node.getChildren().get(1).getChildren();
+        List<String> memberNames = new ArrayList<>();
+        List<NSTLType> memberTypes = new ArrayList<>();
+        
+        LOG.finest("Parsing structure definition " + ASTUtil.detailed(node));
+        
+        for(ASTNode member : members) {
+            List<ASTNode> memberChildren = member.getChildren();
+            
+            String memberName = memberChildren.get(0).getValue();
+            NSTLType memberType = TypeParser.parseType(memberChildren.get(1), module, module.getContext()).getRealType();
+            
+            if(memberType instanceof StringType) {
+                LOG.severe("Structures cannot have string members");
+                throw new CompilationException();
+            }
+            
+            LOG.finest("Structure member " + memberName + " = " + memberType);
+            
+            memberNames.add(memberName);
+            memberTypes.add(memberType);
+        }
+        
+        StructureType st = (StructureType) module.getTypeDefinitionMap().get(name);
+        st.addMembers(memberNames, memberTypes);
+        
+        LOG.finer("Defined structure " + st);
+        module.getTypeDefinitionMap().put(name, st);
+    }
+    
+    /**
+     * Fill out a compiler definition
+     * @param module
+     * @param node
+     * @throws CompilationException
+     */
+    private static void fillCompilerDefinition(ASTModule module, ASTNode node) throws CompilationException {
+        List<ASTNode> children = node.getChildren();
+        
+        // Get name
+        String defName = children.get(0).getValue();
+        
+        // Get value
+        TypedValue tv = ConstantParser.parseConstantExpression(children.get(1), module, module.getContext(), RawType.NONE, false, Level.SEVERE);
+        
+        // Set definition
+        LOG.finer("Defined compiler defintion " + defName + " = " + tv);
+        module.getCompilerDefinitionMap().put(defName, tv);
+    }
+    
+    /**
+     * Fill out a type alias
+     * @param module
+     * @param node
+     * @throws CompilationException
+     */
+    private static void fillTypeAlias(ASTModule module, ASTNode node) throws CompilationException {
+        List<ASTNode> children = node.getChildren();
+        
+        // Get name
+        String aliasName = children.get(0).getValue();
+        
+        // Get type
+        NSTLType t = TypeParser.parseType(children.get(1), module, module.getContext());
+        
+        // Set definition
+        LOG.finer("Defined type alias " + aliasName + " = " + t);
+        ((AliasType) module.getTypeDefinitionMap().get(aliasName)).setRealType(t);
     }
     
     /**
@@ -217,7 +544,7 @@ public class TopLevelParser {
         // Get local name
         localName = children.get(0).getValue().substring(1);
         fileName = localName;
-        LOG.finest("Including library " + localName);
+        LOG.finer("Including library " + localName);
         
         // Get file name if specified
         if(children.size() == 2) {
@@ -258,8 +585,9 @@ public class TopLevelParser {
             
             return getHeaderContents(givenPath, localName, locator);
         } catch(NoSuchFileException e) {
-            ALOG.severe(topNode, "No header file for library " + localName + " from " + givenPath);
-            throw new CompilationException();
+            ALOG.warning(topNode, "No header file for library " + localName + " from " + givenPath);
+            // new CompilationException();
+            return null;
         }
     }
     
@@ -304,7 +632,6 @@ public class TopLevelParser {
             LOG.severe("IOException parsing header file " + headerPath);
             throw new CompilationException();
         } catch(InitializationException e) {
-            // TODO Auto-generated catch block
             LOG.severe("InitializationException parsing header file " + headerPath);
             throw new CompilationException();
         }

@@ -4,6 +4,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.ir.IRType;
+
 /**
  * A structure
  * 
@@ -58,6 +61,11 @@ public class StructureType implements NSTLType {
         this.memberOffsetMap = null;
         this.memberTypeMap = null;
         this.size = 0;
+    }
+    
+    @Override
+    public IRType getIRType() throws CompilationException {
+        return IRType.I32;
     }
     
     @Override

@@ -1,19 +1,34 @@
 
+define asdf is 65;
+
 type x is u8;
+type c is y pointer;
 type y is u8 pointer;
 type z is y pointer;
-type b is u8 array size 12;
+type b is u8 array size 5 as u32 < 12 + 12 + 5 - sizeof x * -3;
+type d is z pointer;
 
 type a is structure of
 	x is u8,
 	y is u16,
-	z is u32
+	z is u32,
+	q is d
 end type
 
+variable test is a gets a of
+	x gets 1,
+	y gets 12 + asdf,
+	z gets 0,
+	q gets 23
+end structure;
+
 define bufsize is 320 * 240;
+constant fdsa is x gets asdf;
 variable buf is u8 pointer gets 0xF0020000;
 variable halter is u8 array size 2;
-variable test is u16 gets busize - (buf index 0);
+--variable test is u16 gets bufsize - (buf index 0);
+
+external function balls of u8 a, u16 b, u32 returns none;
 
 function main of none begin
 

@@ -108,6 +108,8 @@ either case, order does not matter. To instantiate a structure, this syntax is u
 Where each member is assigned with the following, separated by commas:
 	<member name> gets <expression>
 
+When structures are instantiated, their members' values are evaluated in written order.
+
 For example, with the color24 type:
 	variable c1 is color24 gets color24 of
 		red gets 0x5B,
@@ -130,7 +132,7 @@ Array members are accessed with the following syntax. Indexes are not checked at
 	<array reference> index <expression>
 
 Arrays may be instantiated as follows. The number of member expressions must match the size of the
-target.
+target. When arrays are instantiated, elements are evaluated in written order.
 	<type> array of <expression>[, <expression>[...]] end array
 
 For example:
@@ -298,6 +300,8 @@ Constants cannot be arrays.
 
 	Assignments
 References to variables and indirect references may be assigned values with the 'gets' keyword.
+The reference is computed before the value. Writes of a structure or array to the reference may be
+interlaced with computation of the expression.
 	<reference> gets <expression>;
 
 

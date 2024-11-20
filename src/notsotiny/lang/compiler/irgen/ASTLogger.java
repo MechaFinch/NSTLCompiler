@@ -1,10 +1,12 @@
 package notsotiny.lang.compiler.irgen;
 
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
 import fr.cenotelie.hime.redist.SymbolType;
 import fr.cenotelie.hime.redist.TextPosition;
+import notsotiny.lang.compiler.ASTUtil;
 
 /**
  * Methods for logging with source information
@@ -25,14 +27,13 @@ public class ASTLogger {
      * @return
      */
     private String getSourceInfoString(ASTNode node) {
-        // Traverse AST until a terminal is found
-        while(node.getSymbolType() != SymbolType.Terminal) {
-            node = node.getChildren().get(0);
-        }
-        
-        TextPosition pos = node.getPosition();
+        TextPosition pos = ASTUtil.getPosition(node);
          
         return "(" + pos.getLine() + ":" + pos.getColumn() + "): ";
+    }
+    
+    public void log(Level level, ASTNode node, String message) {
+        this.log.log(level, getSourceInfoString(node) + message);
     }
     
     /**

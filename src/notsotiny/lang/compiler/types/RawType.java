@@ -2,6 +2,9 @@ package notsotiny.lang.compiler.types;
 
 import java.util.List;
 
+import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.ir.IRType;
+
 /**
  * A raw integer type
  * 
@@ -26,6 +29,16 @@ public class RawType implements NSTLType {
         this.size = size;
         this.identifier = identifier;
         this.signed = signed;
+    }
+    
+    @Override
+    public IRType getIRType() throws CompilationException {
+        return switch(this.size) {
+            case 1  -> IRType.I8;
+            case 2  -> IRType.I16;
+            case 4  -> IRType.I32;
+            default -> IRType.NONE;
+        };
     }
     
     /**

@@ -7,6 +7,12 @@ import java.util.List;
  * Contains one or more IRConstants
  * Constants are arranged linearly in memory
  * 
+ * Constant global -> yields its value
+ * Variable global -> yields pointer i32
+ * 
+ * IRValue is IRConstant    -> is type of IRConstant
+ * IRValue is IRIdentifier  -> is pointer i32
+ * 
  * @author Mechafinch
  */
 public class IRGlobal {

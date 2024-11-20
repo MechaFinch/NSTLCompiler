@@ -2,6 +2,9 @@ package notsotiny.lang.compiler.types;
 
 import java.util.List;
 
+import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.ir.IRType;
+
 /**
  * Constant-size arrays
  * 
@@ -15,6 +18,11 @@ public class ArrayType implements NSTLType {
     public ArrayType(NSTLType memberType, int length) {
         this.memberType = memberType.getRealType();
         this.length = length;
+    }
+    
+    @Override
+    public IRType getIRType() throws CompilationException {
+        return IRType.I32;
     }
     
     @Override

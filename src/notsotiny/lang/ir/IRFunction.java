@@ -2,7 +2,9 @@ package notsotiny.lang.ir;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A function.
@@ -33,6 +35,13 @@ public class IRFunction implements IRSourceInfo {
     // Line number of the function's header
     private int sourceLineNumber;
     
+    // Maps IDs to BBs for lookup
+    Map<IRIdentifier, IRBasicBlock> blockNameMap;
+    
+    // Maps strings to variable types
+    // TODO: not properly maintained
+    Map<IRIdentifier, IRType> localTypeMap;
+    
     /**
      * Full constructor w/ external possibility
      * @param id
@@ -48,8 +57,21 @@ public class IRFunction implements IRSourceInfo {
         this.returnType = returnType;
         this.arguments = arguments;
         this.basicBlocks = basicBlocks;
+        this.isExternal = external;
         this.module = sourceModule;
         this.sourceLineNumber = sourceLineNumber;
+        
+        // Build basic block map
+        this.blockNameMap = new HashMap<>();
+        for(IRBasicBlock bb : this.basicBlocks) {
+            this.blockNameMap.put(bb.getID(), bb);
+        }
+        
+        // Build local type map
+        this.localTypeMap = new HashMap<>();
+        for(int i = 0; i < this.arguments.getArgumentCount(); i++) {
+            this.localTypeMap.put(this.arguments.getName(i), this.arguments.getType(i));
+        }
     }
     
     /**
@@ -104,6 +126,7 @@ public class IRFunction implements IRSourceInfo {
      * Empty header constructor
      * @param id
      * @param returnType
+     * @param external
      * @param sourceModule
      * @param sourceLineNumber
      */
@@ -148,6 +171,7 @@ public class IRFunction implements IRSourceInfo {
      */
     public void addArgument(IRIdentifier name, IRType type) {
         this.arguments.addArgument(name, type);
+        this.localTypeMap.put(name, type);
     }
     
     /**
@@ -156,6 +180,50 @@ public class IRFunction implements IRSourceInfo {
      */
     public void addBasicBlock(IRBasicBlock bb) {
         this.basicBlocks.add(bb);
+        this.blockNameMap.put(bb.getID(), bb);
+    }
+    
+    /**
+     * Add the type of a local
+     * @param local
+     * @param type
+     */
+    public void addLocalType(IRIdentifier local, IRType type) {
+        this.localTypeMap.put(local, type);
+    }
+    
+    /**
+     * Get the BB with the given ID
+     * @param id
+     * @return
+     */
+    public IRBasicBlock getBasicBlock(IRIdentifier id) {
+        return this.blockNameMap.get(id);
+    }
+    
+    /**
+     * Remove the BB with the given ID
+     * @param id
+     * @return
+     */
+    public IRBasicBlock removeBasicBlock(IRIdentifier id) {
+        if(this.blockNameMap.containsKey(id)) {
+            // Remove from us
+            IRBasicBlock bb = this.blockNameMap.remove(id);
+            this.basicBlocks.remove(bb);            
+            return bb;
+        } else {
+            return null;
+        }
+    }
+    
+    /**
+     * Get the type of the local with the given ID
+     * @param id
+     * @return
+     */
+    public IRType getLocalType(IRIdentifier id) {
+        return this.localTypeMap.get(id);
     }
 
     @Override
@@ -173,5 +241,6 @@ public class IRFunction implements IRSourceInfo {
     public IRArgumentList getArguments() { return this.arguments; }
     public List<IRBasicBlock> getBasicBlockList() { return this.basicBlocks; }
     public boolean isExternal() { return this.isExternal; }
+    public IRModule getModule() { return this.module; }
     
 }

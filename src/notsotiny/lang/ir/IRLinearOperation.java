@@ -18,6 +18,7 @@ public enum IRLinearOperation {
     LOAD,       // Load from memory             1
     STORE,      // Store to memory              2       No destination
     SELECT,     // Conditional Selection        4       Has condition
+    STACK,      // Stack Pointer                1       Yields an I32 which points to a stack slot with the given size. Size must be constant. 
     
     ADD,        // Addition                     2
     SUB,        // Subtraction                  2

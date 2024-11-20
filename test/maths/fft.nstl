@@ -1,0 +1,70 @@
+
+library _float;
+
+type complex32 is structure of
+	real is float32,
+	complex is float32
+end structure;
+
+-- Compute e^((-2 pi i / n) * k)
+function cexp of complex32 pointer dest, u32 n, u32 k returns none begin
+	-- TODO
+end function
+
+function cmul of complex32 pointer dest, complex32 pointer src returns none begin
+	-- (a1 + b1 i)(a2 + b2 i)
+	-- a1a2 + a1b2i + a2b1i - b1b2
+	-- r = a1a2 - b1b2
+	-- c = a1b2 + a2b1
+	variable dest_real is float32 gets dest.real;
+	dest.real gets
+		(call _float.sub with
+			(call _float.mul with dest_real, src.real),
+			(call _float.mul with dest.complex, src.complex));
+	dest.complex gets
+		(call _float.add with
+			(call _float.mul with dest_real, src.complex),
+			(call _float.mul with src.real, dest.complex));
+end function
+
+-- Computes xout = FFT{xin} with n elements and stride s
+function fft of complex32 pointer xin, complex32 pointer xout, u32 n, u32 s begin
+	if n = 1 then
+		-- Trivial
+		xout index 0 gets xin index 0;
+	else
+		-- Recurse
+		variable xin_low is complex32 pointer gets xin;
+		variable xin_high is complex32 pointer gets to (xin index s);
+		variable xout_low is complex32 pointer gets xout;
+		variable xout_high is complex32 pointer gets to (xout index s);
+		
+		call fft with xin_low, xout_low, n >> 1, s << 1;
+		call fft with xin_high, xout_high, n >> 1, s << 1;
+		
+		-- twiddle
+		for k is u32 gets 0; k < (n >> 1); k gets k + 1 do
+			-- p = xout_low[k]
+			variable p is complex32;
+			p.real gets (xout_low index k).real;
+			p.complex gets (xout_low index k).complex;
+			
+			-- q = e^((-2 pi i / n) * k) * xout_high[k]
+			variable q is complex32;
+			call cexp with to q, n, k;
+			call cmul with q, xout_high index k;
+			
+			-- xout_low[k] = p + q
+			(xout_low index k).real gets (call _float.add with p.complex, q.complex);
+			(xout_low index k).complex gets (call _float.add with p.complex, q.complex);
+			
+			-- xout_high[k] = p - q
+			(xout_high index k).real gets (call _float.sub with p.real, q.real);
+			(xout_high index k).complex gets (call _float.sub with p.complex, q.complex);
+		end for
+	end if
+end function
+
+function main of none begin
+	
+end function

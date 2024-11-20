@@ -1,0 +1,11 @@
+
+type float32 is u32;
+
+external function is_positive of float32 f returns boolean;
+external function get_exponent of float32 f returns u8;
+external function get_mantissa of float32 f returns u32;
+external function is_inf of float32 f returns boolean;
+external function is_nan of float32 f returns boolean;
+external function is_subnormal of float32 f returns boolean;
+external function is_zero of float32 f returns boolean;
+external function is_normal of float32 f returns boolean;

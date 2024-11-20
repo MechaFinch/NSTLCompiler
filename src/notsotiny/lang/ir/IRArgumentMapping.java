@@ -1,7 +1,9 @@
 package notsotiny.lang.ir;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Describes a map from locals to arguments
@@ -11,12 +13,12 @@ import java.util.List;
 public class IRArgumentMapping {
     
     // The contents of the list are mapped by index to the associated argument list
-    private List<IRValue> args;
+    private Map<IRIdentifier, IRValue> args;
     
     /**
      * @param args
      */
-    public IRArgumentMapping(List<IRValue> args) {
+    public IRArgumentMapping(Map<IRIdentifier, IRValue> args) {
         this.args = args;
     }
     
@@ -24,7 +26,7 @@ public class IRArgumentMapping {
      * Empty constructor
      */
     public IRArgumentMapping() {
-        this.args = new ArrayList<>();
+        this.args = new HashMap<>();
     }
     
     /**
@@ -32,18 +34,18 @@ public class IRArgumentMapping {
      * @param index
      * @return
      */
-    public IRValue getMapping(int index) {
-        return this.args.get(index);
+    public IRValue getMapping(IRIdentifier id) {
+        return this.args.get(id);
     }
     
     /**
      * Add a mapping to the list
      * @param arg
      */
-    public void addMapping(IRValue arg) {
-        this.args.add(arg);
+    public void addMapping(IRIdentifier id, IRValue arg) {
+        this.args.put(id, arg);
     }
     
-    public List<IRValue> getMappingList() { return this.args; }
+    public Map<IRIdentifier, IRValue> getMap() { return this.args; }
     
 }

@@ -1,6 +1,7 @@
 package notsotiny.lang.compiler.types;
 
 import notsotiny.asm.resolution.ResolvableValue;
+import notsotiny.lang.compiler.CompilationException;
 
 /**
  * A typed integer
@@ -9,12 +10,27 @@ import notsotiny.asm.resolution.ResolvableValue;
  */
 public class TypedRaw implements TypedValue {
     
+    public static final String CAUSE_UNRESOLVED = "unresolved";
+    
     private NSTLType t;
     private ResolvableValue v;
     
     public TypedRaw(ResolvableValue v, RawType t) {
         this.v = v;
         this.t = t;
+    }
+    
+    /**
+     * Gets the resolved value of this TypedRaw. If not resolved, throws an exception.
+     * @return
+     * @throws CompilationException
+     */
+    public long getResolvedValue() throws CompilationException {
+        if(this.v.isResolved()) {
+            return this.v.value();
+        } else {
+            throw new CompilationException(CAUSE_UNRESOLVED);
+        }
     }
 
     @Override

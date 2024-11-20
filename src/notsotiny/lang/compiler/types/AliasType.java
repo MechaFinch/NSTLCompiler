@@ -2,6 +2,9 @@ package notsotiny.lang.compiler.types;
 
 import java.util.List;
 
+import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.ir.IRType;
+
 /**
  * A type alias
  * 
@@ -38,6 +41,11 @@ public class AliasType implements NSTLType {
      */
     public void setRealType(NSTLType t) {
         this.realType = t.getRealType();
+    }
+    
+    @Override
+    public IRType getIRType() throws CompilationException {
+        return this.realType.getIRType();
     }
     
     @Override

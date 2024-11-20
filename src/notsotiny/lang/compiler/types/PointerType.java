@@ -2,6 +2,9 @@ package notsotiny.lang.compiler.types;
 
 import java.util.List;
 
+import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.ir.IRType;
+
 /**
  * A lovely pointer
  * 
@@ -13,6 +16,11 @@ public class PointerType implements NSTLType {
     
     public PointerType(NSTLType pointedType) {
         this.pointedType = pointedType.getRealType();
+    }
+    
+    @Override
+    public IRType getIRType() throws CompilationException {
+        return IRType.I32;
     }
 
     @Override

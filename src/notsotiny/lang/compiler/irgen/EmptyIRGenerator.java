@@ -21,5 +21,17 @@ public class EmptyIRGenerator implements IRGenerator {
         // TODO Auto-generated method stub
         return null;
     }
+
+    @Override
+    public void setCFGVisualization(boolean ast, boolean ir) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void setFileOutput(boolean output, Path directory) {
+        // TODO Auto-generated method stub
+        
+    }
     
 }

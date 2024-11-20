@@ -2,12 +2,22 @@ package notsotiny.lang.compiler.types;
 
 import java.util.List;
 
+import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.ir.IRType;
+
 /**
  * Describes a type
  * 
  * @author Mechafinch
  */
 public interface NSTLType {
+    
+    /**
+     * Converts to the equivalent IRType
+     * @return
+     * @throws CompilationException if not convertible
+     */
+    public IRType getIRType() throws CompilationException;
     
     /**
      * Gets the non-alias type this is

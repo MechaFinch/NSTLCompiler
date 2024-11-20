@@ -29,6 +29,7 @@ public class TypedArray implements TypedValue {
     }
     
     public TypedValue getValue(int index) { return this.v.get(index); }
+    public ArrayType getArrayType() { return this.t; }
     
     @Override
     public String toString() {

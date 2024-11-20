@@ -38,6 +38,7 @@ public class TypedStructure implements TypedValue {
     }
     
     public TypedValue getMember(String member) { return this.m.get(member); }
+    public StructureType getStructureType() { return this.t; }
     
     @Override
     public String toString() {

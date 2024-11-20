@@ -36,8 +36,8 @@ public class IRLinearInstruction implements IRSourceInfo {
     // Argument mapping for CALLR, CALLN
     private IRArgumentMapping callMapping;
 
-    // Source module
-    private IRModule module;
+    // Containing basic block
+    private IRBasicBlock bb;
     
     // Line number of the function's header
     private int sourceLineNumber;
@@ -52,10 +52,10 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param condition
      * @param compareA
      * @param compareB
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue sourceA, IRValue sourceB, IRCondition condition, IRValue compareA, IRValue compareB, IRArgumentMapping callMapping, IRModule sourceModule, int sourceLineNumber) {
+    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue sourceA, IRValue sourceB, IRCondition condition, IRValue compareA, IRValue compareB, IRArgumentMapping callMapping, IRBasicBlock sourceBB, int sourceLineNumber) {
         this.op = op;
         this.destination = destination;
         this.destType = destinationType;
@@ -65,7 +65,7 @@ public class IRLinearInstruction implements IRSourceInfo {
         this.compareA = compareA;
         this.compareB = compareB;
         this.callMapping = callMapping;
-        this.module = sourceModule;
+        this.bb = sourceBB;
         this.sourceLineNumber = sourceLineNumber;
     }
     
@@ -94,11 +94,11 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param condition
      * @param compareA
      * @param compareB
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue sourceA, IRValue sourceB, IRCondition condition, IRValue compareA, IRValue compareB, IRModule sourceModule, int sourceLineNumber) {
-        this(op, destination, destinationType, sourceA, sourceB, condition, compareA, compareB, null, sourceModule, sourceLineNumber);
+    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue sourceA, IRValue sourceB, IRCondition condition, IRValue compareA, IRValue compareB, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, destination, destinationType, sourceA, sourceB, condition, compareA, compareB, null, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -123,11 +123,11 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param destinationType
      * @param sourceA
      * @param sourceB
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue sourceA, IRValue sourceB, IRModule sourceModule, int sourceLineNumber) {
-        this(op, destination, destinationType, sourceA, sourceB, IRCondition.NONE, null, null, null, sourceModule, sourceLineNumber);
+    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue sourceA, IRValue sourceB, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, destination, destinationType, sourceA, sourceB, IRCondition.NONE, null, null, null, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -148,11 +148,11 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param destination
      * @param destinationType
      * @param sourceA
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue sourceA, IRModule sourceModule, int sourceLineNumber) {
-        this(op, destination, destinationType, sourceA, null, IRCondition.NONE, null, null, null, sourceModule, sourceLineNumber);
+    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue sourceA, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, destination, destinationType, sourceA, null, IRCondition.NONE, null, null, null, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -172,11 +172,11 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param destination
      * @param sourceA
      * @param sourceB
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRLinearInstruction(IRLinearOperation op, IRValue sourceA, IRValue sourceB, IRModule sourceModule, int sourceLineNumber) {
-        this(op, null, IRType.NONE, sourceA, sourceB, IRCondition.NONE, null, null, null, sourceModule, sourceLineNumber);
+    public IRLinearInstruction(IRLinearOperation op, IRValue sourceA, IRValue sourceB, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, null, IRType.NONE, sourceA, sourceB, IRCondition.NONE, null, null, null, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -185,7 +185,7 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param destination
      * @param sourceA
      * @param sourceB
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
     public IRLinearInstruction(IRLinearOperation op, IRValue sourceA, IRValue sourceB) {
@@ -199,11 +199,11 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param destinationType
      * @param targetFunction
      * @param argMap
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRIdentifier targetFunction, IRArgumentMapping argMap, IRModule sourceModule, int sourceLineNumber) {
-        this(op, destination, destinationType, targetFunction, null, IRCondition.NONE, null, null, argMap, sourceModule, sourceLineNumber);
+    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue targetFunction, IRArgumentMapping argMap, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, destination, destinationType, targetFunction, null, IRCondition.NONE, null, null, argMap, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -214,7 +214,7 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param targetFunction
      * @param argMap
      */
-    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRIdentifier targetFunction, IRArgumentMapping argMap) {
+    public IRLinearInstruction(IRLinearOperation op, IRIdentifier destination, IRType destinationType, IRValue targetFunction, IRArgumentMapping argMap) {
         this(op, destination, destinationType, targetFunction, null, IRCondition.NONE, null, null, argMap, null, 0);
     }
     
@@ -223,11 +223,11 @@ public class IRLinearInstruction implements IRSourceInfo {
      * @param op
      * @param targetFunction
      * @param argMap
-     * @param sourceModule
+     * @param sourceBB
      * @param sourceLineNumber
      */
-    public IRLinearInstruction(IRLinearOperation op, IRIdentifier targetFunction, IRArgumentMapping argMap, IRModule sourceModule, int sourceLineNumber) {
-        this(op, null, IRType.NONE, targetFunction, null, IRCondition.NONE, null, null, argMap, sourceModule, sourceLineNumber);
+    public IRLinearInstruction(IRLinearOperation op, IRValue targetFunction, IRArgumentMapping argMap, IRBasicBlock sourceBB, int sourceLineNumber) {
+        this(op, null, IRType.NONE, targetFunction, null, IRCondition.NONE, null, null, argMap, sourceBB, sourceLineNumber);
     }
     
     /**
@@ -242,13 +242,18 @@ public class IRLinearInstruction implements IRSourceInfo {
     
     @Override
     public Path getSourceFile() {
-        return module.getSourceFile();
+        return this.bb.getSourceFile();
     }
 
     @Override
     public int getSourceLineNumber() {
         return this.sourceLineNumber;
     }
+    
+    public void setLeftSourceValue(IRValue v) { this.sourceA = v; }
+    public void setRightSourceValue(IRValue v) { this.sourceB = v; }
+    public void setLeftComparisonValue(IRValue v) { this.compareA = v; }
+    public void setRightComparisonValue(IRValue v) { this.compareB = v; }
     
     public IRLinearOperation getOp() { return this.op; }
     public IRIdentifier getDestinationID() { return this.destination; }
@@ -259,5 +264,6 @@ public class IRLinearInstruction implements IRSourceInfo {
     public IRValue getLeftComparisonValue() { return this.compareA; }
     public IRValue getRightComparisonValue() { return this.compareB; }
     public IRArgumentMapping getCallArgumentMapping() { return this.callMapping; }
+    public IRBasicBlock getBasicBlock() { return this.bb; }
         
 }

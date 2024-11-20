@@ -1,0 +1,196 @@
+Module game {
+  const I8[] @main.str_ended_loss%10: "IS-ENDED-LOSS"
+  const NONE @false: 0
+  const I8[] @main.str_turtle_get_active%16: "TURTLES[].ISACTIVE"
+  const I8[] @main.str_disco_count%14: "DISCOVERIES-COUNT"
+  const I8[] @main.str_default_update%18: ": UPDATE ( -- ) ;"
+  const I8[] @main.str_tile_sprite_id%8: "GET-TILE-SPRITE-ID"
+  const I8[] @main.str_game_start%5: "placeholder"
+  const I8[] @main.str_fuel_win%17: "FUEL-TO-WIN"
+  const I8[] @main.str_commit_editor%7: "commit-editor"
+  const I8[] @main.str_fuel_count%12: "FUEL-COUNT"
+  const I8[] @main.str_ended_win%9: "IS-ENDED-WIN"
+  const I8[] @main.str_compile_editor%6: "compile-editor"
+  const NONE @true: 1
+  const I8[] @main.str_max_turtles%15: "MAX-TURTLES"
+  const I8[] @main.str_ending_text%11: "PRINT-ENDING-TEXT"
+  const I8[] @main.str_game_update%4: "RUN-PLAYER-CODE"
+  const I8[] @main.str_metal_count%13: "METAL-COUNT"
+
+  I32[] @ui_data: 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+
+  external func NONE @_forth.interop_push(I32 %val)
+  external func NONE @_periodic.init()
+  external func NONE @_sprites.draw(I32 %sp, I16 %x, I16 %y)
+  external func NONE @_sprites.draw_part(I32 %sp, I16 %x, I16 %y, I16 %sx, I16 %sy, I16 %w, I16 %h)
+  external func NONE @_gutil.scroll_up(I8 %n, I8 %bgc)
+  external func NONE @_os.defer()
+  external func NONE @_forth.interop_init(I32 %param_stack_size, I32 %locals_stack_size, I32 %user_dict_size, I16 %user_dict_padding, I16 %stack_padding)
+  external func NONE @_editor.draw_region(I32 %region)
+  external func I32 @_os.realloc(I32 %block, I32 %n)
+  external func I32 @_os.write_file(I16 %handle_id, I32 %buffer_length, I32 %buffer_ptr)
+  external func I32 @_os.seek_file(I16 %handle_id, I16 %flags, I32 %value)
+  external func NONE @_gutil.clear_screen(I8 %bgc)
+  external func I16 @_util.mulh8(I8 %a, I8 %b)
+  external func I16 @_util.enable_interrupts()
+  external func NONE @_util.set_pf(I16 %arg0)
+  external func I8 @_ui.scene_camera(I32 %ui_data)
+  external func I8 @_ui.scene_help(I32 %ui_data)
+  external func I8 @_util.mod8(I8 %a, I8 %b)
+  external func NONE @_editor.set_term_area(I32 %region)
+  external func I8 @_util.mods8(I8 %a, I8 %b)
+  external func I16 @_util.mod16(I16 %a, I16 %b)
+  external func NONE @_fs.compile()
+  external func NONE @_os.close_file(I16 %handle_id)
+  external func NONE @_util.memcopy(I32 %source, I32 %dest, I32 %length)
+  external func I8 @_forth.interop_ncall(I32 %name_ptr, I8 %name_len)
+  external func I32 @_util.mulsh16(I16 %a, I16 %b)
+  external func NONE @_os.exit()
+  external func I16 @_util.get_pf()
+  external func I8 @_util.abs8(I8 %a)
+  external func I32 @_forth.interop_pop()
+  external func I32 @_util.abs32(I16 %a)
+  external func I32 @_util.atomic_call(I32 %desc, I32 %args)
+  external func I8 @_ui.compile_code(I32 %ui_data)
+  external func I16 @_util.mulsh8(I8 %a, I8 %b)
+  external func NONE @_sprites.draw_transparent(I32 %sp, I16 %x, I16 %y)
+  external func I8 @_editor.edit_region(I32 %region, I8 %edit)
+  external func I32 @_os.calloc(I32 %n)
+  external func NONE @_gutil.set_palette(I32 %palette)
+  external func I32 @_os.rcalloc(I32 %block, I32 %n)
+  external func NONE @_os.init(I32 %dram_start, I32 %dram_size)
+  external func NONE @_ui.scene_loss(I32 %ui_data)
+  external func NONE @_ui.scene_win(I32 %ui_data)
+  external func I16 @_util.mods16(I16 %a, I16 %b)
+  external func NONE @_gutil.set_color_bytes(I8 %idx, I8 %r, I8 %g, I8 %b)
+  external func I32 @_os.read_file(I16 %handle_id, I32 %buffer_length, I32 %buffer_ptr)
+  external func I32 @_util.mulh16(I16 %a, I16 %b)
+  external func NONE @_fs.hide_words()
+  external func NONE @_forth.interop_pcall(I32 %xt)
+  external func I32 @_forth.interop_peek()
+  external func NONE @_sprites.draw_part_transparent(I32 %sp, I16 %x, I16 %y, I16 %sx, I16 %sy, I16 %w, I16 %h)
+  external func NONE @_util.halt()
+  external func NONE @_ui.wait(I32 %ms)
+  external func NONE @_ui.run_interface(I32 %ui_data)
+  external func NONE @_os.free(I32 %block)
+  external func I16 @_editor.get_index_of(I32 %region, I8 %x, I8 %y)
+  external func NONE @_os.change_file_attr(I16 %handle_id, I16 %flags)
+  external func I16 @_sprites.get_width(I32 %sp)
+  external func I32 @_os.get_term_area()
+  external func I16 @_os.get_term_pos()
+  external func I16 @_os.open_file(I16 %flags, I16 %name_len, I32 %name_ptr)
+  external func I8 @_ui.scene_editor(I32 %ui_data)
+  external func NONE @_gutil.set_color(I8 %idx, I32 %rgb)
+  external func I16 @_util.abs16(I16 %a)
+  external func NONE @_os.get_file_pos(I16 %handle_id, I32 %read_ptr, I32 %write_ptr)
+  external func NONE @_util.buffer_screen()
+  external func NONE @_periodic.set_updates_enabled(I8 %enabled)
+  external func I8 @_editor.get_char_at(I32 %region, I8 %x, I8 %y)
+  external func I32 @_periodic.time_ms()
+  external func I32 @_os.malloc(I32 %n)
+  external func I8 @_os.get_key_state(I8 %key)
+  external func I8 @_ui.non_blocking_read()
+  external func I32 @_fs.find(I32 %name, I32 %length)
+  external func I32 @_editor.create_region(I8 %sox, I8 %soy, I8 %sw, I8 %sh, I16 %max_lines)
+  external func I8 @_ui.scene_menu(I32 %ui_data)
+  external func I16 @_editor.get_index(I32 %region)
+  external func NONE @_util.unbuffer_screen()
+  external func NONE @_gutil.scroll_down(I8 %n, I8 %bgc)
+  external func I16 @_util.disable_interrupts()
+  external func I16 @_sprites.get_height(I32 %sp)
+
+  func NONE @main() {
+    $entry():
+      CALLN @_periodic.init()
+      CALLN @_os.init(%dram_start = I32 589824, %dram_size = I32 393216)
+      CALLN @_os.change_file_attr(%flags = I16 4, %handle_id = I16 0)
+      CALLN @_forth.interop_init(%param_stack_size = I32 4096, %stack_padding = I16 64, %user_dict_padding = I16 64, %user_dict_size = I32 65536, %locals_stack_size = I32 4096)
+      CALLN @_fs.compile()
+      CALLN @_gutil.set_palette(%palette = @_palette.p1)
+      I32 %fw_game_update%16 = CALLR @_fs.find(%name = @main.str_game_update%4, %length = I32 15)
+      I32 %fw_game_start%20 = CALLR @_fs.find(%name = @main.str_game_start%5, %length = I32 11)
+      I32 %fw_compile_editor%24 = CALLR @_fs.find(%name = @main.str_compile_editor%6, %length = I32 14)
+      I32 %fw_commit_editor%28 = CALLR @_fs.find(%name = @main.str_commit_editor%7, %length = I32 13)
+      I32 %fw_tile_sprite_id%32 = CALLR @_fs.find(%name = @main.str_tile_sprite_id%8, %length = I32 18)
+      I32 %fw_ended_win%36 = CALLR @_fs.find(%name = @main.str_ended_win%9, %length = I32 12)
+      I32 %fw_ended_loss%40 = CALLR @_fs.find(%name = @main.str_ended_loss%10, %length = I32 13)
+      I32 %fw_ending_text%44 = CALLR @_fs.find(%name = @main.str_ending_text%11, %length = I32 17)
+      I32 %fw_fuel_count%48 = CALLR @_fs.find(%name = @main.str_fuel_count%12, %length = I32 10)
+      I32 %fw_metal_count%52 = CALLR @_fs.find(%name = @main.str_metal_count%13, %length = I32 11)
+      I32 %fw_disco_count%56 = CALLR @_fs.find(%name = @main.str_disco_count%14, %length = I32 17)
+      I32 %fw_max_turtles%60 = CALLR @_fs.find(%name = @main.str_max_turtles%15, %length = I32 11)
+      I32 %fw_turtle_get_active%64 = CALLR @_fs.find(%name = @main.str_turtle_get_active%16, %length = I32 18)
+      I32 %fw_fuel_win%68 = CALLR @_fs.find(%name = @main.str_fuel_win%17, %length = I32 11)
+      CALLN @_fs.hide_words()
+      CALLN @_forth.interop_pcall(%xt = %fw_game_start%20)
+      I32 %75 = CALLR @_editor.create_region(%max_lines = I16 128, %sox = I8 2, %sw = I8 20, %soy = I8 2, %sh = I8 22)
+      STORE %75 -> @ui_data
+      I32 %82 = ADD @ui_data, I32 4
+      I32 %83 = CALLR @_editor.create_region(%max_lines = I16 34, %sox = I8 24, %sw = I8 13, %soy = I8 2, %sh = I8 12)
+      STORE %83 -> %82
+      I32 %90 = ADD @ui_data, I32 8
+      I32 %91 = CALLR @_editor.create_region(%max_lines = I16 32, %sox = I8 24, %sw = I8 13, %soy = I8 15, %sh = I8 11)
+      STORE %91 -> %90
+      I32 %98 = ADD @ui_data, I32 12
+      I32 %99 = CALLR @_editor.create_region(%max_lines = I16 0, %sox = I8 7, %sw = I8 26, %soy = I8 3, %sh = I8 20)
+      STORE %99 -> %98
+      I32 %106 = ADD @ui_data, I32 16
+      I32 %107 = CALLR @_editor.create_region(%max_lines = I16 0, %sox = I8 13, %sw = I8 25, %soy = I8 16, %sh = I8 9)
+      STORE %107 -> %106
+      I32 %114 = ADD @ui_data, I32 20
+      I32 %115 = CALLR @_editor.create_region(%max_lines = I16 0, %sox = I8 30, %sw = I8 8, %soy = I8 2, %sh = I8 12)
+      STORE %115 -> %114
+      I32 %122 = ADD @ui_data, I32 24
+      STORE %fw_game_update%16 -> %122
+      I32 %124 = ADD @ui_data, I32 28
+      STORE %fw_compile_editor%24 -> %124
+      I32 %126 = ADD @ui_data, I32 32
+      STORE %fw_commit_editor%28 -> %126
+      I32 %128 = ADD @ui_data, I32 36
+      STORE %fw_tile_sprite_id%32 -> %128
+      I32 %130 = ADD @ui_data, I32 40
+      STORE %fw_ended_win%36 -> %130
+      I32 %132 = ADD @ui_data, I32 44
+      STORE %fw_ended_loss%40 -> %132
+      I32 %134 = ADD @ui_data, I32 48
+      STORE %fw_ending_text%44 -> %134
+      I32 %136 = ADD @ui_data, I32 52
+      STORE %fw_fuel_count%48 -> %136
+      I32 %138 = ADD @ui_data, I32 56
+      STORE %fw_metal_count%52 -> %138
+      I32 %140 = ADD @ui_data, I32 60
+      STORE %fw_disco_count%56 -> %140
+      I32 %142 = ADD @ui_data, I32 64
+      STORE %fw_max_turtles%60 -> %142
+      I32 %144 = ADD @ui_data, I32 68
+      STORE %fw_turtle_get_active%64 -> %144
+      I32 %146 = ADD @ui_data, I32 72
+      STORE %fw_fuel_win%68 -> %146
+      I32 %152 = LOAD @ui_data
+      I32 %151 = ADD %152, I32 12
+      I32 %150 = LOAD %151
+      CALLN @_util.memcopy(%source = @main.str_default_update%18, %dest = %150, %length = I32 17)
+      I32 %161 = ADD @ui_data, I32 4
+      I32 %160 = LOAD %161
+      I32 %159 = ADD %160, I32 12
+      I32 %158 = LOAD %159
+      CALLN @_util.memcopy(%source = @_fs.playerdictionary, %dest = %158, %length = I32 476)
+      I32 %169 = ADD @ui_data, I32 8
+      I32 %168 = LOAD %169
+      I32 %167 = ADD %168, I32 12
+      I32 %166 = LOAD %167
+      CALLN @_util.memcopy(%source = @_fs.defaultnotes, %dest = %166, %length = I32 140)
+      CALLN @_ui.run_interface(%ui_data = @ui_data)
+      JMP $whilecond%1()
+
+    $whilecond%1():
+      JMP $whiletrue%2()
+
+    $whiletrue%2():
+      CALLN @_util.halt()
+      JMP $whilecond%1()
+
+    $whiledone%3():
+      RET NONE 0
+  }
+}

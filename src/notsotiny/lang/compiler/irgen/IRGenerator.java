@@ -33,4 +33,17 @@ public interface IRGenerator {
      * @throws NoSuchFileException
      */
     public IRModule generate(ASTNode astRoot, String defaultLibName, FileLocator locator, Path sourcePath) throws CompilationException;
+    
+    /**
+     * Set whether to visualize the CFG of each function
+     * @param ast Show AST CFG
+     * @param ir Show IR CFG
+     */
+    public void setCFGVisualization(boolean ast, boolean ir); 
+    
+    /**
+     * Set whether to output generated IR to a file
+     * @param output
+     */
+    public void setFileOutput(boolean output, Path directory);
 }

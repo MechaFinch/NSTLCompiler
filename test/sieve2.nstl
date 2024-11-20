@@ -1,0 +1,59 @@
+
+--
+-- Example Code
+-- Sieves the screen of the simulator environment for primes
+--
+
+library _util;
+
+constant col_prime is u8 gets 0xFF;
+constant col_comp is u8 gets 0x00;
+
+constant screen_start is ptr gets 0xF002_0000;
+constant screen_size is u32 gets 320 * 240;
+constant screen_size_sqrt is u32 gets 278; -- sqrt(320 * 240) ~= 278
+constant screen_end is ptr gets screen_start + screen_size;
+
+function main of none begin
+	-- fill the screen
+	variable screen is u8 pointer gets screen_start;
+	
+	while screen < screen_end do
+		at screen gets col_prime;
+		screen gets screen + 1;
+	end while
+	
+	-- clear 0 and 1
+	screen gets screen_start;
+	screen index 0 gets col_comp;
+	screen index 1 gets col_comp;
+	
+	-- sieve of eratosthenes
+	variable p is u32 gets 1;
+	sieve:
+	while 1 do
+		-- find next prime
+		until screen index p do
+			p gets p + 1;
+			
+			if p >= screen_size_sqrt then
+				continue sieve;
+			end if
+		end until
+		
+		-- sieve with it
+		variable i is u32 gets p + p;
+		
+		while i < screen_size do
+			screen index i gets col_comp;
+			i gets i + p;
+		end while
+	end while
+	
+	-- done
+	while 1 do
+		call _util.halt with none;
+	end while
+end function
+
+

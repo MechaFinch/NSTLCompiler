@@ -4,52 +4,141 @@ import java.util.ArrayList;
 import java.util.List;
 
 import fr.cenotelie.hime.redist.ASTNode;
+import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.irgen.context.ASTContextTree;
 import notsotiny.lang.ir.IRCondition;
+import notsotiny.lang.parser.NstlgrammarLexer;
+import notsotiny.lang.parser.NstlgrammarParser;
 
 /**
  * Contains the AST of a basic block
  */
 public class ASTBasicBlock {
     
+    public enum ExitType {
+        CONDITIONAL,    // exitCode = variable_expression. trueSuccessor if exitCode evaluates nonzero, falseSuccessor otherwise
+        UNCONDITIONAL,  // exitCode = null. trueSuccessor always
+        RETURN          // exitCode = return. No successors
+    }
+    
     // Function this is a part of
     private ASTFunction parentFunction;
     
+    // Context
+    private ASTContextTree context;
+    
+    private String name;
+    
     // Blocks for which this block is a successor
-    private List<ASTBasicBlock> parents;
+    private List<ASTBasicBlock> predecessors;
     
     private ASTBasicBlock trueSuccessor,    // Next block if unconditional or condition true
                           falseSuccessor;   // Next block if condition false
     
-    // Condition
-    private IRCondition condition;
-    
     // Code contents
     private List<ASTNode> contents;
+    
+    private ExitType exitType; // grammar ID
+    private ASTNode exitCode;
+    
+    private int sourceLineNumber;
     
     /**
      * Empty constructor
      */
-    public ASTBasicBlock(ASTFunction parent) {
-        this.parentFunction = parent;
-        this.parents = new ArrayList<>();
+    public ASTBasicBlock(ASTFunction parentFunction, ASTContextTree context, String name) {
+        this.parentFunction = parentFunction;
+        this.context = context;
+        this.name = name;
+        this.predecessors = new ArrayList<>();
         this.trueSuccessor = null;
         this.falseSuccessor = null;
-        this.condition = IRCondition.NONE;
         this.contents = new ArrayList<>();
+        this.exitCode = null;
+        this.exitType = ExitType.UNCONDITIONAL;
+        this.sourceLineNumber = parentFunction.getHeader().getSource().getPosition().getLine();
     }
     
-    public void addParent(ASTBasicBlock bb) { this.parents.add(bb); }
-    public void addCode(ASTNode code) { this.contents.add(code); }
+    /**
+     * Sets the true-case successor for this basic block
+     * @param bb
+     */
+    public void setTrueSuccessor(ASTBasicBlock bb) {
+        this.trueSuccessor = bb;
+        
+        if(bb != null) {
+            bb.addPredecessor(this);
+        }
+    }
+    
+    /**
+     * Sets the false-case successor for this basic block
+     * @param bb
+     */
+    public void setFalseSuccessor(ASTBasicBlock bb) {
+        this.falseSuccessor = bb;
+        
+        if(bb != null) {
+            bb.addPredecessor(this);
+        }
+    }
+    
+    /**
+     * Sets the true successor if it is currently null
+     * @param bb
+     */
+    public void setTrueSuccessorIfAbsent(ASTBasicBlock bb) {
+        if(this.trueSuccessor == null && this.exitType != ExitType.RETURN) {
+            setTrueSuccessor(bb);
+        }
+    }
+    
+    /**
+     * Sets the false successor if it is currently null
+     * @param bb
+     */
+    public void setFalseSuccessorIfAbsent(ASTBasicBlock bb) {
+        if(this.falseSuccessor == null && this.exitType != ExitType.RETURN) {
+            setFalseSuccessor(bb);
+        }
+    }
+    
+    /**
+     * Sets the type and contents of the exit code
+     * @param code
+     * @param type
+     */
+    public void setExitCode(ASTNode code, ExitType type) {
+        this.exitCode = code;
+        this.exitType = type;
+    }
+    
+    /**
+     * Add code to the BB's contents
+     * @param code
+     */
+    public void addCode(ASTNode code) {
+        if(this.contents.size() == 0) {
+            this.sourceLineNumber = ASTUtil.getPosition(code).getLine();
+        }
+        
+        this.contents.add(code);
+    }
+    
+    public void addPredecessor(ASTBasicBlock bb) { this.predecessors.add(bb); }
+    public void removePredecessor(ASTBasicBlock bb) { this.predecessors.remove(bb); }
+    public void setName(String name) { this.name = name; }
     public void addAllCode(List<ASTNode> code) { this.contents.addAll(code); }
-    public void setCondition(IRCondition cond) { this.condition = cond; }
-    public void setTrueSuccessor(ASTBasicBlock bb) { this.trueSuccessor = bb; }
-    public void setFalseSuccessor(ASTBasicBlock bb) { this.falseSuccessor = bb; }
     
     public ASTFunction getParentFunction() { return this.parentFunction; }
-    public List<ASTBasicBlock> getParents() { return this.parents; }
+    public ASTContextTree getContext() { return this.context; }
+    public String getName() { return this.name; }
+    public List<ASTBasicBlock> getPredecessors() { return this.predecessors; }
     public ASTBasicBlock getTrueSuccessor() { return this.trueSuccessor; }
     public ASTBasicBlock getFalseSuccessor() { return this.falseSuccessor; }
-    public IRCondition getCondition() { return this.condition; }
     public List<ASTNode> getCode() { return this.contents; }
+    public ASTNode getExitCode() { return this.exitCode; }
+    public ExitType getExitType() { return this.exitType; }
+    public int getSourceLine() { return this.sourceLineNumber; }
     
 }

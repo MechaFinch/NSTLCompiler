@@ -28,8 +28,25 @@ public class IRIdentifier extends IRValue {
         this.idclass = idclass;
     }
     
+    public String getName() { return this.name; }
+    public IRIdentifierClass getIDClass() { return this.idclass; }
+    
     @Override
     public String toString() {
         return idclass.getPrefix() + name;
+    }
+    
+    @Override
+    public int hashCode() {
+        return this.toString().hashCode();
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if(o instanceof IRIdentifier iro) {
+            return iro.idclass == this.idclass && this.name.equals(iro.name);
+        }
+        
+        return false;
     }
 }
