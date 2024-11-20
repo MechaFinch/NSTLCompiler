@@ -1,0 +1,88 @@
+Module sieve {
+  const I8 @fdsa: 65
+
+  I32 @buf: -268304384
+  @test:
+    I8 1
+    I16 77
+    I32 0
+    I32 23
+  I8[] @halter: 0, 0
+
+  external func NONE @balls(I8 %a, I16 %b, I32 %arg2)
+
+  func NONE @main() {
+    $entry():
+      I32 %1 = LOAD @buf
+      I32 %0 = ADD %1, I32 77565
+      STORE I8 255 -> %0
+      I32 %5 = LOAD @buf
+      I32 %4 = ADD %5, I32 77566
+      STORE I8 255 -> %4
+      I32 %9 = LOAD @buf
+      I32 %8 = ADD %9, I32 77567
+      STORE I8 255 -> %8
+      I32 %13 = LOAD @buf
+      CALLN @sieve(%flags = %13, %max = I32 76800)
+      STORE I8 1 -> @halter
+      I32 %19 = ADD @halter, I32 1
+      STORE I8 224 -> %19
+      JMP $whiletrue%2()
+
+    $whiletrue%2():
+      CALLN @halter()
+      JMP $whiletrue%2()
+  }
+
+  func NONE @sieve(I32 %flags, I32 %max) {
+    $entry():
+      JMP $forcond%2(%i%2 = I32 0)
+
+    $forcond%2(I32 %i%2):
+      JCC %i%2 B %max, $fortrue%3(), $whilecond%7(%p%15 = I32 2)
+
+    $fortrue%3():
+      I32 %5 = ADD %flags, %i%2
+      STORE I8 255 -> %5
+      JMP $forupd%4()
+
+    $forupd%4():
+      I32 %i%10 = ADD %i%2, I32 1
+      JMP $forcond%2(%i%2 = %i%10)
+
+    $whilecond%7(I32 %p%15):
+      JCC %p%15 B %max, $whiletrue%8(), $whiledone%9()
+
+    $whiletrue%8():
+      I32 %19 = ADD %flags, %p%15
+      I8 %18 = LOAD %19
+      JCC %18 NE I8 255, $iftrue%10(), $forinit%13()
+
+    $iftrue%10():
+      I32 %p%24 = ADD %p%15, I32 1
+      JMP $whilecond%7(%p%15 = %p%24)
+
+    $forinit%13():
+      I32 %i%27 = SHL %p%15, I32 1
+      JMP $forcond%14(%i%31 = %i%27)
+
+    $forcond%14(I32 %i%31):
+      JCC %i%31 B %max, $fortrue%15(), $fordone%17()
+
+    $fortrue%15():
+      I32 %34 = ADD %flags, %i%31
+      STORE I8 0 -> %34
+      JMP $forupd%16()
+
+    $forupd%16():
+      I32 %i%39 = ADD %i%31, %p%15
+      JMP $forcond%14(%i%31 = %i%39)
+
+    $fordone%17():
+      I32 %p%43 = ADD %p%15, I32 1
+      JMP $whilecond%7(%p%15 = %p%43)
+
+    $whiledone%9():
+      RET NONE 0
+  }
+}

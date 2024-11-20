@@ -202,6 +202,14 @@ public class IRFunction implements IRSourceInfo {
     }
     
     /**
+     * Get the entry BB
+     * @return
+     */
+    public IRBasicBlock getEntryBlock() {
+        return this.getBasicBlock(new IRIdentifier("entry", IRIdentifierClass.BLOCK));
+    }
+    
+    /**
      * Remove the BB with the given ID
      * @param id
      * @return

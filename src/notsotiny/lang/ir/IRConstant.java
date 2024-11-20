@@ -29,4 +29,13 @@ public class IRConstant extends IRValue {
     public int getValue() { return this.value; }
     public IRType getType() { return this.type; }
     
+    @Override
+    public boolean equals(Object o) {
+        if(o instanceof IRConstant c) {
+            return this.type == c.type && this.value == c.value;
+        }
+        
+        return false;
+    }
+    
 }

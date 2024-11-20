@@ -1,8 +1,10 @@
-package notsotiny.lang.compiler.optimization;
+package notsotiny.lang.compiler.optimization.other;
 
 import java.util.List;
 import java.util.logging.Logger;
 
+import notsotiny.lang.compiler.optimization.IROptimizationLevel;
+import notsotiny.lang.compiler.optimization.IROptimizationPass;
 import notsotiny.lang.ir.IRArgumentMapping;
 import notsotiny.lang.ir.IRBasicBlock;
 import notsotiny.lang.ir.IRBranchInstruction;
@@ -100,13 +102,13 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
         for(IRIdentifier predID : bb.getPredecessorBlocks()) {
             IRBranchInstruction predBranch = func.getBasicBlock(predID).getExitInstruction();
             
-            if(predBranch.getTrueTargetBlock().equals(bb.getID())) {
+            if(bb.getID().equals(predBranch.getTrueTargetBlock())) {
                 // We're true
                 predBranch.setTrueTargetBlock(target);
                 predBranch.setTrueArgumentMapping(mapping);
             }
             
-            if(predBranch.getFalseTargetBlock().equals(bb.getID())) {
+            if(bb.getID().equals(predBranch.getFalseTargetBlock())) {
                 // We're false
                 predBranch.setFalseTargetBlock(target);
                 predBranch.setFalseArgumentMapping(mapping);

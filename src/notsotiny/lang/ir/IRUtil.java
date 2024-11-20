@@ -1,5 +1,6 @@
 package notsotiny.lang.ir;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,46 +17,71 @@ public class IRUtil {
     private static Logger LOG = Logger.getLogger(IRUtil.class.getName());
     
     /**
-     * Constructs a map from identifiers to their definitions
+     * Constructs a list of IRDefinitions found in the function
      * @param function
      * @return
      */
-    public static Map<IRIdentifier, IRDefinition> getDefinitionMap(IRFunction function) {
-        Map<IRIdentifier, IRDefinition> defMap = new HashMap<>();
+    public static List<IRDefinition> getDefinitionList(IRFunction function) {
+        List<IRDefinition> defList = new ArrayList<>();
         
         // Get global constants/variables
         IRModule module = function.getModule();
         
         for(IRIdentifier id : module.getGlobals().keySet()) {
-            defMap.put(id, new IRDefinition(id));
+            defList.add(new IRDefinition(id));
         }
         
         for(IRIdentifier id : module.getFunctions().keySet()) {
-            defMap.put(id, new IRDefinition(id));
+            defList.add(new IRDefinition(id));
         }
         
         // Get function args
         for(IRIdentifier id : function.getArguments().getNameList()) {
-            defMap.put(id, new IRDefinition(id, function));
+            defList.add(new IRDefinition(id, function));
         }
         
         // For each BB
         for(IRBasicBlock bb : function.getBasicBlockList()) {
             // Get bb args
             for(IRIdentifier id : bb.getArgumentList().getNameList()) {
-                defMap.put(id, new IRDefinition(id, bb));
+                defList.add(new IRDefinition(id, bb));
             }
             
             // Get instruction defines
             for(IRLinearInstruction li : bb.getInstructions()) {
                 IRIdentifier id = li.getDestinationID();
                 if(id != null) {
-                    defMap.put(id, new IRDefinition(id, li));
+                    defList.add(new IRDefinition(id, li));
                 }
+            }
+            
+            defList.add(new IRDefinition(bb.getID(), bb.getExitInstruction()));
+        }
+        
+        return defList;
+    }
+    
+    public static Map<IRIdentifier, IRDefinition> getDefinitionMap(List<IRDefinition> defList) {
+        Map<IRIdentifier, IRDefinition> defMap = new HashMap<>();
+        
+        for(IRDefinition def : defList) {
+            // Defines that define an ID have their ID. Defines that define control flow do not.
+            if(def.getType() != IRDefinitionType.BRANCH) {
+                defMap.put(def.getID(), def);
             }
         }
         
         return defMap;
+    }
+    
+    /**
+     * Constructs a map from identifiers to their definitions
+     * Calls getDefinitionList
+     * @param function
+     * @return
+     */
+    public static Map<IRIdentifier, IRDefinition> getDefinitionMap(IRFunction function) {
+        return getDefinitionMap(getDefinitionList(function));
     }
     
     /**
@@ -64,10 +90,10 @@ public class IRUtil {
      * @param defineMap
      * @return
      */
-    public static Map<IRIdentifier, List<IRDefinition>> getUseMap(IRFunction function, Map<IRIdentifier, IRDefinition> defineMap) {
+    public static Map<IRIdentifier, List<IRDefinition>> getUseMap(IRFunction function, List<IRDefinition> defList) {
         Map<IRIdentifier, List<IRDefinition>> useMap = new HashMap<>();
         
-        for(IRDefinition def : defineMap.values()) {
+        for(IRDefinition def : defList) {
             IRIdentifier definedID = def.getID();
             
             switch(def.getType()) {
@@ -93,9 +119,9 @@ public class IRUtil {
                     break;
                 }
                     
-                case INSTRUCTION: {
+                case LINEAR: {
                     // This def is a use for any value in the arguments of the LI
-                    IRLinearInstruction li = def.getInstruction();
+                    IRLinearInstruction li = def.getLinearInstruction();
                     
                     if(li.getLeftSourceValue() instanceof IRIdentifier argID) {
                         MapUtil.getOrCreateList(useMap, argID).add(def);
@@ -111,6 +137,22 @@ public class IRUtil {
                     
                     if(li.getRightComparisonValue() instanceof IRIdentifier argID) {
                         MapUtil.getOrCreateList(useMap, argID).add(def);
+                    }
+                    break;
+                }
+                
+                case BRANCH: {
+                    // This def is a use for any value in the arguments of the BI
+                    IRBranchInstruction bi = def.getBranchInstruction();
+                    
+                    if(bi.getCondition() != IRCondition.NONE) {
+                        if(bi.getCompareLeft() instanceof IRIdentifier argID) {
+                            MapUtil.getOrCreateList(useMap, argID).add(def);
+                        }
+                        
+                        if(bi.getCompareRight() instanceof IRIdentifier argID) {
+                            MapUtil.getOrCreateList(useMap, argID).add(def);
+                        }
                     }
                     break;
                 }
@@ -131,7 +173,7 @@ public class IRUtil {
      * @return
      */
     public static Map<IRIdentifier, List<IRDefinition>> getUseMap(IRFunction function) {
-        return getUseMap(function, getDefinitionMap(function));
+        return getUseMap(function, getDefinitionList(function));
     }
     
     /**

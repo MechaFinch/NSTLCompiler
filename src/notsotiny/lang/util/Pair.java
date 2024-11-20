@@ -1,7 +1,7 @@
 package notsotiny.lang.util;
 
 /**
- * Utility class. A tuple.
+ * Utility class. A tuple of two values.
  * @param <A>
  * @param <B>
  */

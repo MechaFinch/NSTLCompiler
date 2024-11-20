@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
+import notsotiny.lang.compiler.optimization.other.IRPassEmptyBlockMerge;
 import notsotiny.lang.ir.IRModule;
 import notsotiny.lang.ir.IRPrinter;
 import notsotiny.lang.util.StreamPrinter;
