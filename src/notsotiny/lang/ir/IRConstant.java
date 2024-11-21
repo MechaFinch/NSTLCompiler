@@ -38,6 +38,13 @@ public class IRConstant extends IRValue {
         this(value, type, false);
     }
     
+    /**
+     * Gets a long with this value unsigned
+     * @return
+     */
+    public long getUnsignedValue() {
+        return ((long) this.value & this.type.getMask()) & 0x00000000FFFFFFFFl;
+    }
     
     @Override
     public String toString() {

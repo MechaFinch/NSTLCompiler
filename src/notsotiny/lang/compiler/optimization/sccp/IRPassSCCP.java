@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -15,6 +16,7 @@ import notsotiny.lang.compiler.optimization.IROptimizationLevel;
 import notsotiny.lang.compiler.optimization.IROptimizationPass;
 import notsotiny.lang.ir.IRBasicBlock;
 import notsotiny.lang.ir.IRBranchInstruction;
+import notsotiny.lang.ir.IRBranchOperation;
 import notsotiny.lang.ir.IRCondition;
 import notsotiny.lang.ir.IRConstant;
 import notsotiny.lang.ir.IRDefinition;
@@ -51,6 +53,10 @@ public class IRPassSCCP implements IROptimizationPass {
         
         // In each function
         for(IRFunction func : module.getFunctions().values()) {
+            if(func.isExternal()) {
+                continue;
+            }
+            
             // Throw it in the SCCP
             runSCCP(func);
         }
@@ -63,6 +69,7 @@ public class IRPassSCCP implements IROptimizationPass {
      * @param func
      */
     private void runSCCP(IRFunction func) {
+        LOG.finest("Running SCCP on " + func.getID());
         /**
          * how SCCP works
          *  - lattice tracks whether a value is an unknown constant, a known constant, or variable
@@ -100,7 +107,9 @@ public class IRPassSCCP implements IROptimizationPass {
          */
         
         // 'SSA graph'
-        Map<IRIdentifier, List<IRDefinition>> useMap = IRUtil.getUseMap(func);
+        List<IRDefinition> defList = IRUtil.getDefinitionList(func);
+        Map<IRIdentifier, IRDefinition> defMap = IRUtil.getDefinitionMap(defList);
+        Map<IRIdentifier, List<IRDefinition>> useMap = IRUtil.getUseMap(func, defList);
         
         // Lattice
         Map<IRIdentifier, SCCPLatticeElement> lattice = new HashMap<>();
@@ -126,11 +135,78 @@ public class IRPassSCCP implements IROptimizationPass {
             // There's work to do. What kind?
             if(flowWorklist.size() != 0) {
                 // There's a flow edge.
-                // TODO
+                /*
+                 *  - if in executable set, do nothing -> next work item
+                 *  - put edge in executable set
+                 *  - visit BB args in dest
+                 *  - if this is the first eval of dest (can be tracked separately or by counting executable edges)
+                 *      - visit each instruction
+                 *  - if there is only one successor, add it to the FlowWorkList
+                 */
+                Triple<IRIdentifier, IRIdentifier, Boolean> flowEdge = flowWorklist.poll();
+                //LOG.finest("Inspecting flow edge " + flowEdge);
+                if(!executableFlowEdges.contains(flowEdge)) {
+                    // If not yet executable, make it executable & visit destination
+                    executableFlowEdges.add(flowEdge);
+                    IRIdentifier destID = flowEdge.b;
+                    
+                    // Visit BB args
+                    IRBasicBlock destBB = func.getBasicBlock(destID);
+                    for(IRIdentifier argID : destBB.getArgumentList().getNameList()) {
+                        visit(defMap.get(argID), flowWorklist, ssaWorklist, lattice, executableFlowEdges, useMap, func);
+                    }
+                    
+                    if(!executableBBs.contains(destID)) {
+                        // If this is the first eval of dest, visit each instruction
+                        executableBBs.add(destID);
+                        
+                        for(IRLinearInstruction li : destBB.getInstructions()) {
+                            if(li.hasDestination()) {
+                                visit(defMap.get(li.getDestinationID()), flowWorklist, ssaWorklist, lattice, executableFlowEdges, useMap, func);
+                            }
+                        }
+                        
+                        if(destBB.getExitInstruction().getOp() == IRBranchOperation.JCC) {
+                            // If conditional, visit it
+                            visit(defMap.get(destID), flowWorklist, ssaWorklist, lattice, executableFlowEdges, useMap, func);
+                        } else if(destBB.getExitInstruction().getOp() == IRBranchOperation.JMP) {
+                            // If unconditional, add successor edge
+                            flowWorklist.add(new Triple<>(destID, destBB.getExitInstruction().getTrueTargetBlock(), true));
+                        }
+                    }
+                }
             } else {
                 // There's a SSA edge
-                // TODO
+                /*
+                 *  - if its a BB arg, visit as bb arg
+                 *  - check if the parent bb is executable. if so, visit as instruction
+                 */
+                IRDefinition def = ssaWorklist.poll();
+                //LOG.finest("Inspecing definition " + def);
+                if(def.getType() == IRDefinitionType.BBARG) {
+                    // Visit without checking as visiting a BBArg does its own checking
+                    visit(def, flowWorklist, ssaWorklist, lattice, executableFlowEdges, useMap, func);
+                } else if(def.getType() == IRDefinitionType.BRANCH) {
+                    // Check that the def is executable, then visit
+                    if(executableBBs.contains(def.getBranchInstruction().getBasicBlock().getID())) {
+                        visit(def, flowWorklist, ssaWorklist, lattice, executableFlowEdges, useMap, func);
+                    }
+                } else if(def.getType() == IRDefinitionType.LINEAR) {
+                    // Check that the def is executable, then visit
+                    if(executableBBs.contains(def.getLinearInstruction().getBasicBlock().getID())) {
+                        visit(def, flowWorklist, ssaWorklist, lattice, executableFlowEdges, useMap, func);
+                    }
+                } else {
+                    // invalid
+                    throw new IllegalStateException("invalid definition " + def);
+                }
             }
+        }
+        
+        // Log results
+        LOG.finest("Resulting Lattice:");
+        for(Entry<IRIdentifier, SCCPLatticeElement> latticeEntry : lattice.entrySet()) {
+            LOG.finest(latticeEntry.getKey() + " = " + latticeEntry.getValue());
         }
         
         // Use the results of SCCP to optimize
@@ -208,8 +284,15 @@ public class IRPassSCCP implements IROptimizationPass {
     /**
      * Visit a definition
      * @param def
+     * @param flowWorklist
+     * @param ssaWorklist
+     * @param lattice
+     * @param executableFlowEdges
+     * @param useMap
+     * @param func
      */
     private void visit(IRDefinition def, Deque<Triple<IRIdentifier, IRIdentifier, Boolean>> flowWorklist, Deque<IRDefinition> ssaWorklist, Map<IRIdentifier, SCCPLatticeElement> lattice, Set<Triple<IRIdentifier, IRIdentifier, Boolean>> executableFlowEdges, Map<IRIdentifier, List<IRDefinition>> useMap, IRFunction func) {
+        //LOG.finest("Visiting " + def);
         // TODO - we can get more information if we track nonzero-ness of BOTTOM values. Conditional branches based on == 0 or != 0 are common. 
         
         // What are we dealing with
@@ -234,6 +317,7 @@ public class IRPassSCCP implements IROptimizationPass {
             }
             
             for(IRIdentifier predID : parentBB.getPredecessorBlocks()) {
+                //LOG.finest(predID.toString());
                 IRBranchInstruction predBranch = func.getBasicBlock(predID).getExitInstruction();
                 
                 // Check true edge
@@ -250,7 +334,11 @@ public class IRPassSCCP implements IROptimizationPass {
             // If val changed, add uses to SSAWorkList
             if(changed) {
                 logLowering(def.getID(), e);
-                ssaWorklist.addAll(useMap.get(def.getID()));
+                List<IRDefinition> uses = useMap.get(def.getID());
+                
+                if(uses != null) {
+                    ssaWorklist.addAll(uses);
+                }
             }
         } else if(def.getType() == IRDefinitionType.BRANCH) {
             /*
@@ -271,8 +359,8 @@ public class IRPassSCCP implements IROptimizationPass {
             SCCPLatticeElement left = getLatticeElement(inst.getCompareLeft(), lattice, func);
             SCCPLatticeElement right = getLatticeElement(inst.getCompareRight(), lattice, func);
             
-            ensureDefined(left, inst.getCompareLeft());
-            ensureDefined(right, inst.getCompareRight());
+            ensureDefined(left, inst.getCompareLeft(), "as left comparison value");
+            ensureDefined(right, inst.getCompareRight(), "as right comparison value");
             
             if(inst.getCondition() == IRCondition.NONE) {
                 // unconditional -> always left
@@ -321,7 +409,7 @@ public class IRPassSCCP implements IROptimizationPass {
             
             // All defining LIs have a left arg
             SCCPLatticeElement left = getLatticeElement(inst.getLeftSourceValue(), lattice, func);
-            ensureDefined(left, inst.getLeftSourceValue());
+            ensureDefined(left, inst.getLeftSourceValue(), "as left value of " + inst.getOp());
             
             if(inst.getOp().getSourceCount() == 1) {
                 // TODO - loading from a constant global is constant. Account for that
@@ -333,50 +421,29 @@ public class IRPassSCCP implements IROptimizationPass {
                     changed |= e.lower();
                 } else {
                     // If we have a value, apply the operation
-                    int leftVal = left.getValue().getValue();
-                    IRType leftType = left.getValue().getType();
-                    
-                    int newVal = switch(inst.getOp()) {
-                        case TRUNC  -> inst.getDestinationType().trim(leftVal);
-                        
-                        case SX     -> inst.getDestinationType().trim(switch(leftType) {
-                            case NONE, I32  -> leftVal;
-                            case I16        -> ((leftVal & leftType.getMask()) << 16) >> 16;
-                            case I8         -> ((leftVal & leftType.getMask()) << 24) >> 24;
-                        });
-                        
-                        case ZX     -> inst.getDestinationType().trim(leftVal & leftType.getMask());
-                        
-                        case NOT    -> inst.getDestinationType().trim(~leftVal);
-                        case NEG    -> inst.getDestinationType().trim(-leftVal);
-                        
-                        default -> throw new IllegalStateException("unreachable");
-                    };
-                    
-                    changed |= e.lower(new IRConstant(newVal, inst.getDestinationType()));
+                    changed |= e.lower(inst.getOp().applyUnary(inst.getDestinationType(), left.getValue()));
                 }
             } else if(inst.getOp().getSourceCount() == 2) {
                 // 2-argument operations
                 SCCPLatticeElement right = getLatticeElement(inst.getRightSourceValue(), lattice, func);
-                ensureDefined(right, inst.getRightSourceValue());
+                ensureDefined(right, inst.getRightSourceValue(), "as right value of " + inst.getOp());
                 
                 if(left.getType() == Type.BOTTOM || right.getType() == Type.BOTTOM) {
                     // Either BOTTOM -> BOTTOM
                     changed |= e.lower();
                 } else {
                     // Neither BOTTOM -> apply
+                    changed |= e.lower(inst.getOp().applyBinary(inst.getDestinationType(), left.getValue(), right.getValue()));
                 }
-                
-                // TODO
             } else {
                 // SELECT
                 SCCPLatticeElement right = getLatticeElement(inst.getRightSourceValue(), lattice, func),
                                    compLeft = getLatticeElement(inst.getLeftComparisonValue(), lattice, func),
                                    compRight = getLatticeElement(inst.getRightComparisonValue(), lattice, func);
                 
-                ensureDefined(right, inst.getRightSourceValue());
-                ensureDefined(compLeft, inst.getLeftComparisonValue());
-                ensureDefined(compRight, inst.getRightComparisonValue());
+                ensureDefined(right, inst.getRightSourceValue(), "as right select value of " + inst.getOp());
+                ensureDefined(compLeft, inst.getLeftComparisonValue(), "as left comparison value of " + inst.getOp());
+                ensureDefined(compRight, inst.getRightComparisonValue(), "as right comparison value of " + inst.getOp());
                 
                 if(left.getType() == Type.BOTTOM && right.getType() == Type.BOTTOM) {
                     // If both left and right are BOTTOM, the comparison doesn't matter
@@ -406,7 +473,11 @@ public class IRPassSCCP implements IROptimizationPass {
             // If val changed, add uses to SSAWorkList
             if(changed) {
                 logLowering(def.getID(), e);
-                ssaWorklist.addAll(useMap.get(def.getID()));
+                List<IRDefinition> uses = useMap.get(def.getID());
+                
+                if(uses != null) {
+                    ssaWorklist.addAll(uses);
+                }
             }
         } else {
             // Invalid
@@ -419,10 +490,11 @@ public class IRPassSCCP implements IROptimizationPass {
      * @param e
      * @param source
      */
-    private void ensureDefined(SCCPLatticeElement e, IRValue source) {
+    private void ensureDefined(SCCPLatticeElement e, IRValue source, String context) {
         if(e.getType() == Type.TOP) {
             // Left is undefined, which is invalid
-            throw new IllegalStateException(source + " is undefined");
+            LOG.severe(source + " is undefined " + context);
+            throw new IllegalStateException(source + " is undefined " + context);
         }
     }
     

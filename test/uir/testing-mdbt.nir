@@ -1,0 +1,182 @@
+Module testing-mdbt {
+  external func I32 @_fxp.to248(I32 %a)
+  external func NONE @_shapes.pixel(I16 %x, I16 %y, I8 %fgc)
+  external func NONE @_fxp.sincos1616(I32 %dest, I32 %a)
+  external func NONE @_gutil.scroll_up(I8 %n, I8 %bgc)
+  external func NONE @_gutil.clear_screen(I8 %bgc)
+  external func I16 @_util.mulh8(I8 %a, I8 %b)
+  external func I16 @_util.enable_interrupts()
+  external func NONE @_util.set_pf(I16 %arg0)
+  external func I32 @_fxp.sin1616(I32 %a)
+  external func I32 @_fxp.mulu1616(I32 %a, I32 %b)
+  external func I8 @_fxp.from88(I16 %a)
+  external func I8 @_util.mod8(I8 %a, I8 %b)
+  external func I8 @_util.mods8(I8 %a, I8 %b)
+  external func I16 @_util.mod16(I16 %a, I16 %b)
+  external func I32 @_fxp.divs248(I32 %a, I32 %b)
+  external func I32 @_fxp.divu824(I32 %a, I32 %b)
+  external func NONE @_util.memcopy(I32 %source, I32 %dest, I32 %length)
+  external func I32 @_util.mulsh16(I16 %a, I16 %b)
+  external func I32 @_fxp.divs1616(I32 %a, I32 %b)
+  external func I16 @_util.get_pf()
+  external func I8 @_util.abs8(I8 %a)
+  external func I32 @_util.abs32(I16 %a)
+  external func I32 @_fxp.mulu248(I32 %a, I32 %b)
+  external func I32 @_util.atomic_call(I32 %desc, I32 %args)
+  external func I16 @_util.mulsh8(I8 %a, I8 %b)
+  external func NONE @_shapes.freeline(I16 %x1, I16 %y1, I16 %x2, I16 %y2, I8 %fgc)
+  external func I32 @_fxp.fromu248(I32 %a)
+  external func I32 @_fxp.muls1616(I32 %a, I32 %b)
+  external func NONE @_gutil.set_palette(I32 %palette)
+  external func I16 @_fxp.to88(I8 %a)
+  external func I32 @_fxp.sin824(I32 %a)
+  external func I32 @_fxp.muls824(I32 %a, I32 %b)
+  external func I8 @_fxp.from824(I32 %a)
+  external func NONE @_fxp.sincos824(I32 %dest, I32 %a)
+  external func I16 @_util.mods16(I16 %a, I16 %b)
+  external func NONE @_gutil.set_color_bytes(I8 %idx, I8 %r, I8 %g, I8 %b)
+  external func I32 @_util.mulh16(I16 %a, I16 %b)
+  external func I32 @_fxp.cos824(I32 %a)
+  external func NONE @_util.halt()
+  external func I16 @_fxp.mulu88(I16 %a, I16 %b)
+  external func NONE @_shapes.hline(I16 %x1, I16 %y1, I16 %x2, I8 %fgc)
+  external func NONE @_shapes.fill_rect(I16 %x1, I16 %y1, I16 %w, I16 %h, I8 %fgc)
+  external func I16 @_fxp.round1616(I32 %a)
+  external func NONE @_gutil.set_color(I8 %idx, I32 %rgb)
+  external func I16 @_util.abs16(I16 %a)
+  external func I32 @_fxp.to1616(I16 %a)
+  external func I32 @_fxp.divu248(I32 %a, I32 %b)
+  external func I16 @_fxp.divs88(I16 %a, I16 %b)
+  external func I16 @_fxp.divu88(I16 %a, I16 %b)
+  external func I32 @_fxp.divs824(I32 %a, I32 %b)
+  external func I16 @_fxp.from1616(I32 %a)
+  external func I32 @_fxp.to824(I8 %a)
+  external func I32 @_fxp.froms248(I32 %a)
+  external func I32 @_fxp.cos88(I32 %a)
+  external func I32 @_fxp.mulu824(I32 %a, I32 %b)
+  external func I32 @_fxp.muls248(I32 %a, I32 %b)
+  external func NONE @_fxp.sincos88(I32 %dest, I32 %a)
+  external func NONE @_shapes.vline(I16 %x1, I16 %y1, I16 %y2, I8 %fgc)
+  external func NONE @_fxp.sincos248(I32 %dest, I32 %a)
+  external func I32 @_fxp.sin88(I32 %a)
+  external func NONE @_shapes.outline_rect(I16 %x1, I16 %y1, I16 %w, I16 %h, I8 %fgc)
+  external func I32 @_fxp.sin248(I32 %a)
+  external func NONE @_gutil.scroll_down(I8 %n, I8 %bgc)
+  external func I16 @_fxp.muls88(I16 %a, I16 %b)
+  external func I32 @_fxp.cos248(I32 %a)
+  external func I32 @_fxp.cos1616(I32 %a)
+  external func I16 @_util.disable_interrupts()
+  external func I32 @_fxp.divu1616(I32 %a, I32 %b)
+
+  func NONE @main() {
+    $entry():
+      JMP $forinit%1()
+
+    $forinit%1():
+      JMP $forcond%2(%p%2 = I8 0)
+
+    $forcond%2(I8 %p%2):
+      JCC %p%2 B I8 -128, $fortrue%3(), $fordone%5()
+
+    $fortrue%3():
+      I8 %p2%4 = MULU %p%2, I8 2
+      CALLN @_gutil.set_color_bytes(%g = %p2%4, %idx = %p%2, %r = %p2%4, %b = %p2%4)
+      JMP $forupd%4()
+
+    $forupd%4():
+      I8 %p%12 = ADD %p%2, I8 1
+      JMP $forcond%2(%p%2 = %p%12)
+
+    $fordone%5():
+      JMP $forinit%7()
+
+    $forinit%7():
+      JMP $forcond%8(%iter%17 = I8 0)
+
+    $forcond%8(I8 %iter%17):
+      JCC %iter%17 B I8 32, $fortrue%9(), $fordone%11()
+
+    $fortrue%9():
+      CALLN @_gutil.clear_screen(%bgc = I8 0)
+      JMP $forinit%13()
+
+    $forinit%13():
+      JMP $forcond%14(%py%23 = I16 0)
+
+    $forcond%14(I16 %py%23):
+      JCC %py%23 L I16 5632, $fortrue%15(), $fordone%17()
+
+    $fortrue%15():
+      JMP $forinit%19()
+
+    $forinit%19():
+      JMP $forcond%20(%px%27 = I16 0)
+
+    $forcond%20(I16 %px%27):
+      JCC %px%27 L I16 8192, $fortrue%21(), $fordone%23()
+
+    $fortrue%21():
+      I16 %32 = CALLR @_fxp.muls88(%a = %px%27, %b = I16 896)
+      I16 %30 = CALLR @_fxp.divs88(%a = %32, %b = I16 8192)
+      I16 %xz%29 = SUB %30, I16 640
+      I16 %41 = CALLR @_fxp.muls88(%a = %py%44, %b = I16 512)
+      I16 %39 = CALLR @_fxp.divs88(%a = %41, %b = I16 5632)
+      I16 %yz%38 = SUB %39, I16 256
+      JMP $untilfalse%26(%x%54 = I16 0, %y%59 = I16 0, %i%98 = I8 0)
+
+    $untilfalse%26(I16 %x%54, I16 %y%59, I8 %i%98):
+      I16 %xsqu%51 = CALLR @_fxp.muls88(%a = %x%54, %b = %x%54)
+      I16 %ysqu%56 = CALLR @_fxp.muls88(%a = %y%59, %b = %y%59)
+      I16 %61 = ADD %xsqu%51, %ysqu%56
+      JCC %61 G I16 1024, $iftrue%28(), $endif%29()
+
+    $iftrue%28():
+      JMP $untildone%27(%i%77 = %i%98)
+
+    $untildone%27(I8 %i%77):
+      I16 %66 = SHR %px%27, I16 5
+      I16 %70 = SHR %py%23, I16 5
+      CALLN @_shapes.fill_rect(%w = I16 1, %h = I16 1, %y1 = %70, %x1 = %66, %fgc = %i%77)
+      JMP $forupd%22()
+
+    $forupd%22():
+      I16 %px%78 = ADD %px%27, I16 32
+      JMP $forcond%20(%px%27 = %px%78)
+
+    $endif%29():
+      I16 %83 = CALLR @_fxp.muls88(%a = %x%54, %b = %y%59)
+      I16 %82 = SHL %83, I16 1
+      I16 %y%81 = ADD %82, %yz%38
+      I16 %91 = SUB %xsqu%51, %ysqu%56
+      I16 %x%90 = ADD %91, %xz%29
+      I8 %i%96 = ADD %i%98, I8 1
+      JMP $untilcond%25()
+
+    $untilcond%25():
+      JCC %i%96 E I8 127, $untildone%27(%i%77 = %i%96), $untilfalse%26(%x%54 = %x%90, %y%59 = %y%81, %i%98 = %i%96)
+
+    $fordone%23():
+      JMP $forupd%16()
+
+    $forupd%16():
+      I16 %py%104 = ADD %py%23, I16 32
+      JMP $forcond%14(%py%23 = %py%104)
+
+    $fordone%17():
+      JMP $forupd%10()
+
+    $forupd%10():
+      I8 %iter%107 = ADD %iter%17, I8 1
+      JMP $forcond%8(%iter%17 = %iter%107)
+
+    $fordone%11():
+      JMP $whilecond%31()
+
+    $whilecond%31():
+      JMP $whiletrue%32()
+
+    $whiletrue%32():
+      CALLN @_util.halt()
+      JMP $whilecond%31()
+  }
+}

@@ -88,17 +88,6 @@ public class IRFunction implements IRSourceInfo {
     }
     
     /**
-     * Full internal constructor, no source info
-     * @param id
-     * @param returnType
-     * @param arguments
-     * @param basicBlocks
-     */
-    public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, List<IRBasicBlock> basicBlocks) {
-        this(id, returnType, arguments, basicBlocks, false, null, 0);
-    }
-    
-    /**
      * Full header constructor
      * @param id
      * @param returnType
@@ -109,17 +98,6 @@ public class IRFunction implements IRSourceInfo {
      */
     public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, boolean external, IRModule sourceModule, int sourceLineNumber) {
         this(id, returnType, arguments, new ArrayList<>(), external, sourceModule, sourceLineNumber);
-    }
-    
-    /**
-     * Full header constructor, no source info
-     * @param id
-     * @param returnType
-     * @param arguments
-     * @param external
-     */
-    public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, boolean external) {
-        this(id, returnType, arguments, new ArrayList<>(), external, null, 0);
     }
     
     /**
@@ -135,16 +113,6 @@ public class IRFunction implements IRSourceInfo {
     }
     
     /**
-     * Empty header constructor, no source info
-     * @param id
-     * @param returnType
-     * @param external
-     */
-    public IRFunction(IRIdentifier id, IRType returnType, boolean external) {
-        this(id, returnType, new IRArgumentList(), new ArrayList<>(), external, null, 0);
-    }
-    
-    /**
      * Empty internal constructor
      * @param id
      * @param returnType
@@ -153,15 +121,6 @@ public class IRFunction implements IRSourceInfo {
      */
     public IRFunction(IRIdentifier id, IRType returnType, IRModule sourceModule, int sourceLineNumber) {
         this(id, returnType, new IRArgumentList(), new ArrayList<>(), false, sourceModule, sourceLineNumber);
-    }
-    
-    /**
-     * Empty internal constructor, no source info
-     * @param id
-     * @param returnType
-     */
-    public IRFunction(IRIdentifier id, IRType returnType) {
-        this(id, returnType, new IRArgumentList(), new ArrayList<>(), null, 0);
     }
     
     /**

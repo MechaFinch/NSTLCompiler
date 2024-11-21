@@ -35,4 +35,9 @@ public class Triple<A, B, C> {
     public int hashCode() {
         return this.a.hashCode() ^ this.b.hashCode() ^ this.c.hashCode();
     }
+    
+    @Override
+    public String toString() {
+        return "(" + this.a + ", " + this.b + ", " + this.c + ")";
+    }
 }

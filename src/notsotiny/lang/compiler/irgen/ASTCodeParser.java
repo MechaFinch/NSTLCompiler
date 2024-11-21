@@ -660,7 +660,7 @@ public class ASTCodeParser {
                     
                     if(isGlobal) {
                         // Global = write to memory
-                        IRLinearInstruction storeInst = new IRLinearInstruction(IRLinearOperation.STORE, val, new IRIdentifier(varName, IRIdentifierClass.GLOBAL));
+                        IRLinearInstruction storeInst = new IRLinearInstruction(IRLinearOperation.STORE, val, new IRIdentifier(varName, IRIdentifierClass.GLOBAL), irBB, ASTUtil.getLineNumber(node));
                         irBB.addInstruction(storeInst);
                     } else {
                         // Local = assign
@@ -789,7 +789,7 @@ public class ASTCodeParser {
                 IRIdentifier mpid = manager.getUniqueLocalID("");
                 memberPointer = mpid;
                 
-                IRLinearInstruction mpli = new IRLinearInstruction(IRLinearOperation.ADD, mpid, IRType.I32, destPointer, new IRConstant(memberOffset, IRType.I32));
+                IRLinearInstruction mpli = new IRLinearInstruction(IRLinearOperation.ADD, mpid, IRType.I32, destPointer, new IRConstant(memberOffset, IRType.I32), irBB, ASTUtil.getLineNumber(assignment));
                 irBB.addInstruction(mpli);
             }
             

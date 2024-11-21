@@ -29,8 +29,8 @@ public enum IRCondition {
         IRType t = left.getType();
         int signedL = left.getValue();
         int signedR = right.getValue();
-        long unsignedL = (long)(signedL & t.getMask()) & 0x00000000FFFFFFFFl;
-        long unsignedR = (long)(signedR & t.getMask()) & 0x00000000FFFFFFFFl;
+        long unsignedL = left.getUnsignedValue();
+        long unsignedR = right.getUnsignedValue();
         
         return switch(this) {
             case E      -> signedL == signedR;

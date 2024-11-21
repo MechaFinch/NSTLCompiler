@@ -6,6 +6,8 @@ type x is structure of
 	c is u32,
 end type
 
+variable g is u8 gets 12;
+
 -- Test
 function main of none begin
 	variable a is x pointer gets 12345;
@@ -15,4 +17,25 @@ function main of none begin
 		b gets 2 - (y as u16),
 		c gets 3 - (y as u32)
 	end structure;
+	
+	variable i is u8 gets 1;
+	
+	variable j is u8 gets 2;
+	if i = 1 then
+		j gets 0;
+	end if
+	
+	while true do
+		if j then
+			break;
+		end if
+		
+		i gets i + 1;
+		if i = 10 then
+			i gets 10;
+			break;
+		end if
+	end while
+	
+	variable k is u8 gets i + j;
 end function

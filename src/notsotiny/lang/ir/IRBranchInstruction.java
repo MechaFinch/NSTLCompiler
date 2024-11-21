@@ -88,21 +88,6 @@ public class IRBranchInstruction implements IRSourceInfo {
     }
     
     /**
-     * JCC constructor, no source info
-     * @param op
-     * @param cond
-     * @param compareA
-     * @param compareB
-     * @param trueBlock
-     * @param trueMapping
-     * @param falseBlock
-     * @param falseMapping
-     */
-    public IRBranchInstruction(IRBranchOperation op, IRCondition cond, IRValue compareA, IRValue compareB, IRIdentifier trueBlock, IRArgumentMapping trueMapping, IRIdentifier falseBlock, IRArgumentMapping falseMapping) {
-        this(op, cond, compareA, compareB, trueBlock, trueMapping, falseBlock, falseMapping, null, null, 0);
-    }
-    
-    /**
      * JMP constructor
      * @param op
      * @param block
@@ -115,16 +100,6 @@ public class IRBranchInstruction implements IRSourceInfo {
     }
     
     /**
-     * JMP constructor, no source info
-     * @param op
-     * @param block
-     * @param mapping
-     */
-    public IRBranchInstruction(IRBranchOperation op, IRIdentifier block, IRArgumentMapping mapping) {
-        this(op, IRCondition.NONE, null, null, block, mapping, null, null, null, null, 0);
-    }
-    
-    /**
      * RET constructor
      * @param op
      * @param returnValue
@@ -133,15 +108,6 @@ public class IRBranchInstruction implements IRSourceInfo {
      */
     public IRBranchInstruction(IRBranchOperation op, IRValue returnValue, IRBasicBlock sourceBB, int sourceLineNumber) {
         this(op, IRCondition.NONE, null, null, null, null, null, null, returnValue, sourceBB, sourceLineNumber);
-    }
-    
-    /**
-     * RET constructor, no source info
-     * @param op
-     * @param returnValue
-     */
-    public IRBranchInstruction(IRBranchOperation op, IRValue returnValue) {
-        this(op, IRCondition.NONE, null, null, null, null, null, null, returnValue, null, 0);
     }
 
     @Override

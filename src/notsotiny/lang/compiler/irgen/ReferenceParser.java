@@ -481,7 +481,7 @@ public class ReferenceParser {
             int offset = st.getMemberOffset(memberName);
             if(offset != 0) {
                 IRIdentifier destID = new IRIdentifier(destName, IRIdentifierClass.LOCAL);
-                IRLinearInstruction irli = new IRLinearInstruction(IRLinearOperation.ADD, destID, IRType.I32, sourceValue, new IRConstant(offset, IRType.I32));
+                IRLinearInstruction irli = new IRLinearInstruction(IRLinearOperation.ADD, destID, IRType.I32, sourceValue, new IRConstant(offset, IRType.I32), irBB, ASTUtil.getLineNumber(node));
                 irBB.addInstruction(irli);
                 
                 return new Pair<>(destID, new PointerType(memberType));

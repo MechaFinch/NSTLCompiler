@@ -84,4 +84,9 @@ public class IRDefinition {
     public IRBasicBlock getBB() { return this.bb; }
     public IRFunction getFunction() { return this.fun; }
     
+    @Override
+    public String toString() { 
+        return this.type + " " + this.id;
+    }
+    
 }

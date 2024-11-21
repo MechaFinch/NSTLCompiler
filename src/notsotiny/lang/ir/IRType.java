@@ -6,19 +6,22 @@ package notsotiny.lang.ir;
  * @author Mechafinch
  */
 public enum IRType {
-    I32     (0xFFFFFFFF),
-    I16     (0x0000FFFF),
-    I8      (0x000000FF),
-    NONE    (0xFFFFFFFF),
+    I32     (0xFFFFFFFF, 0x1F),
+    I16     (0x0000FFFF, 0x0F),
+    I8      (0x000000FF, 0x07),
+    NONE    (0xFFFFFFFF, 0x1F),
     ;
     
     private int mask;
+    private int shiftMask;
     
-    private IRType(int mask) {
+    private IRType(int mask, int shiftMask) {
         this.mask = mask;
+        this.shiftMask = shiftMask;
     }
     
     public int getMask() { return this.mask; }
+    public int getShiftMask() { return this.shiftMask; }
     
     /**
      * Trims val such that the returned integer is equivalent to the IR value of val

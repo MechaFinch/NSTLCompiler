@@ -31,4 +31,9 @@ public class Pair<A, B> {
     public int hashCode() {
         return this.a.hashCode() ^ this.b.hashCode();
     }
+    
+    @Override
+    public String toString() { 
+        return "(" + this.a + ", " + this.b + ")";
+    }
 }

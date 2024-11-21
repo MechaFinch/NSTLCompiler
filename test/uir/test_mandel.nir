@@ -1,0 +1,6 @@
+Module test_mandel {
+  func NONE @main() {
+    $entry():
+      RET NONE 0
+  }
+}

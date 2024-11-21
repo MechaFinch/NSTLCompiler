@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.logging.Logger;
 
 import notsotiny.lang.compiler.optimization.other.IRPassEmptyBlockMerge;
+import notsotiny.lang.compiler.optimization.sccp.IRPassSCCP;
 import notsotiny.lang.ir.IRModule;
 import notsotiny.lang.ir.IRPrinter;
 import notsotiny.lang.util.StreamPrinter;
@@ -24,6 +25,7 @@ public class IROptV1 implements IROptimizer {
     
     static {
         passes.add(new IRPassEmptyBlockMerge());
+        passes.add(new IRPassSCCP());
     }
     
     private IROptimizationLevel level = IROptimizationLevel.ONE;

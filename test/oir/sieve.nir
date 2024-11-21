@@ -15,18 +15,18 @@ Module sieve {
     $entry():
       I32 %1 = LOAD @buf
       I32 %0 = ADD %1, I32 77565
-      STORE I8 255 -> %0
+      STORE I8 -1 -> %0
       I32 %5 = LOAD @buf
       I32 %4 = ADD %5, I32 77566
-      STORE I8 255 -> %4
+      STORE I8 -1 -> %4
       I32 %9 = LOAD @buf
       I32 %8 = ADD %9, I32 77567
-      STORE I8 255 -> %8
+      STORE I8 -1 -> %8
       I32 %13 = LOAD @buf
       CALLN @sieve(%flags = %13, %max = I32 76800)
       STORE I8 1 -> @halter
       I32 %19 = ADD @halter, I32 1
-      STORE I8 224 -> %19
+      STORE I8 -32 -> %19
       JMP $whiletrue%2()
 
     $whiletrue%2():
@@ -43,7 +43,7 @@ Module sieve {
 
     $fortrue%3():
       I32 %5 = ADD %flags, %i%2
-      STORE I8 255 -> %5
+      STORE I8 -1 -> %5
       JMP $forupd%4()
 
     $forupd%4():
@@ -56,7 +56,7 @@ Module sieve {
     $whiletrue%8():
       I32 %19 = ADD %flags, %p%15
       I8 %18 = LOAD %19
-      JCC %18 NE I8 255, $iftrue%10(), $forinit%13()
+      JCC %18 NE I8 -1, $iftrue%10(), $forinit%13()
 
     $iftrue%10():
       I32 %p%24 = ADD %p%15, I32 1

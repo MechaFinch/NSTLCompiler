@@ -70,10 +70,7 @@ public class IRUtil {
         Map<IRIdentifier, IRDefinition> defMap = new HashMap<>();
         
         for(IRDefinition def : defList) {
-            // Defines that define an ID have their ID. Defines that define control flow do not.
-            if(def.getType() != IRDefinitionType.BRANCH) {
-                defMap.put(def.getID(), def);
-            }
+            defMap.put(def.getID(), def);
         }
         
         return defMap;
@@ -109,13 +106,13 @@ public class IRUtil {
                     for(IRIdentifier predID : bb.getPredecessorBlocks()) {
                         IRBranchInstruction predExit = function.getBasicBlock(predID).getExitInstruction();
                         
-                        if(predExit.getTrueTargetBlock().equals(bb.getID())) {
+                        if(bb.getID().equals(predExit.getTrueTargetBlock())) {
                             if(predExit.getTrueArgumentMapping().getMapping(definedID) instanceof IRIdentifier mappedID) {
                                 MapUtil.getOrCreateList(useMap, mappedID).add(def);
                             }
                         }
                         
-                        if(predExit.getFalseTargetBlock().equals(bb.getID())) {
+                        if(bb.getID().equals(predExit.getFalseTargetBlock())) {
                             if(predExit.getFalseArgumentMapping().getMapping(definedID) instanceof IRIdentifier mappedID) {
                                 MapUtil.getOrCreateList(useMap, mappedID).add(def);
                             }

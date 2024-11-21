@@ -31,6 +31,10 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
         
         // In each function
         for(IRFunction func : module.getFunctions().values()) {
+            if(func.isExternal()) {
+                continue;
+            }
+            
             // Check each BB
             List<IRBasicBlock> bbs = func.getBasicBlockList();
             
@@ -39,6 +43,7 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
                 
                 if(canRemoveBB(bb)) {
                     removeBB(bb, func);
+                    i--;
                 }
             }
         }
@@ -65,18 +70,22 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
          */
         
         if(bb.getInstructions().size() != 0) {
+            LOG.finest(bb.getID() + " has instructions");
             return false;
         }
         
         if(bb.getExitInstruction().getOp() != IRBranchOperation.JMP) {
+            LOG.finest(bb.getID() + " isnt jmp");
             return false;
         }
         
         if(bb.getArgumentList().getArgumentCount() != 0) {
+            LOG.finest(bb.getID() + " has args");
             return false;
         }
         
         if(bb.getID().getName().equals("entry")) {
+            LOG.finest(bb.getID() + " is entry");
             return false;
         }
         
@@ -96,24 +105,30 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
          * - Redirect its predecessors to its target
          * - Remove it
          */
-        IRIdentifier target = bb.getExitInstruction().getTrueTargetBlock();
+        IRIdentifier targetID = bb.getExitInstruction().getTrueTargetBlock();
+        IRBasicBlock targetBB = func.getBasicBlock(targetID);
         IRArgumentMapping mapping = bb.getExitInstruction().getTrueArgumentMapping();
         
         for(IRIdentifier predID : bb.getPredecessorBlocks()) {
-            IRBranchInstruction predBranch = func.getBasicBlock(predID).getExitInstruction();
+            IRBasicBlock predBB = func.getBasicBlock(predID);
+            IRBranchInstruction predBranch = predBB.getExitInstruction();
             
             if(bb.getID().equals(predBranch.getTrueTargetBlock())) {
                 // We're true
-                predBranch.setTrueTargetBlock(target);
+                predBranch.setTrueTargetBlock(targetID);
                 predBranch.setTrueArgumentMapping(mapping);
+                targetBB.addPredecessor(predID);
             }
             
             if(bb.getID().equals(predBranch.getFalseTargetBlock())) {
                 // We're false
-                predBranch.setFalseTargetBlock(target);
+                predBranch.setFalseTargetBlock(targetID);
                 predBranch.setFalseArgumentMapping(mapping);
+                targetBB.addPredecessor(predID);
             }
         }
+        
+        targetBB.removePredecessor(bb.getID());
         
         func.removeBasicBlock(bb.getID());
     }
