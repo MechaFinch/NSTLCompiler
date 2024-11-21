@@ -61,6 +61,11 @@ public class IRUtil {
         return defList;
     }
     
+    /**
+     * Constructs a map from identifiers to their definitions
+     * @param defList
+     * @return
+     */
     public static Map<IRIdentifier, IRDefinition> getDefinitionMap(List<IRDefinition> defList) {
         Map<IRIdentifier, IRDefinition> defMap = new HashMap<>();
         
@@ -85,7 +90,7 @@ public class IRUtil {
     }
     
     /**
-     * Constructs a map from identifiers to their uses
+     * Constructs a map from identifiers to defines that use them
      * @param function
      * @param defineMap
      * @return
@@ -138,11 +143,19 @@ public class IRUtil {
                     if(li.getRightComparisonValue() instanceof IRIdentifier argID) {
                         MapUtil.getOrCreateList(useMap, argID).add(def);
                     }
+                    
+                    if(li.getOp() == IRLinearOperation.CALLR) {
+                        for(IRValue mappedVal : li.getCallArgumentMapping().getMap().values()) {
+                            if(mappedVal instanceof IRIdentifier mappedID) {
+                                MapUtil.getOrCreateList(useMap, mappedID).add(def);
+                            }
+                        }
+                    }
                     break;
                 }
                 
                 case BRANCH: {
-                    // This def is a use for any value in the arguments of the BI
+                    // This def is a use for any value in the arguments of the BI. Mappings are handled by BBArg defs
                     IRBranchInstruction bi = def.getBranchInstruction();
                     
                     if(bi.getCondition() != IRCondition.NONE) {
@@ -167,7 +180,7 @@ public class IRUtil {
     }
     
     /**
-     * Constructs a map from identifiers to their uses
+     * Constructs a map from identifiers to defines that use them
      * Calls getDefinitionMap
      * @param function
      * @return

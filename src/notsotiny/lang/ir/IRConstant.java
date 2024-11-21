@@ -15,11 +15,29 @@ public class IRConstant extends IRValue {
      * Full constructor
      * @param value
      * @param type
+     * @param checkBounds
+     */
+    public IRConstant(int value, IRType type, boolean checkBounds) {
+        this.value = type.trim(value);
+        this.type = type;
+        
+        if(checkBounds) {
+            if(this.value != value) {
+                throw new IllegalArgumentException("Value out of bounds");
+            }
+        }
+    }
+    
+
+    /**
+     * No bounds chceck constructor
+     * @param value
+     * @param type
      */
     public IRConstant(int value, IRType type) {
-        this.value = value;
-        this.type = type;
+        this(value, type, false);
     }
+    
     
     @Override
     public String toString() {
