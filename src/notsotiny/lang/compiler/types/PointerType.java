@@ -28,6 +28,11 @@ public class PointerType implements NSTLType {
         return 4;
     }
     
+    @Override
+    public boolean isSigned() {
+        return false;
+    }
+    
     public NSTLType getPointedType() { return this.pointedType.getRealType(); }
     
     @Override

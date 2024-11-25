@@ -163,7 +163,7 @@ public class VariableParser {
         ASTUtil.ensureTypesMatch(expectedType, rightType, false, rightNode, ALOG, "from integer expression");
         
         IRIdentifier destID = new IRIdentifier(destName, IRIdentifierClass.LOCAL);
-        boolean signed = ((RawType) expectedType).isSigned();
+        boolean signed = expectedType.isSigned();
         
         // Comparisons use SELECT, which takes more arguments
         switch(node.getSymbol().getID()) {

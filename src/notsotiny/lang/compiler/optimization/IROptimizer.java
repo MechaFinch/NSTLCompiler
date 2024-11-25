@@ -28,4 +28,18 @@ public interface IROptimizer {
      * @param output
      */
     public void setFileOutput(boolean output, Path directory);
+    
+    /**
+     * Set whether to output intermediate IR to a file between passes
+     * @param output
+     * @param directory
+     */
+    public void setIntermediateOutput(boolean output, Path directory);
+    
+    /**
+     * Set whether to visualize the CFG of each function
+     * @param iir Show intermediate IR CFGs
+     * @param oir Show optimized IR CFG
+     */
+    public void setCFGVisualization(boolean iir, boolean oir); 
 }

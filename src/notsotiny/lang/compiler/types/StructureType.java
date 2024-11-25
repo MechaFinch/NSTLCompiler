@@ -159,6 +159,11 @@ public class StructureType implements NSTLType {
         return this.size;
     }
     
+    @Override
+    public boolean isSigned() {
+        return false;
+    }
+    
     public List<String> getMemberNames() { return this.memberNames; }
     public List<NSTLType> getMemberTypes() { return this.memberTypes; }
     public int getMemberOffset(String name) { return this.memberOffsetMap.get(name); }

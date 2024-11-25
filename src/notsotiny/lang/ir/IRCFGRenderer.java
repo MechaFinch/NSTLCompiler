@@ -23,8 +23,8 @@ public class IRCFGRenderer {
      * Renders the CFG of a function
      * @param function
      */
-    public static void renderCFG(IRFunction function) {
-        String name = function.getID().toString();
+    public static void renderCFG(IRFunction function, String suffix) {
+        String name = function.getID().toString() + suffix;
         LOG.info("Rendering CFG of " + name);
         
         Graph cfg = new SingleGraph(name);
@@ -73,20 +73,24 @@ public class IRCFGRenderer {
         
         if(tsID != null) {
             String tsn = tsID.toString();
-            IRBasicBlock tsBB = irbb.getParentFunction().getBasicBlock(tsID);
+            IRBasicBlock tsBB = irbb.getFunction().getBasicBlock(tsID);
             
             addToGraph(tsBB, g, inGraph);
             
-            g.addEdge(bbn + tsn, bbn, tsn, true);
+            try {
+                g.addEdge(bbn + tsn, bbn, tsn, true);
+            } catch(Exception e) {}
         }
         
         if(fsID != null) {
             String fsn = fsID.toString();
-            IRBasicBlock fsBB = irbb.getParentFunction().getBasicBlock(fsID);
+            IRBasicBlock fsBB = irbb.getFunction().getBasicBlock(fsID);
             
             addToGraph(fsBB, g, inGraph);
             
-            g.addEdge(bbn + fsn, bbn, fsn, true);
+            try {
+                g.addEdge(bbn + fsn, bbn, fsn, true);
+            } catch(Exception e) {}
         }
     }
 }

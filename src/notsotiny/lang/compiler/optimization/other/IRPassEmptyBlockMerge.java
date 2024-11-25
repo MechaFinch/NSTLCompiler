@@ -30,11 +30,7 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
         LOG.finer("Eliminating empty basic blocks from " + module.getName());
         
         // In each function
-        for(IRFunction func : module.getFunctions().values()) {
-            if(func.isExternal()) {
-                continue;
-            }
-            
+        for(IRFunction func : module.getInternalFunctions().values()) {
             // Check each BB
             List<IRBasicBlock> bbs = func.getBasicBlockList();
             
@@ -66,7 +62,7 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
          * - It has no body code
          * - It branches unconditionally to another basic block
          * - It is not the entry block
-         * - It has no arguments
+         * - It is the only predecessor of its successor OR It has no arguments
          */
         
         if(bb.getInstructions().size() != 0) {
@@ -79,7 +75,8 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
             return false;
         }
         
-        if(bb.getArgumentList().getArgumentCount() != 0) {
+        if(bb.getArgumentList().getArgumentCount() != 0 && 
+           bb.getFunction().getBasicBlock(bb.getExitInstruction().getTrueTargetBlock()).getPredecessorBlocks().size() != 1) {
             LOG.finest(bb.getID() + " has args");
             return false;
         }
@@ -109,6 +106,9 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
         IRBasicBlock targetBB = func.getBasicBlock(targetID);
         IRArgumentMapping mapping = bb.getExitInstruction().getTrueArgumentMapping();
         
+        // Move our arguments to target args
+        targetBB.getArgumentList().addAll(bb.getArgumentList());
+        
         for(IRIdentifier predID : bb.getPredecessorBlocks()) {
             IRBasicBlock predBB = func.getBasicBlock(predID);
             IRBranchInstruction predBranch = predBB.getExitInstruction();
@@ -116,14 +116,14 @@ public class IRPassEmptyBlockMerge implements IROptimizationPass {
             if(bb.getID().equals(predBranch.getTrueTargetBlock())) {
                 // We're true
                 predBranch.setTrueTargetBlock(targetID);
-                predBranch.setTrueArgumentMapping(mapping);
+                predBranch.getTrueArgumentMapping().putAll(mapping);
                 targetBB.addPredecessor(predID);
             }
             
             if(bb.getID().equals(predBranch.getFalseTargetBlock())) {
                 // We're false
                 predBranch.setFalseTargetBlock(targetID);
-                predBranch.setFalseArgumentMapping(mapping);
+                predBranch.getFalseArgumentMapping().putAll(mapping);
                 targetBB.addPredecessor(predID);
             }
         }

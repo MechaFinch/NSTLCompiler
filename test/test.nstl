@@ -9,7 +9,7 @@ end type
 variable g is u8 gets 12;
 
 -- Test
-function main of none begin
+function main of none returns u8 begin
 	variable a is x pointer gets 12345;
 	variable y is u32 gets a - 2;
 	a index 12 gets x of
@@ -21,13 +21,13 @@ function main of none begin
 	variable i is u8 gets 1;
 	
 	variable j is u8 gets 2;
-	if i = 1 then
-		j gets 0;
-	end if
+	variable b is u8 pointer gets a as u32;
+	j gets (at b) * (j - 2 * i);
 	
 	while true do
 		if j then
-			break;
+			j gets j + i;
+			continue;
 		end if
 		
 		i gets i + 1;
@@ -37,5 +37,5 @@ function main of none begin
 		end if
 	end while
 	
-	variable k is u8 gets i + j;
+	return i + j;
 end function

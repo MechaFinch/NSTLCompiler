@@ -156,7 +156,7 @@ public class IRGenV1 implements IRGenerator {
                 
                 // Display AST CFG if requested
                 if(showASTCFG) {
-                    ASTCFGRenderer.renderCFG(function);
+                    ASTCFGRenderer.renderCFG(function, "_ast");
                 }
                 
                 // Parse to IR
@@ -165,7 +165,7 @@ public class IRGenV1 implements IRGenerator {
                 
                 // Display IR CFG if requested
                 if(showIRCFG) {
-                    IRCFGRenderer.renderCFG(irFunction);
+                    IRCFGRenderer.renderCFG(irFunction, "_ir");
                 }
             } catch(CompilationException e) {
                 hasErrors = true;

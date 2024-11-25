@@ -48,6 +48,11 @@ public class StringType implements NSTLType, TypedValue {
     public int getSize() {
         return this.str.length();
     }
+    
+    @Override
+    public boolean isSigned() {
+        return false;
+    }
 
     @Override
     public NSTLType getType() {

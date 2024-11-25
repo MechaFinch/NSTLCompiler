@@ -69,6 +69,12 @@ public class AliasType implements NSTLType {
         if(this.realType == null) return 0;
         return this.realType.getSize();
     }
+    
+    @Override
+    public boolean isSigned() { 
+        if(this.realType == null) return false;
+        return this.realType.isSigned();
+    }
 
     @Override
     public boolean updateSize(List<String> updatedNames) {

@@ -54,8 +54,9 @@ public class NSTLCompiler {
             System.out.println("\t-e <entry function>\tEntry. Specifies an entry function. Default main");
             System.out.println("\t-o <output directory>\tOutput. Specifies the location of output object files. Default <working directory>\\out");
             System.out.println("\t-c <compiler name>\tCompiler. Specifies which compiler variant to use. Options: shit, ir. Default: ir");
-            System.out.println("\t-cfg <type>\t\tShow function CFGs. Type = ast, ir");
+            System.out.println("\t-cfg <type>\t\tShow function CFGs. Type = ast, uir, oir");
             System.out.println("\t-irfu <output directory>\tUnoptimized IR Output. Specifies where to output unoptimized IR and enables unoptimized IR file output");
+            System.out.println("\t-irfi <output directory>\tIntermediate IR Output. Specifies where to output intermediate IR during optimization and enables intermediate IR file output");
             System.out.println("\t-irfo <output directory>\tOptimized IR Output. Specifies where to output optimzied IR and enables optimized IR file output");
             return; 
         }
@@ -63,16 +64,20 @@ public class NSTLCompiler {
         int flagCount = 0;
         boolean debug = false,
                 showASTCFG = false,
-                showIRCFG = false,
+                showUIRCFG = false,
+                showIIRCFG = false,
+                showOIRCFG = false,
                 hasExecFile = false,
                 hasOutputDir = false,
                 hasUIROutputDir = false,
+                hasIIROutputDir = false,
                 hasOIROutputDir = false;
         
         String inputFileArg = "",
                execFileArg = "",
                outputArg = "",
                uirOutputArg = "",
+               iirOutputArg = "",
                oirOutputArg = "",
                compilerName = "ir",
                entry = "main";
@@ -90,6 +95,12 @@ public class NSTLCompiler {
                     hasUIROutputDir = true;
                     uirOutputArg = args[flagCount - 1];
                     break;
+                    
+                case "-irfi":
+                    flagCount += 2;
+                    hasIIROutputDir = true;
+                    iirOutputArg = args[flagCount - 1];
+                    break;
                 
                 case "-irfo":
                     flagCount += 2;
@@ -101,8 +112,12 @@ public class NSTLCompiler {
                     flagCount += 2;
                     if(args[flagCount - 1].equals("ast")) {
                         showASTCFG = true;
-                    } else if(args[flagCount - 1].equals("ir")) {
-                        showIRCFG = true;
+                    } else if(args[flagCount - 1].equals("uir")) {
+                        showUIRCFG = true;
+                    } else if(args[flagCount - 1].equals("iir")) {
+                        showIIRCFG = true;
+                    } else if(args[flagCount - 1].equals("oir")) {
+                        showOIRCFG = true;
                     }
                     break;
                 
@@ -141,6 +156,7 @@ public class NSTLCompiler {
              sourceDir = sourceFile.toAbsolutePath().getParent(),
              outDir = hasOutputDir ? Paths.get(outputArg) : sourceDir.resolve("out"),
              uirOutDir = hasUIROutputDir ? Paths.get(uirOutputArg) : null,
+             iirOutDir = hasIIROutputDir ? Paths.get(iirOutputArg) : null,
              oirOutDir = hasOIROutputDir ? Paths.get(oirOutputArg) : null,
              standardDir = Paths.get("C:\\Users\\wetca\\data\\silly  code\\architecture\\NotSoTiny\\programming\\standard library");
         
@@ -184,7 +200,7 @@ public class NSTLCompiler {
                     NSTCompiler comp = switch(compilerName) {
                         case "ir"   -> {
                             IRGenerator generator = new IRGenV1();
-                            generator.setCFGVisualization(showASTCFG, showIRCFG);
+                            generator.setCFGVisualization(showASTCFG, showUIRCFG);
                             
                             if(hasUIROutputDir) {
                                 // make the output directory if it doesn't exist
@@ -197,6 +213,7 @@ public class NSTLCompiler {
                             }
                             
                             IROptimizer optimizer = new IROptV1();
+                            optimizer.setCFGVisualization(showIIRCFG, showOIRCFG);
                             
                             if(hasOIROutputDir) {
                                 // make the output directory if it doesn't exist
@@ -206,6 +223,16 @@ public class NSTLCompiler {
                                 }
                                 
                                 optimizer.setFileOutput(true, oirOutDir);
+                            }
+                            
+                            if(hasIIROutputDir) {
+                                // make the intermediate output directory if it doesn't exist
+                                if(!Files.exists(iirOutDir)) {
+                                    LOG.finest(() -> "Creating output directory" + iirOutDir);
+                                    Files.createDirectory(iirOutDir);
+                                }
+                                
+                                optimizer.setIntermediateOutput(true, iirOutDir);
                             }
                             
                             // TODO: set level from arg

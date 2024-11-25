@@ -46,6 +46,14 @@ public class IRArgumentMapping {
         this.args.put(id, arg);
     }
     
+    /**
+     * Add all mappings in map to this
+     * @param map
+     */
+    public void putAll(IRArgumentMapping map) {
+        this.args.putAll(map.getMap());
+    }
+    
     public Map<IRIdentifier, IRValue> getMap() { return this.args; }
     
 }

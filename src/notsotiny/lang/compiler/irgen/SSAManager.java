@@ -263,7 +263,7 @@ public class SSAManager {
         
         // Substitute argument with value
         // In the IR
-        IRUtil.replaceInFunction(bb.getParentFunction(), argID, val);
+        IRUtil.replaceInFunction(bb.getFunction(), argID, val);
         
         // And in our data
         this.argumentSourceMap.remove(argID);

@@ -323,7 +323,7 @@ public class IRUtil {
                 
                 // Remove from predecessors' mappings
                 for(IRIdentifier predID : bb.getPredecessorBlocks()) {
-                    IRBasicBlock predBB = bb.getParentFunction().getBasicBlock(predID);
+                    IRBasicBlock predBB = bb.getFunction().getBasicBlock(predID);
                     IRBranchInstruction predExit = predBB.getExitInstruction();
                     IRIdentifier predTrueSuccessor = predExit.getTrueTargetBlock();
                     IRIdentifier predFalseSuccessor = predExit.getFalseTargetBlock();

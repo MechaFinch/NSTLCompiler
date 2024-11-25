@@ -30,6 +30,11 @@ public class ArrayType implements NSTLType {
         return this.memberType.getSize() * this.length;
     }
     
+    @Override
+    public boolean isSigned() {
+        return false;
+    }
+    
     public int getLength() { return this.length; }
     public NSTLType getMemberType() { return this.memberType.getRealType(); }
     

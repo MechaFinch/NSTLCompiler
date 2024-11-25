@@ -1,10 +1,9 @@
 package notsotiny.lang.ir;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * A group of functions & globals which translates to a single obj file.
@@ -20,6 +19,8 @@ public class IRModule implements IRSourceInfo {
     
     // Functions
     private Map<IRIdentifier, IRFunction> functions;
+    private Map<IRIdentifier, IRFunction> internalFunctions;
+    private Map<IRIdentifier, IRFunction> externalFunctions;
     
     // Globals
     private Map<IRIdentifier, IRGlobal> globals;
@@ -36,6 +37,17 @@ public class IRModule implements IRSourceInfo {
         this.functions = functions;
         this.globals = globals;
         this.sourcePath = sourcePath;
+        
+        this.internalFunctions = new HashMap<>();
+        this.externalFunctions = new HashMap<>();
+        
+        for(Entry<IRIdentifier, IRFunction> e : functions.entrySet()) {
+            if(e.getValue().isExternal()) {
+                this.externalFunctions.put(e.getKey(), e.getValue());
+            } else {
+                this.internalFunctions.put(e.getKey(), e.getValue());
+            }
+        }
     }
     
     /**
@@ -71,6 +83,12 @@ public class IRModule implements IRSourceInfo {
      */
     public void addFunction(IRFunction func) {
         this.functions.put(func.getID(), func);
+        
+        if(func.isExternal()) {
+            this.externalFunctions.put(func.getID(), func);
+        } else {
+            this.internalFunctions.put(func.getID(), func);
+        }
     }
     
     /**
@@ -93,6 +111,8 @@ public class IRModule implements IRSourceInfo {
     
     public String getName() { return this.moduleName; }
     public Map<IRIdentifier, IRFunction> getFunctions() { return this.functions; }
+    public Map<IRIdentifier, IRFunction> getInternalFunctions() { return this.internalFunctions; }
+    public Map<IRIdentifier, IRFunction> getExternalFunctions() { return this.externalFunctions; }
     public Map<IRIdentifier, IRGlobal> getGlobals() { return this.globals; }
     
     @Override

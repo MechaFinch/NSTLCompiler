@@ -69,6 +69,19 @@ public class IRArgumentList {
         this.types.add(type);
     }
     
+    /**
+     * Move arguments from other to this
+     * @param other
+     */
+    public void addAll(IRArgumentList other) {
+        List<IRIdentifier> otherNames = other.getNameList();
+        List<IRType> otherTypes = other.getTypeList();
+        
+        for(int i = 0; i < otherNames.size(); i++) {
+            addArgument(otherNames.get(i), otherTypes.get(i));
+        }
+    }
+    
     public List<IRIdentifier> getNameList() { return this.names; }
     public List<IRType> getTypeList() { return this.types; }
     

@@ -24,8 +24,8 @@ public class ASTCFGRenderer {
      * Renders the CFG of a function
      * @param function
      */
-    public static void renderCFG(ASTFunction function) {
-        String name = function.getHeader().getName();
+    public static void renderCFG(ASTFunction function, String suffix) {
+        String name = function.getHeader().getName() + suffix;
         LOG.info("Rendering CFG of " + name);
         
         Graph cfg = new SingleGraph(name);

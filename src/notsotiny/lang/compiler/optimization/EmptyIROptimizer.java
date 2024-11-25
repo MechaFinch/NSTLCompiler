@@ -25,5 +25,17 @@ public class EmptyIROptimizer implements IROptimizer {
         // TODO Auto-generated method stub
         
     }
+
+    @Override
+    public void setIntermediateOutput(boolean output, Path directory) {
+        // TODO Auto-generated method stub
+        
+    }
+
+    @Override
+    public void setCFGVisualization(boolean iir, boolean oir) {
+        // TODO Auto-generated method stub
+        
+    }
     
 }

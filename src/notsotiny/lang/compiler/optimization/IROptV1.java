@@ -10,6 +10,8 @@ import java.util.logging.Logger;
 
 import notsotiny.lang.compiler.optimization.other.IRPassEmptyBlockMerge;
 import notsotiny.lang.compiler.optimization.sccp.IRPassSCCP;
+import notsotiny.lang.ir.IRCFGRenderer;
+import notsotiny.lang.ir.IRFunction;
 import notsotiny.lang.ir.IRModule;
 import notsotiny.lang.ir.IRPrinter;
 import notsotiny.lang.util.StreamPrinter;
@@ -24,23 +26,60 @@ public class IROptV1 implements IROptimizer {
     private static List<IROptimizationPass> passes = new ArrayList<>();
     
     static {
-        passes.add(new IRPassEmptyBlockMerge());
         passes.add(new IRPassSCCP());
+        passes.add(new IRPassEmptyBlockMerge());
     }
     
     private IROptimizationLevel level = IROptimizationLevel.ONE;
     
-    private boolean outputToFile = false;
+    private boolean outputToFile = false,
+                    outputIntermediate = false,
+                    showIntermediateCFG = false,
+                    showOptimizedCFG = false;
     
-    private Path fileOutputDirectory = null;
+    private Path fileOutputDirectory = null,
+                 intermediateOutputDirectory = null;
 
     @Override
     public IRModule optimize(IRModule module) {
         LOG.fine("Optimizing " + module.getName());
         
+        int passNumber = 0;
+        
         for(IROptimizationPass pass : passes) {
             if(this.level.isAbove(pass.level())) {
                 module = pass.optimize(module);
+                
+                // Render intermediate CFG if applicable
+                if(this.showIntermediateCFG) {
+                    for(IRFunction fun : module.getInternalFunctions().values()) {
+                        IRCFGRenderer.renderCFG(fun, "_inter" + passNumber + "_ir");
+                    }
+                }
+                
+                // Output intermediate to file if applicable
+                if(this.outputIntermediate) {
+                    // Get name, trim extension
+                    String sourceFileName = module.getSourceFile().getFileName().toString();
+                    sourceFileName = sourceFileName.substring(0, sourceFileName.lastIndexOf("."));
+                    Path outputFile = this.intermediateOutputDirectory.resolve(sourceFileName + "_" + passNumber + ".nir");
+                    
+                    LOG.info("Writing optimized IR to " + outputFile);
+                    
+                    try(BufferedOutputStream bos = new BufferedOutputStream(Files.newOutputStream(outputFile))) {
+                        StreamPrinter filePrinter = new StreamPrinter(bos);
+                        IRPrinter.printModule(filePrinter, module, 0);
+                    } catch(IOException e) {}
+                }
+                
+                passNumber++;
+            }
+        }
+        
+        // Render CFG if applicable
+        if(this.showOptimizedCFG) {
+            for(IRFunction fun : module.getInternalFunctions().values()) {
+                IRCFGRenderer.renderCFG(fun, "_opt_ir");
             }
         }
         
@@ -71,5 +110,17 @@ public class IROptV1 implements IROptimizer {
     public void setFileOutput(boolean output, Path directory) {
         this.outputToFile = output;
         this.fileOutputDirectory = directory;
+    }
+    
+    @Override
+    public void setIntermediateOutput(boolean output, Path directory) {
+        this.outputIntermediate = output;
+        this.intermediateOutputDirectory = directory;
+    }
+
+    @Override
+    public void setCFGVisualization(boolean iir, boolean oir) {
+        this.showIntermediateCFG = iir;
+        this.showOptimizedCFG = oir;
     }
 }

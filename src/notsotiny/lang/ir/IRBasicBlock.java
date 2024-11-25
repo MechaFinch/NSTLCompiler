@@ -118,14 +118,12 @@ public class IRBasicBlock implements IRSourceInfo {
         return this.sourceLineNumber;
     }
     
-    public IRModule getParentModule() { return this.module; }
-    public IRFunction getParentFunction() { return this.function; }
-    
     public IRIdentifier getID() { return this.id; }
     public IRArgumentList getArgumentList() { return this.arguments; }
     public List<IRLinearInstruction> getInstructions() { return this.instructions; }
     public IRBranchInstruction getExitInstruction() { return this.exitInstruction; }
     public List<IRIdentifier> getPredecessorBlocks() { return this.predecessorBlocks; }
     public IRFunction getFunction() { return this.function; }
+    public IRModule getModule() { return this.module; }
     
 }

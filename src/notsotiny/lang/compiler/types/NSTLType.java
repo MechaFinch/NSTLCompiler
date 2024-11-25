@@ -37,6 +37,11 @@ public interface NSTLType {
     public String getName();
     
     /**
+     * @return true if integral & signed
+     */
+    public boolean isSigned();
+    
+    /**
      * @return total size in bytes of the type
      */
     public int getSize();

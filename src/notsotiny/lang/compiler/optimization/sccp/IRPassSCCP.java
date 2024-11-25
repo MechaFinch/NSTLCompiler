@@ -52,11 +52,7 @@ public class IRPassSCCP implements IROptimizationPass {
         LOG.finer("Performing SCCP on " + module.getName());
         
         // In each function
-        for(IRFunction func : module.getFunctions().values()) {
-            if(func.isExternal()) {
-                continue;
-            }
-            
+        for(IRFunction func : module.getInternalFunctions().values()) {
             // Throw it in the SCCP
             runSCCP(func);
         }
@@ -203,13 +199,102 @@ public class IRPassSCCP implements IROptimizationPass {
             }
         }
         
-        // Log results
-        LOG.finest("Resulting Lattice:");
+        // Use the results of SCCP to optimize
+        // Substitute constants
         for(Entry<IRIdentifier, SCCPLatticeElement> latticeEntry : lattice.entrySet()) {
-            LOG.finest(latticeEntry.getKey() + " = " + latticeEntry.getValue());
+            if(latticeEntry.getValue().getType() != Type.BOTTOM) {
+                LOG.finest("Replacing " + latticeEntry.getKey() + " with " + latticeEntry.getValue());
+                
+                IRUtil.replaceInFunction(func, latticeEntry.getKey(), latticeEntry.getValue().getValue());
+            }
         }
         
-        // Use the results of SCCP to optimize
+        // Eliminate not-taken JCC edges
+        for(IRBasicBlock bb : func.getBasicBlockList()) {
+            IRBranchInstruction bbExit = bb.getExitInstruction();
+            
+            if(bbExit.getOp() == IRBranchOperation.JCC) {
+                IRIdentifier trueID = bbExit.getTrueTargetBlock();
+                IRIdentifier falseID = bbExit.getFalseTargetBlock();
+                Triple<IRIdentifier, IRIdentifier, Boolean> trueTriple = new Triple<>(bb.getID(), trueID, true);
+                Triple<IRIdentifier, IRIdentifier, Boolean> falseTriple = new Triple<>(bb.getID(), falseID, false);
+                boolean trueEdgeExecutable = executableFlowEdges.contains(trueTriple);
+                boolean falseEdgeExecutable = executableFlowEdges.contains(falseTriple);
+                boolean sameTarget = bbExit.getTrueTargetBlock().equals(bbExit.getFalseTargetBlock());
+                
+                // If neither edge executable, this will be handled in next step
+                // If one edge executable, convert to JCC
+                if(trueEdgeExecutable && !falseEdgeExecutable) {
+                    LOG.finest("Eliminating flow edge " + falseTriple);
+                    
+                    if(!sameTarget) {
+                        // If the true and false targets are different, false target is no longer a successor
+                        func.getBasicBlock(falseID).removePredecessor(bb.getID());
+                    }
+                    
+                    IRBranchInstruction jmpInst = new IRBranchInstruction(IRBranchOperation.JMP, trueID, bbExit.getTrueArgumentMapping(), bb, bbExit.getSourceLineNumber());
+                    bb.setExitInstruction(jmpInst);
+                } else if(falseEdgeExecutable && !trueEdgeExecutable) {
+                    LOG.finest("Eliminating flow edge " + trueTriple);
+                    
+                    if(!sameTarget) {
+                        // If the true and false targets are different, true target is no longer a successor
+                        func.getBasicBlock(trueID).removePredecessor(bb.getID());
+                    }
+                    
+                    IRBranchInstruction jmpInst = new IRBranchInstruction(IRBranchOperation.JMP, falseID, bbExit.getFalseArgumentMapping(), bb, bbExit.getSourceLineNumber());
+                    bb.setExitInstruction(jmpInst);
+                }
+            }
+        }
+        
+        // Remove dead BBs
+        for(int i = 0; i < func.getBasicBlockList().size(); i++) {
+            IRBasicBlock bb = func.getBasicBlockList().get(i);
+            
+            if(!executableBBs.contains(bb.getID())) {
+                LOG.finest("Removing dead basic block " + bb.getID());
+                
+                // Remove from predecessors of successors
+                IRBranchInstruction bbExit = bb.getExitInstruction();
+                IRIdentifier trueSuccID = bbExit.getTrueTargetBlock();
+                IRIdentifier falseSuccID = bbExit.getFalseTargetBlock();
+                
+                if(trueSuccID != null) {
+                    func.getBasicBlock(trueSuccID).removePredecessor(bb.getID());
+                }
+                
+                if(falseSuccID != null) {
+                    func.getBasicBlock(falseSuccID).removePredecessor(bb.getID());
+                }
+                
+                // Modify predecessor exit instructions
+                for(IRIdentifier predID : bb.getPredecessorBlocks()) {
+                    IRBasicBlock predBB = func.getBasicBlock(predID);
+                    IRBranchInstruction predExit = predBB.getExitInstruction();
+                    
+                    // If we're one of two successors, convert to JMP.
+                    // If we're all successors, no action (block will be eliminated later)
+                    if(predExit.getOp() == IRBranchOperation.JCC) {
+                        boolean isTrue = bb.getID().equals(predExit.getTrueTargetBlock());
+                        boolean isFalse = bb.getID().equals(predExit.getFalseTargetBlock());
+                        
+                        if(isTrue && !isFalse) {
+                            IRBranchInstruction jmpInst = new IRBranchInstruction(IRBranchOperation.JMP, predExit.getFalseTargetBlock(), predExit.getFalseArgumentMapping(), predBB, predExit.getSourceLineNumber());
+                            predBB.setExitInstruction(jmpInst);
+                        } else if(isFalse && !isTrue) {
+                            IRBranchInstruction jmpInst = new IRBranchInstruction(IRBranchOperation.JMP, predExit.getTrueTargetBlock(), predExit.getTrueArgumentMapping(), predBB, predExit.getSourceLineNumber());
+                            predBB.setExitInstruction(jmpInst);
+                        }
+                    }
+                    
+                }
+                
+                // Remove
+                func.removeBasicBlock(bb.getID());
+            }
+        }
+        
         // TODO
     }
     
@@ -278,7 +363,7 @@ public class IRPassSCCP implements IROptimizationPass {
      * @param e
      */
     private void logLowering(IRIdentifier id, SCCPLatticeElement e) {
-        LOG.finest("Lowered " + id + " to " + e);
+        //LOG.finest("Lowered " + id + " to " + e);
     }
     
     /**
@@ -428,7 +513,12 @@ public class IRPassSCCP implements IROptimizationPass {
                 SCCPLatticeElement right = getLatticeElement(inst.getRightSourceValue(), lattice, func);
                 ensureDefined(right, inst.getRightSourceValue(), "as right value of " + inst.getOp());
                 
-                if(left.getType() == Type.BOTTOM || right.getType() == Type.BOTTOM) {
+                if(((left.getType() == Type.VALUE && left.getValue().getValue() == 0) ||
+                    (right.getType() == Type.VALUE && right.getValue().getValue() == 0)) &&
+                   (inst.getOp() == IRLinearOperation.MULS || inst.getOp() == IRLinearOperation.MULU || inst.getOp() == IRLinearOperation.AND)) {
+                    // Multiplication and AND by zero produce zero
+                    changed |= e.lower(new IRConstant(0, inst.getDestinationType()));
+                } else if(left.getType() == Type.BOTTOM || right.getType() == Type.BOTTOM) {
                     // Either BOTTOM -> BOTTOM
                     changed |= e.lower();
                 } else {
