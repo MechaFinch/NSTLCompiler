@@ -1,0 +1,57 @@
+
+
+type matrix is structure of
+	width is u16,
+	height is u16,
+	body is u16 pointer
+end type
+
+type mat is matrix pointer;
+
+function main of none returns none begin
+	variable y is u8 gets 12;
+	
+	until y = 0 do
+		if y = 12 then
+			y gets y - 1;
+		end if
+	
+		y gets y - 1;
+	end until
+end function
+
+function mat_add of mat a, mat b, mat c returns u16 begin
+	if (a.width != b.width) or (a.height != b.height) or
+	   (a.width != c.width) or (a.height != c.height) then
+		return 1;
+	end if
+
+	for i is u16 gets 0; i < a.width; i gets i + 1 do
+		variable a_row is u16 pointer gets to a.body index (i * a.width);
+		variable b_row is u16 pointer gets to b.body index (i * a.width);
+		variable c_row is u16 pointer gets to c.body index (i * a.width);
+		
+		for j is u16 gets 0; j < a.height; j gets j + 1 do
+			c_row index j gets (a_row index j) + (b_row index j);
+		end for
+	end for
+	
+	return 0;
+end function
+
+function sca_add of mat a, u16 b, mat c returns u16 begin
+	if (a.width != c.width) or (a.height != c.height) then
+		return 1;
+	end if
+	
+	entry: for i is u16 gets 0; i < a.width; i gets i + 1 do
+		variable a_row is u16 pointer gets to a.body index (i * a.width);
+		variable c_row is u16 pointer gets to c.body index (i * a.width);
+	
+		for j is u16 gets 0; j < a.height; j gets j + 1 do
+			c_row index j gets (a_row index j) + b;
+		end for
+	end for
+	
+	return 0;
+end function

@@ -59,4 +59,11 @@ public class TypedArray implements TypedValue {
         
         return false;
     }
+    
+    @Override
+    public TypedValue convertCopy(NSTLType newType) {
+        TypedValue tv = new TypedArray(this.v, this.t);
+        tv.convertType(newType);
+        return tv;
+    }
 }

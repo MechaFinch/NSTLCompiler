@@ -1,6 +1,6 @@
 package notsotiny.lang.compiler.optimization.sccp;
 
-import notsotiny.lang.ir.IRConstant;
+import notsotiny.lang.ir.parts.IRConstant;
 
 /**
  * Represents a lattice element in SCCP

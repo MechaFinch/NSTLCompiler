@@ -10,9 +10,9 @@ import notsotiny.lang.compiler.types.PointerType;
 import notsotiny.lang.compiler.types.RawType;
 import notsotiny.lang.compiler.types.StringType;
 import notsotiny.lang.compiler.types.TypedRaw;
-import notsotiny.lang.ir.IRConstant;
-import notsotiny.lang.ir.IRType;
-import notsotiny.lang.ir.IRValue;
+import notsotiny.lang.ir.parts.IRConstant;
+import notsotiny.lang.ir.parts.IRType;
+import notsotiny.lang.ir.parts.IRValue;
 
 /**
  * Provides utility funtions for printing AST nodes

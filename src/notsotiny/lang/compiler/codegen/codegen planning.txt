@@ -11,3 +11,77 @@
 	
 	Transform DAG from IR to abstract instructions 
 	
+	DAG is in SSA virtual register form
+	Instruction selection is in non-SSA virtual register psuedoinstruction form
+	Register selection -> physical register real instruction form
+	
+	DAG parts
+	Class
+		Type
+			Parts
+	
+	Source Nodes
+		Constants
+			Optional Name
+			Value
+		Live-Ins
+			Name
+	Terminator Nodes
+		Stores
+			Inputs (2)
+			Ordering chain
+		Branches
+			Destination Names (1, 2)
+			Condition
+			Comparison Inputs (0, 2)
+		Assignments
+			Input
+			Output Name
+	Instruction Nodes
+		Loads
+			Input
+			Output Name
+			Ordering chain
+		Operations
+			Inputs (1, 2, 4)
+			Output Name
+		Calls
+			Inputs (many)
+			Destination Name
+			Ordering chain
+			Optional Output Name
+	
+	DAG source nodes 
+	
+	(unordered)
+	-	Constants
+	-	Live-ins
+	-	Assignments? Or use named outputs
+	-	Branch Targets? Or make part of branch instructions
+	
+	(partially ordered)
+	-	Linear instructions
+	
+	(last)
+	-	Branch instruction
+	
+	construction per BB
+		BBArg defs are live ins
+		BBArg assigns are live outs
+		Conditional BBArg assigns need to be dealt with
+		-	always both -> assign to all in original BB
+		-	conditional -> branch targets with args produce additional BBs/DAGs, assigned regs become live-out
+	
+		traverse BB backwards. If the instruciton defines a live-out, has side effects, or no dead code
+		elimination allowed, add to dag if not present. For each argument, add to dag if not already 
+		present. Recurse for args of defining instructions.
+		traverse BB in either order. Record ordering of side-effecting (STORE, CALL) and side-effected (LOAD)
+		instructions.
+	
+	
+	build DAG? list? from parts with side effects. These must be placed in order
+	-	Live-outs
+	-	Branch instructions
+	-	LOAD instructions
+	-	STORE instructions
+	

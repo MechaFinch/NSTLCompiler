@@ -39,4 +39,5 @@ public class IRCompiler implements NSTCompiler {
         return this.codegen.generate(this.optimizer.optimize(this.irgen.generate(astRoot, defaultLibName, locator, sourcePath)));
     }
     
+    
 }

@@ -2,7 +2,7 @@ package notsotiny.lang.compiler.optimization;
 
 import java.nio.file.Path;
 
-import notsotiny.lang.ir.IRModule;
+import notsotiny.lang.ir.parts.IRModule;
 
 /**
  * Placeholder

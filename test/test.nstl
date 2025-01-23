@@ -10,32 +10,14 @@ variable g is u8 gets 12;
 
 -- Test
 function main of none returns u8 begin
-	variable a is x pointer gets 12345;
-	variable y is u32 gets a - 2;
-	a index 12 gets x of
-		a gets 1 - (y as u8),
-		b gets 2 - (y as u16),
-		c gets 3 - (y as u32)
-	end structure;
+	variable a is u8 gets g;
+	variable b is u8 gets g;
+	variable c is u8 gets a + b;
+	variable d is u8 gets b + a;
 	
-	variable i is u8 gets 1;
-	
-	variable j is u8 gets 2;
-	variable b is u8 pointer gets a as u32;
-	j gets (at b) * (j - 2 * i);
-	
-	while true do
-		if j then
-			j gets j + i;
-			continue;
-		end if
-		
-		i gets i + 1;
-		if i = 10 then
-			i gets 10;
-			break;
-		end if
-	end while
-	
-	return i + j;
+	if g = 12 then
+		variable e is u8 gets a + b;
+	else
+		variable f is u8 gets d + 2;
+	end if
 end function

@@ -11,6 +11,14 @@ public interface TypedValue {
     public boolean convertType(NSTLType newType);
     
     /**
+     * Create a copy of this value and convert it to the given type
+     * 
+     * @param newType
+     * @return
+     */
+    public TypedValue convertCopy(NSTLType newType);
+    
+    /**
      * @return type
      */
     public NSTLType getType();

@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import notsotiny.lang.compiler.CompilationException;
-import notsotiny.lang.ir.IRType;
+import notsotiny.lang.ir.parts.IRType;
 
 /**
  * strings are kinda their own thing
@@ -30,8 +30,14 @@ public class StringType implements NSTLType, TypedValue {
     }
     
     public StringType(String constantString) {
-        for(Entry<String, String> e : escapes.entrySet()) {
-            constantString = constantString.replace(e.getKey(), e.getValue());
+        this(constantString, true);
+    }
+    
+    private StringType(String constantString, boolean escape) {
+        if(escape) {
+            for(Entry<String, String> e : escapes.entrySet()) {
+                constantString = constantString.replace(e.getKey(), e.getValue());
+            }
         }
         
         this.str = constantString;
@@ -84,6 +90,13 @@ public class StringType implements NSTLType, TypedValue {
         }
         
         return false;
+    }
+    
+    @Override
+    public TypedValue convertCopy(NSTLType newType) {
+        TypedValue tv = new StringType(this.str, false);
+        tv.convertType(newType);
+        return tv;
     }
 
     @Override

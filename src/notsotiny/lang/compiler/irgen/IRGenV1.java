@@ -28,16 +28,16 @@ import notsotiny.lang.compiler.types.TypedArray;
 import notsotiny.lang.compiler.types.TypedRaw;
 import notsotiny.lang.compiler.types.TypedStructure;
 import notsotiny.lang.compiler.types.TypedValue;
-import notsotiny.lang.ir.IRCFGRenderer;
-import notsotiny.lang.ir.IRConstant;
-import notsotiny.lang.ir.IRFunction;
-import notsotiny.lang.ir.IRGlobal;
-import notsotiny.lang.ir.IRIdentifier;
-import notsotiny.lang.ir.IRIdentifierClass;
-import notsotiny.lang.ir.IRModule;
-import notsotiny.lang.ir.IRPrinter;
-import notsotiny.lang.ir.IRType;
-import notsotiny.lang.ir.IRValue;
+import notsotiny.lang.ir.parts.IRConstant;
+import notsotiny.lang.ir.parts.IRFunction;
+import notsotiny.lang.ir.parts.IRGlobal;
+import notsotiny.lang.ir.parts.IRIdentifier;
+import notsotiny.lang.ir.parts.IRIdentifierClass;
+import notsotiny.lang.ir.parts.IRModule;
+import notsotiny.lang.ir.parts.IRType;
+import notsotiny.lang.ir.parts.IRValue;
+import notsotiny.lang.ir.util.IRCFGRenderer;
+import notsotiny.lang.ir.util.IRPrinter;
 import notsotiny.lang.util.LogPrinter;
 import notsotiny.lang.util.Printer;
 import notsotiny.lang.util.StreamPrinter;
@@ -84,6 +84,7 @@ public class IRGenV1 implements IRGenerator {
     private void generate(ASTNode code, IRModule irModule, FileLocator locator) throws CompilationException {
         // Parse the top level code
         ASTModule astModule = TopLevelParser.parseTopLevel(irModule.getName(), code, locator);
+        irModule.getLibraryFileMap().putAll(astModule.getLibraryFileMap());
         
         LogPrinter logPrinter = new LogPrinter(LOG, Level.FINEST);
         

@@ -3,7 +3,7 @@ package notsotiny.lang.compiler.types;
 import java.util.List;
 
 import notsotiny.lang.compiler.CompilationException;
-import notsotiny.lang.ir.IRType;
+import notsotiny.lang.ir.parts.IRType;
 
 /**
  * Describes a type

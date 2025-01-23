@@ -1,5 +1,6 @@
 package notsotiny.lang.compiler;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -27,12 +28,12 @@ import fr.cenotelie.hime.redist.ParseResult;
 import fr.cenotelie.hime.redist.parsers.InitializationException;
 import notsotiny.asm.Assembler;
 import notsotiny.asm.Assembler.AssemblyObject;
+import notsotiny.lang.compiler.codegen.CodeGenV1;
+import notsotiny.lang.compiler.codegen.CodeGenerator;
 import notsotiny.lang.compiler.codegen.EmptyCodeGenerator;
 import notsotiny.lang.compiler.compilers.IRCompiler;
-import notsotiny.lang.compiler.irgen.EmptyIRGenerator;
 import notsotiny.lang.compiler.irgen.IRGenV1;
 import notsotiny.lang.compiler.irgen.IRGenerator;
-import notsotiny.lang.compiler.optimization.EmptyIROptimizer;
 import notsotiny.lang.compiler.optimization.IROptV1;
 import notsotiny.lang.compiler.optimization.IROptimizationLevel;
 import notsotiny.lang.compiler.optimization.IROptimizer;
@@ -55,9 +56,12 @@ public class NSTLCompiler {
             System.out.println("\t-o <output directory>\tOutput. Specifies the location of output object files. Default <working directory>\\out");
             System.out.println("\t-c <compiler name>\tCompiler. Specifies which compiler variant to use. Options: shit, ir. Default: ir");
             System.out.println("\t-cfg <type>\t\tShow function CFGs. Type = ast, uir, oir");
+            System.out.println("\t-dag <type>\t\tShow basic block DAGs. Type = isel");
             System.out.println("\t-irfu <output directory>\tUnoptimized IR Output. Specifies where to output unoptimized IR and enables unoptimized IR file output");
             System.out.println("\t-irfi <output directory>\tIntermediate IR Output. Specifies where to output intermediate IR during optimization and enables intermediate IR file output");
             System.out.println("\t-irfo <output directory>\tOptimized IR Output. Specifies where to output optimzied IR and enables optimized IR file output");
+            System.out.println("\t-asmfa <output directory>\tAbstract Assembly Output. Specifies where to output abstract assembly and enbles abstract assembly file output");
+            System.out.println("\t-asmfo <output directory>\tFinal Assembly Output. Specifies where to output assembly and enables assembly file output");
             return; 
         }
         
@@ -71,7 +75,10 @@ public class NSTLCompiler {
                 hasOutputDir = false,
                 hasUIROutputDir = false,
                 hasIIROutputDir = false,
-                hasOIROutputDir = false;
+                hasOIROutputDir = false,
+                hasAASMOutputDir = false,
+                hasFASMOutputDir = false,
+                showISelDAG = false;
         
         String inputFileArg = "",
                execFileArg = "",
@@ -79,6 +86,8 @@ public class NSTLCompiler {
                uirOutputArg = "",
                iirOutputArg = "",
                oirOutputArg = "",
+               aasmOutputArg = "",
+               fasmOutputArg = "",
                compilerName = "ir",
                entry = "main";
         
@@ -107,6 +116,18 @@ public class NSTLCompiler {
                     hasOIROutputDir = true;
                     oirOutputArg = args[flagCount - 1];
                     break;
+                    
+                case "-asmfa":
+                    flagCount += 2;
+                    hasAASMOutputDir = true;
+                    aasmOutputArg = args[flagCount - 1];
+                    break;
+                
+                case "-asmfo":
+                    flagCount += 2;
+                    hasFASMOutputDir = true;
+                    fasmOutputArg = args[flagCount - 1];
+                    break;
                 
                 case "-cfg":
                     flagCount += 2;
@@ -120,6 +141,12 @@ public class NSTLCompiler {
                         showOIRCFG = true;
                     }
                     break;
+                
+                case "-dag":
+                    flagCount += 2;
+                    if(args[flagCount - 1].equals("isel")) {
+                        showISelDAG = true;
+                    }
                 
                 case "-e":
                     flagCount += 2;
@@ -158,6 +185,8 @@ public class NSTLCompiler {
              uirOutDir = hasUIROutputDir ? Paths.get(uirOutputArg) : null,
              iirOutDir = hasIIROutputDir ? Paths.get(iirOutputArg) : null,
              oirOutDir = hasOIROutputDir ? Paths.get(oirOutputArg) : null,
+             aasmOutDir = hasAASMOutputDir ? Paths.get(aasmOutputArg) : null,
+             fasmOutDir = hasFASMOutputDir ? Paths.get(fasmOutputArg) : null,
              standardDir = Paths.get("C:\\Users\\wetca\\data\\silly  code\\architecture\\NotSoTiny\\programming\\standard library");
         
         if(hasExecFile) {
@@ -238,11 +267,32 @@ public class NSTLCompiler {
                             // TODO: set level from arg
                             optimizer.setLevel(IROptimizationLevel.THREE);
                             
+                            CodeGenerator codegen = new CodeGenV1();
+                            codegen.setDAGVisualization(showISelDAG);
+                            
+                            if(hasAASMOutputDir) {
+                                // make the abstract assembly output directory if it doesn't exist
+                                if(!Files.exists(aasmOutDir)) {
+                                    LOG.finest(() -> "Creating output directory" + aasmOutDir);
+                                    Files.createDirectory(aasmOutDir);
+                                }
+                                
+                                codegen.setAbstractOutput(true, aasmOutDir);
+                            }
+                            
                             yield new IRCompiler(generator, optimizer, new EmptyCodeGenerator());
                         }
                         case "shit" -> new SAPCompiler();
                         default     -> throw new IllegalArgumentException("Unknown compiler: " + compilerName);
                     };
+                    
+                    if(hasFASMOutputDir) {
+                        // make the final assembly output directory if it doesn't exist
+                        if(!Files.exists(fasmOutDir)) {
+                            LOG.finest(() -> "Creating output directory" + fasmOutDir);
+                            Files.createDirectory(fasmOutDir);
+                        }
+                    }
                     
                     ParseResult result = parser.parse();
                     
@@ -262,7 +312,20 @@ public class NSTLCompiler {
                         libname = libname.substring(0, libname.lastIndexOf('.'));
                         
                         try {
+                            // Compile!
                             AssemblyObject obj = comp.compile(root, libname, locator, workingFile);
+                            
+                            // output AssemblyObject if applicable
+                            if(hasFASMOutputDir) {
+                                String fileNameName = fileName.substring(0, fileName.lastIndexOf("."));
+                                Path fasmOutputFile = fasmOutDir.resolve(fileNameName + ".asm");
+                                
+                                LOG.info("Writing final assembly to " + fasmOutputFile);
+                                
+                                try(BufferedOutputStream bos = new BufferedOutputStream(Files.newOutputStream(fasmOutputFile))) {
+                                    obj.print(bos);
+                                } catch(IOException e) {}
+                            }
                             
                             compiledObjects.add(obj);
                             libraryNameMap.put(libname, workingFile);

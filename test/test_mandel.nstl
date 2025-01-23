@@ -1,4 +1,113 @@
 
-function main of none begin
+constant screen is ptr gets 0xF0020000;
+define screen_width is 320;
+define screen_height is 240;
+define mandel_width is 32;
+define mandel_height is 22;
+define mandel_iters is 15;
+
+define fix_shift is 8;
+define x_min is 0xFD80;
+define x_max is 0x0100;
+define y_min is 0xFF00;
+define y_max is 0x0100;
+
+define x_step is ((x_max - x_min) and 0xFFFF) / mandel_width;
+define y_step is ((y_max - y_min) and 0xFFFF) / mandel_height;
+
+-- HLT, RET
+variable halt is u16 gets 0xE001;
+
+function clear_screen of none begin
+	variable p is u32 pointer gets screen;
 	
+	for row is u16 gets 0; row < screen_height; row gets row + 1 do
+		for col is u16 gets 0; col < screen_width; col gets col + 16 do
+			p index 0 gets 0;
+			p index 1 gets 0;
+			p index 2 gets 0;
+			p index 3 gets 0;
+			p gets p + 16;
+		end for
+	end for
+end function
+
+variable palette is u8 array size 16 * 3 gets u8 array of
+	0, 0, 0,
+	0, 0, 170,
+	0, 170, 0,
+	0, 170, 170,
+	170, 0, 0,
+	170, 0, 170,
+	170, 85, 0,
+	170, 170, 170,
+	85, 85, 85,
+	85, 85, 255,
+	85, 255, 85,
+	85, 255, 255,
+	255, 85, 85,
+	255, 85, 255,
+	255, 255, 85,
+	255, 255, 255
+end array;
+
+function set_palette of none begin
+	variable p is u8 pointer gets screen + (screen_width * screen_height);
+	
+	for i is u16 gets 0; i < (16 * 3); i gets i + 1 do
+		p index i gets palette index i;
+	end for
+end function
+
+function fix_mul of i16 a, i16 b returns i16 begin
+	--variable t is i32 gets (call mulsh with a, b);
+	--return (((t >> 16) as i16) << 8) or ((t as i16) >> 8);
+	return (((a as i32) * (b as i32)) >> 8) as i16;
+end function
+
+function mandel_pixel of i16 zx, i16 zy returns u8 begin
+	variable i is u8 gets 0;
+	variable x is u16 gets 0;
+	variable y is u16 gets 0;
+	
+	while i < mandel_iters do
+		variable x2 is i16 gets (call fix_mul with x, x);
+		variable y2 is i16 gets (call fix_mul with y, y);
+		
+		if (x2 + y2) >= 0x0400 then
+			return i - 1;
+		end if
+		
+		variable xt is i16 gets x2 - y2 + zx;
+		y gets ((call fix_mul with x, y) << 1) + zy;
+		x gets xt;
+		
+		i gets i + 1;
+	end while
+	
+	return i - 1;
+end function
+
+function mandel of none returns none begin
+	variable p is ptr gets screen;
+	for pixel_y is u16 gets 0; pixel_y < mandel_height; pixel_y gets pixel_y + 1 do
+		for pixel_x is u16 gets 0; pixel_x < mandel_width; pixel_x gets pixel_x + 1 do
+			variable mx is i16 gets ((call fix_mul with pixel_x << 8, 0x0380) / 32) - 0x0280;
+			variable my is i16 gets ((call fix_mul with pixel_y << 8, 0x0200) / 22) - 0x0100;
+			u8 at p gets (call mandel_pixel with mx, my);
+			p gets p + 1;
+		end for
+		
+		p gets p + (screen_width - mandel_width);
+	end for
+end function
+
+function main of none begin
+	call clear_screen with none;
+	call set_palette with none;
+	call mandel with none;
+	
+	while true do
+		call to halt with none;
+	end while
 end function

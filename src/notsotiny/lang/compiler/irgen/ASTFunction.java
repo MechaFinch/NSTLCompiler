@@ -12,11 +12,11 @@ import notsotiny.lang.compiler.types.FunctionHeader;
 import notsotiny.lang.compiler.types.NSTLType;
 import notsotiny.lang.compiler.types.PointerType;
 import notsotiny.lang.compiler.types.RawType;
-import notsotiny.lang.ir.IRFunction;
-import notsotiny.lang.ir.IRIdentifier;
-import notsotiny.lang.ir.IRIdentifierClass;
-import notsotiny.lang.ir.IRModule;
-import notsotiny.lang.ir.IRType;
+import notsotiny.lang.ir.parts.IRFunction;
+import notsotiny.lang.ir.parts.IRIdentifier;
+import notsotiny.lang.ir.parts.IRIdentifierClass;
+import notsotiny.lang.ir.parts.IRModule;
+import notsotiny.lang.ir.parts.IRType;
 
 /**
  * Contains the AST of a function + header information

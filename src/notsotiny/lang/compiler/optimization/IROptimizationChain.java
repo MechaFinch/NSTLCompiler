@@ -2,7 +2,7 @@ package notsotiny.lang.compiler.optimization;
 
 import java.util.List;
 
-import notsotiny.lang.ir.IRModule;
+import notsotiny.lang.ir.parts.IRModule;
 
 public class IROptimizationChain implements IROptimizationPass {
     

@@ -1,6 +1,5 @@
 package notsotiny.lang.compiler;
 
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 
 import asmlib.util.FileLocator;

@@ -106,7 +106,7 @@ public class ConstantParser {
                 tv = parseBinaryExpression(node, module, context, expectedType, requireNotNone, nonConstantSeverity);
         }
         
-        tv.convertType(expectedType);
+        tv = tv.convertCopy(expectedType);
         return tv;
     }
     
@@ -143,7 +143,7 @@ public class ConstantParser {
         // Compute members
         for(ASTNode memberNode : children.get(1).getChildren()) {
             TypedValue memberValue = parseConstantExpression(memberNode, module, context, containedType, false, nonConstantSeverity);
-            memberValue.convertType(containedType);
+            memberValue = memberValue.convertCopy(containedType);
             memberValues.add(memberValue);
         }
         
@@ -513,7 +513,7 @@ public class ConstantParser {
         NSTLType desiredType = TypeParser.parseType(typeNode, module, context).getRealType();
         
         // bitcast
-        leftTV.convertType(desiredType);
+        leftTV = leftTV.convertCopy(desiredType);
         
         // Return
         LOG.finest("Got value " + leftTV);

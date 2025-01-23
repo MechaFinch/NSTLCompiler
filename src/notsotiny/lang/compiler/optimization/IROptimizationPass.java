@@ -1,6 +1,6 @@
 package notsotiny.lang.compiler.optimization;
 
-import notsotiny.lang.ir.IRModule;
+import notsotiny.lang.ir.parts.IRModule;
 
 /**
  * An optimization pass

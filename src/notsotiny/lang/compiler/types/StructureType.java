@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import notsotiny.lang.compiler.CompilationException;
-import notsotiny.lang.ir.IRType;
+import notsotiny.lang.ir.parts.IRType;
 
 /**
  * A structure

@@ -8,12 +8,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
-import notsotiny.lang.compiler.optimization.other.IRPassEmptyBlockMerge;
+import notsotiny.lang.compiler.optimization.cse.IRPassLCSE;
+import notsotiny.lang.compiler.optimization.other.IRPassBasicBlockMerge;
+import notsotiny.lang.compiler.optimization.other.IRPassDebug;
 import notsotiny.lang.compiler.optimization.sccp.IRPassSCCP;
-import notsotiny.lang.ir.IRCFGRenderer;
-import notsotiny.lang.ir.IRFunction;
-import notsotiny.lang.ir.IRModule;
-import notsotiny.lang.ir.IRPrinter;
+import notsotiny.lang.ir.parts.IRFunction;
+import notsotiny.lang.ir.parts.IRModule;
+import notsotiny.lang.ir.util.IRCFGRenderer;
+import notsotiny.lang.ir.util.IRPrinter;
 import notsotiny.lang.util.StreamPrinter;
 
 /**
@@ -27,7 +29,9 @@ public class IROptV1 implements IROptimizer {
     
     static {
         passes.add(new IRPassSCCP());
-        passes.add(new IRPassEmptyBlockMerge());
+        passes.add(new IRPassBasicBlockMerge());
+        passes.add(new IRPassLCSE());
+        passes.add(new IRPassDebug());
     }
     
     private IROptimizationLevel level = IROptimizationLevel.ONE;

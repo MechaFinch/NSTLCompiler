@@ -6,7 +6,7 @@ import java.nio.file.Path;
 import asmlib.util.FileLocator;
 import fr.cenotelie.hime.redist.ASTNode;
 import notsotiny.lang.compiler.CompilationException;
-import notsotiny.lang.ir.IRModule;
+import notsotiny.lang.ir.parts.IRModule;
 
 public class EmptyIRGenerator implements IRGenerator {
 

@@ -16,19 +16,19 @@ import notsotiny.lang.compiler.types.RawType;
 import notsotiny.lang.compiler.types.StructureType;
 import notsotiny.lang.compiler.types.TypedRaw;
 import notsotiny.lang.compiler.types.TypedValue;
-import notsotiny.lang.ir.IRArgumentList;
-import notsotiny.lang.ir.IRArgumentMapping;
-import notsotiny.lang.ir.IRBasicBlock;
-import notsotiny.lang.ir.IRCondition;
-import notsotiny.lang.ir.IRConstant;
-import notsotiny.lang.ir.IRFunction;
-import notsotiny.lang.ir.IRIdentifier;
-import notsotiny.lang.ir.IRIdentifierClass;
-import notsotiny.lang.ir.IRLinearInstruction;
-import notsotiny.lang.ir.IRLinearOperation;
-import notsotiny.lang.ir.IRModule;
-import notsotiny.lang.ir.IRType;
-import notsotiny.lang.ir.IRValue;
+import notsotiny.lang.ir.parts.IRArgumentList;
+import notsotiny.lang.ir.parts.IRArgumentMapping;
+import notsotiny.lang.ir.parts.IRBasicBlock;
+import notsotiny.lang.ir.parts.IRCondition;
+import notsotiny.lang.ir.parts.IRConstant;
+import notsotiny.lang.ir.parts.IRFunction;
+import notsotiny.lang.ir.parts.IRIdentifier;
+import notsotiny.lang.ir.parts.IRIdentifierClass;
+import notsotiny.lang.ir.parts.IRLinearInstruction;
+import notsotiny.lang.ir.parts.IRLinearOperation;
+import notsotiny.lang.ir.parts.IRModule;
+import notsotiny.lang.ir.parts.IRType;
+import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
 import notsotiny.lang.util.Pair;
@@ -459,7 +459,7 @@ public class VariableParser {
                 }
                 
                 // Compute args
-                for(int i = 0; i < argNodes.size(); i++) {
+                for(int i = argNodes.size() - 1; i >= 0; i--) {
                     IRIdentifier id = argIDs.get(i);
                     NSTLType nstlType = argNSTLTypes.get(i);
                     ASTNode argNode = argNodes.get(i);

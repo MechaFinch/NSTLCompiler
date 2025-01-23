@@ -81,4 +81,11 @@ public class TypedRaw implements TypedValue {
         return false;
     }
     
+    @Override
+    public TypedValue convertCopy(NSTLType newType) {
+        TypedValue tv = new TypedRaw(this.v, this.t instanceof RawType rt ? rt : RawType.I32);
+        tv.convertType(newType);
+        return tv;
+    }
+    
 }

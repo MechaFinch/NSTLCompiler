@@ -11,16 +11,16 @@ import java.util.logging.Logger;
 
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.types.NSTLType;
-import notsotiny.lang.ir.IRArgumentList;
-import notsotiny.lang.ir.IRArgumentMapping;
-import notsotiny.lang.ir.IRBasicBlock;
-import notsotiny.lang.ir.IRBranchInstruction;
-import notsotiny.lang.ir.IRFunction;
-import notsotiny.lang.ir.IRIdentifier;
-import notsotiny.lang.ir.IRIdentifierClass;
-import notsotiny.lang.ir.IRType;
-import notsotiny.lang.ir.IRUtil;
-import notsotiny.lang.ir.IRValue;
+import notsotiny.lang.ir.parts.IRArgumentList;
+import notsotiny.lang.ir.parts.IRArgumentMapping;
+import notsotiny.lang.ir.parts.IRBasicBlock;
+import notsotiny.lang.ir.parts.IRBranchInstruction;
+import notsotiny.lang.ir.parts.IRFunction;
+import notsotiny.lang.ir.parts.IRIdentifier;
+import notsotiny.lang.ir.parts.IRIdentifierClass;
+import notsotiny.lang.ir.parts.IRType;
+import notsotiny.lang.ir.parts.IRValue;
+import notsotiny.lang.ir.util.IRUtil;
 import notsotiny.lang.util.MapUtil;
 import notsotiny.lang.util.Pair;
 

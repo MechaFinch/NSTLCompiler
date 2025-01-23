@@ -601,6 +601,8 @@ public class SAPCompiler implements NSTCompiler {
                 rcData.add(new ResolvableConstant(((int) c) & 0xFF));
             }
             
+            rcData.add(new ResolvableConstant(0));
+            
             labelIndexMap.put(name, allInstructions.size());
             allInstructions.add(new InitializedData(rcData, 1));
         }
@@ -3931,7 +3933,7 @@ public class SAPCompiler implements NSTCompiler {
                         if(right.getType() == LocationType.IMMEDIATE && right.getImmediate().isResolved()) {
                             if(right.getImmediate().value() == 16) {
                                 localCode.add(new Instruction(
-                                    Opcode.MOV_RIM,
+                                    Opcode.MOVZ_RIM,
                                     left, leftHigh,
                                     false
                                 ));

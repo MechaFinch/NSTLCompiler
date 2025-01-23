@@ -92,7 +92,7 @@ public class TypeParser {
         } else {
             // Named type
             String name = children.get(0).getValue();
-            NSTLType t = module.getTypeDefinitionMap().get(name);
+            NSTLType t = module.getTypeDefinitionMap().get(name).getRealType();
             
             if(t != null) {
                 LOG.finest("Found type " + t);

@@ -64,4 +64,11 @@ public class TypedStructure implements TypedValue {
         return this.t.equals(newType); 
     }
     
+    @Override
+    public TypedValue convertCopy(NSTLType newType) {
+        TypedValue tv = new TypedStructure(this.m, this.t);
+        tv.convertType(newType);
+        return tv;
+    }
+    
 }

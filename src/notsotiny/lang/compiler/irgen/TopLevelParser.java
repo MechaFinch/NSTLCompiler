@@ -304,7 +304,7 @@ public class TopLevelParser {
             NSTLType argType = TypeParser.parseType(argumentChildren.get(0), module, module.getContext());
             
             if(!(argType instanceof RawType || argType instanceof PointerType)) {
-                ALOG.severe(node, "Invalid argument type for function: " + returnType);
+                ALOG.severe(node, "Invalid argument type for function: " + argType);
                 throw new CompilationException();
             }
             

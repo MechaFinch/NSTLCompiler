@@ -41,6 +41,13 @@ public class TypeContainer implements TypedValue {
         
         return false;
     }
+    
+    @Override
+    public TypedValue convertCopy(NSTLType newType) {
+        TypedValue tv = new TypeContainer(this.type);
+        tv.convertType(newType);
+        return tv;
+    }
 
     @Override
     public NSTLType getType() {
