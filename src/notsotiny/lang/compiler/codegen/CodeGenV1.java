@@ -14,6 +14,10 @@ import java.util.logging.Logger;
 import notsotiny.asm.Assembler.AssemblyObject;
 import notsotiny.asm.components.Component;
 import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.compiler.codegen.dag.ISelDAG;
+import notsotiny.lang.ir.parts.IRBasicBlock;
+import notsotiny.lang.ir.parts.IRFunction;
+import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRModule;
 import notsotiny.lang.ir.util.IRPrinter;
 import notsotiny.lang.util.StreamPrinter;
@@ -31,6 +35,7 @@ public class CodeGenV1 implements CodeGenerator {
 
     @Override
     public AssemblyObject generate(IRModule module) throws CompilationException {
+        
         // Convert from Path to File because I love technical debt 
         HashMap<File, String> libraryFilesMap = new HashMap<>();
         module.getLibraryFileMap().forEach((p, n) -> libraryFilesMap.put(p.toFile(), n));
@@ -40,6 +45,25 @@ public class CodeGenV1 implements CodeGenerator {
         HashMap<String, Integer> assemblyLabelIndexMap= new HashMap<>();                // Maps label name to index in assemblyComponents
         
         // Generate code :)
+        for(IRFunction function : module.getInternalFunctions().values()) {
+            LOG.fine("----Generating code for " + function.getID().getName() + "----");
+            
+            // Convert basic blocks into ISelDAGs
+            // bb ID -> bb DAG
+            Map<IRIdentifier, ISelDAG> bbDAGs = new HashMap<>();
+            
+            for(IRBasicBlock irBB : function.getBasicBlockList()) {
+                // Build DAG
+            }
+            
+            // Tile ISelDAGs to select instructions
+            
+            // Perform scheduling
+            
+            // Perform register allocation
+            
+            // Convert to assembly components
+        }
         
         // Done!
         AssemblyObject ao = new AssemblyObject(assemblyComponents, assemblyLabelIndexMap, module.getName(), libraryFilesMap, new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>());

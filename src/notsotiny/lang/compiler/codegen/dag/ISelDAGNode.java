@@ -40,4 +40,10 @@ public abstract class ISelDAGNode {
         return this.chainNode;
     }
     
+    /**
+     * Returns a list of DAG nodes assigned as inputs, from left to right.
+     * @return
+     */
+    public abstract List<ISelDAGNode> getInputNodes();
+    
 }

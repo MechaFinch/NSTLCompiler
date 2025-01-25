@@ -312,7 +312,7 @@ public class VariableParser {
                 if(exprType.getSize() > targetType.getSize()) {
                     // Target is smaller
                     op = IRLinearOperation.TRUNC;
-                } else if(((RawType) exprType).isSigned()) {
+                } else if(exprType.isSigned()) {
                     // Target is larger and expr is signed 
                     op = IRLinearOperation.SX;
                 } else {
@@ -361,7 +361,7 @@ public class VariableParser {
          */
         
         ASTNode nameNode = node.getChildren().get(0);
-        String varName = nameNode.getValue();
+        String varName = ASTUtil.getName(nameNode);
         
         // Does a variable with the name exist
         if(sourceModule.variableExists(varName, context)) {

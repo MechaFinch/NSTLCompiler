@@ -9,7 +9,7 @@ import notsotiny.lang.ir.parts.IRValue;
 /**
  * An instruction selection DAG node which produces a value
  */
-public abstract class ISelDAGProducerNode extends ISelDAGNode {
+public class ISelDAGProducerNode extends ISelDAGNode {
     
     private IRValue producedValue;
     
@@ -17,11 +17,14 @@ public abstract class ISelDAGProducerNode extends ISelDAGNode {
     
     private List<ISelDAGNode> consumers;
     
-    protected ISelDAGProducerNode(ISelDAG dag, IRValue producedValue, IRType producedType) {
+    private ISelDAGProducerOperation op;
+    
+    private ISelDAGProducerNode(ISelDAG dag, IRValue producedValue, IRType producedType, ISelDAGProducerOperation op) {
         super(dag);
         
         this.producedValue = producedValue;
         this.producedType = producedType;
+        this.op = op;
         
         this.consumers = new ArrayList<>();
     }
@@ -34,6 +37,7 @@ public abstract class ISelDAGProducerNode extends ISelDAGNode {
         this.consumers.add(node);
     }
     
+    public ISelDAGProducerOperation getOperation() { return this.op; }
     public List<ISelDAGNode> getConsumers() { return this.consumers; }
     
     /**
@@ -50,6 +54,12 @@ public abstract class ISelDAGProducerNode extends ISelDAGNode {
      */
     public IRType getProducedType() {
         return this.producedType;
+    }
+
+    @Override
+    public List<ISelDAGNode> getInputNodes() {
+        // TODO method stub
+        return new ArrayList<>();
     }
     
 }

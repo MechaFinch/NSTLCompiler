@@ -40,7 +40,7 @@ import notsotiny.lang.util.Pair;
  */
 public class ReferenceParser {
     
-    private static Logger LOG = Logger.getLogger(VariableParser.class.getName());
+    private static Logger LOG = Logger.getLogger(ReferenceParser.class.getName());
     private static ASTLogger ALOG = new ASTLogger(LOG);
     
     /**
@@ -150,7 +150,7 @@ public class ReferenceParser {
                     return parseReferenceAsPointer(subrefNode, destName, expectedType, irBB, manager, context, sourceModule, func, irModule);
                 } else {
                     // NAME
-                    String targetName = subrefChildren.get(0).getValue();
+                    String targetName = ASTUtil.getName(subrefChildren.get(0));
                     
                     // Does a variable with the name exist
                     if(sourceModule.variableExists(targetName, context)) {
@@ -201,7 +201,7 @@ public class ReferenceParser {
                         LOG.finest("Found function " + targetName);
                         ASTUtil.ensureTypesMatch(expectedType, RawType.PTR, false, subrefNode, ALOG, "from TO target");
                         return new Pair<>(new IRIdentifier(targetName, IRIdentifierClass.GLOBAL), RawType.PTR);
-                    } else if(targetName.startsWith("_")) {
+                    } else if(targetName.contains(".")) {
                         // Refernces something from an import
                         LOG.finest("Found library reference " + targetName);
                         ASTUtil.ensureTypesMatch(expectedType, RawType.PTR, false, subrefNode, ALOG, "from TO target");
@@ -324,7 +324,7 @@ public class ReferenceParser {
      */
     private static Pair<IRValue, NSTLType> getNameValue(ASTNode node, String destName, NSTLType expectedType, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
         // Does it exist
-        String refName = node.getValue();
+        String refName = ASTUtil.getName(node);
         if(sourceModule.variableExists(refName, context) || sourceModule.constantExists(refName, context)) {
             // Local or global?
             if(context.entryExists(refName)) {
@@ -466,7 +466,7 @@ public class ReferenceParser {
             }
             
             // Does the member exist?
-            String memberName = offsNode.getValue();
+            String memberName = ASTUtil.getNameNoLibraries(offsNode, ALOG, "structure member");
             if(!st.getMemberNames().contains(memberName)) {
                 // Invalid member
                 ALOG.severe(offsNode, "Structure " + st + " does not have member " + memberName);

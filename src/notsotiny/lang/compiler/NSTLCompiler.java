@@ -280,7 +280,7 @@ public class NSTLCompiler {
                                 codegen.setAbstractOutput(true, aasmOutDir);
                             }
                             
-                            yield new IRCompiler(generator, optimizer, new EmptyCodeGenerator());
+                            yield new IRCompiler(generator, optimizer, codegen);
                         }
                         case "shit" -> new SAPCompiler();
                         default     -> throw new IllegalArgumentException("Unknown compiler: " + compilerName);

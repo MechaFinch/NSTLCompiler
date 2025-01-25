@@ -413,7 +413,7 @@ public class CFGParser {
             labelSourceName = labelEta.get(0).getChildren().get(0).getValue();
             labelUniqueName = function.getUnique(labelSourceName);
         } else {
-            labelUniqueName = function.getUnique("until");
+            labelUniqueName = function.getUnique("for");
             labelSourceName = labelUniqueName;
         }
         
@@ -475,7 +475,7 @@ public class CFGParser {
             target = context.getLabel(name).getBreakBlock();
         } else {
             // No label
-            target = context.getLastLabel().getBreakBlock();
+            target = context.getEnclosingLabel().getBreakBlock();
         }
         
         parent.setTrueSuccessor(target);
@@ -511,7 +511,7 @@ public class CFGParser {
             target = context.getLabel(name).getContinueBlock();
         } else {
             // No label
-            target = context.getLastLabel().getContinueBlock();
+            target = context.getEnclosingLabel().getContinueBlock();
         }
         
         parent.setTrueSuccessor(target);

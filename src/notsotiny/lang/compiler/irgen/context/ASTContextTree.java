@@ -70,6 +70,18 @@ public class ASTContextTree {
     }
     
     /**
+     * Returns the most-local label of the parent context 
+     * @return
+     */
+    public ASTContextLabel getEnclosingLabel() {
+        if(this.parent != null) {
+            return this.parent.getLastLabel();
+        }
+        
+        return null;
+    }
+    
+    /**
      * Returns the most-local label in this context
      * @return
      */

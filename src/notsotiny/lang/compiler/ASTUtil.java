@@ -26,6 +26,40 @@ public class ASTUtil {
                                 FALSE_IR = new IRConstant(0, IRType.NONE);
     
     /**
+     * Gets a name from a node. If the name is a library reference, throws a compilation exception
+     * @param node
+     * @param alog
+     * @param contextMessage
+     * @return
+     * @throws CompilationException
+     */
+    public static String getNameNoLibraries(ASTNode node, ASTLogger alog, String contextMessage) throws CompilationException {
+        String s = node.getValue();
+        
+        if(s.startsWith("_")) {
+            alog.severe(node, "Cannot use library reference for " + contextMessage);
+            throw new CompilationException();
+        } else {
+            return s;
+        }
+    }
+    
+    /**
+     * Gets a name from a node. If the name is a library reference, removes the prefix underscore
+     * @param node
+     * @return
+     */
+    public static String getName(ASTNode node) {
+        String s = node.getValue();
+        
+        if(s.startsWith("_")) {
+            return s.substring(1);
+        } else {
+            return s;
+        }
+    }
+    
+    /**
      * Gets the line number of a node
      * @param node
      * @return

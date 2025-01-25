@@ -44,7 +44,7 @@ function sca_add of mat a, u16 b, mat c returns u16 begin
 		return 1;
 	end if
 	
-	entry: for i is u16 gets 0; i < a.width; i gets i + 1 do
+	for i is u16 gets 0; i < a.width; i gets i + 1 do
 		variable a_row is u16 pointer gets to a.body index (i * a.width);
 		variable c_row is u16 pointer gets to c.body index (i * a.width);
 	

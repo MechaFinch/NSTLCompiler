@@ -1,0 +1,36 @@
+
+--
+-- Associative Array
+-- string key -> ptr value
+--
+
+type aarray is aarray_s pointer;
+
+type aarray_s is structure of
+	size_mask is u16,
+	table is aarray_ll_node pointer pointer
+end type
+
+type aarray_ll_node is structure of
+	next is aarray_ll_node pointer,
+	key_ptr is u8 pointer,
+	key_len is u8,
+	data is ptr
+end type
+
+-- Creates an associative array
+-- table_size	Number of entries in the base table. Rounded down to powers of 2
+external function _aarray.create of u32 table_size returns aarray;
+
+-- Destroy an associative array
+-- De-allocates all allocations performed by the given aarray. Does not deallocate values.
+external function _aarray.destroy of aarray aarr;
+
+-- Adds an association from key to value. 
+external function _aarray.put of aarray aarr, u8 key_len, u8 pointer key_ptr, ptr val returns none;
+
+-- Gets the value associated with key, or 0
+external function _aarray.get of aarray aarr, u8 key_len, u8 pointer key_ptr returns ptr;
+
+-- Removes the associated from key to its value, returning the value.
+external function _aarray.remove of aarray aarr, u8 key_len, u8 pointer key_ptr returns ptr;

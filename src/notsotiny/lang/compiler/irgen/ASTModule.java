@@ -161,6 +161,15 @@ public class ASTModule {
     }
     
     /**
+     * Returns true if the given library exists
+     * @param name
+     * @return
+     */
+    public boolean libraryExists(String name) {
+        return this.libraryFileMap.containsValue(name);
+    }
+    
+    /**
      * Gets the value of a constant, if it exists
      * @param name
      * @return TypedValue or null

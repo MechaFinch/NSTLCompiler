@@ -7,8 +7,10 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -124,7 +126,7 @@ public class TopLevelParser {
         }
         
         // Fill out function headers, type definitions, and constants, and initial values
-        LOG.fine("Populating definitions");
+        LOG.fine("Populating types");
         for(int i = 0; i < allCode.size(); i++) {
             try {
                 ASTNode topNode = allCode.get(i);
@@ -144,7 +146,21 @@ public class TopLevelParser {
                         // Fill compiler definition
                         fillCompilerDefinition(module, topNode);
                         break;
-                        
+                    
+                    default:
+                        // No action
+                }
+            } catch(CompilationException e) {
+                encounteredErrors = true;
+            }
+        }
+        
+        LOG.fine("Populating definitions");
+        for(int i = 0; i < allCode.size(); i++) {
+            try {
+                ASTNode topNode = allCode.get(i);
+                
+                switch(topNode.getSymbol().getID()) {    
                     case NstlgrammarParser.ID.VARIABLE_VALUE_CREATION:
                         // Create a global constant or variable
                         parseGlobalCreation(module, topNode);
@@ -183,6 +199,15 @@ public class TopLevelParser {
                 }
                 
                 LOG.finest("Finalized structure " + st);
+            }
+        }
+        
+        // Remove external function headers for internal functions
+        Set<String> functionNames = new HashSet<>(module.getFunctionMap().keySet());
+        
+        for(String functionName : functionNames) {
+            if(functionName.startsWith(module.getName()) && module.getFunctionMap().get(functionName).isExternal()) {
+                module.getFunctionMap().remove(functionName);
             }
         }
         
@@ -275,7 +300,7 @@ public class TopLevelParser {
         List<ASTNode> children = node.getChildren();
         
         // Get name
-        String name = children.get(0).getValue();
+        String name = ASTUtil.getName(children.get(0));
         
         // Get return type
         NSTLType returnType;
@@ -312,7 +337,7 @@ public class TopLevelParser {
             
             // named or nameless?
             if(argumentNode.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_NAMED_ARGUMENT) {
-                argumentNames.add(argumentChildren.get(1).getValue());
+                argumentNames.add(ASTUtil.getNameNoLibraries(argumentChildren.get(1), ALOG, "argument name"));
             } else {
                 argumentNames.add("arg" + i);
             }
@@ -347,7 +372,7 @@ public class TopLevelParser {
         List<ASTNode> children = node.getChildren();
         
         // Get name & type
-        String name = children.get(1).getValue();
+        String name = ASTUtil.getNameNoLibraries(children.get(1), ALOG, "global name");
         NSTLType type = TypeParser.parseType(children.get(2), module, module.getContext());
         
         // Variable or constant?
@@ -383,7 +408,7 @@ public class TopLevelParser {
      * @throws CompilationException
      */
     private static void fillStructureDefinition(ASTModule module, ASTNode node) throws CompilationException {
-        String name = node.getChildren().get(0).getValue();
+        String name = ASTUtil.getNameNoLibraries(node.getChildren().get(0), ALOG, "structure name");
         List<ASTNode> members = node.getChildren().get(1).getChildren();
         List<String> memberNames = new ArrayList<>();
         List<NSTLType> memberTypes = new ArrayList<>();
@@ -393,7 +418,7 @@ public class TopLevelParser {
         for(ASTNode member : members) {
             List<ASTNode> memberChildren = member.getChildren();
             
-            String memberName = memberChildren.get(0).getValue();
+            String memberName = ASTUtil.getNameNoLibraries(memberChildren.get(0), ALOG, "structure member");
             NSTLType memberType = TypeParser.parseType(memberChildren.get(1), module, module.getContext()).getRealType();
             
             if(memberType instanceof StringType) {
@@ -424,7 +449,7 @@ public class TopLevelParser {
         List<ASTNode> children = node.getChildren();
         
         // Get name
-        String defName = children.get(0).getValue();
+        String defName = ASTUtil.getNameNoLibraries(children.get(0), ALOG, "definition name");
         
         // Get value
         TypedValue tv = ConstantParser.parseConstantExpression(children.get(1), module, module.getContext(), RawType.NONE, false, Level.SEVERE);
@@ -444,7 +469,7 @@ public class TopLevelParser {
         List<ASTNode> children = node.getChildren();
         
         // Get name
-        String aliasName = children.get(0).getValue();
+        String aliasName = ASTUtil.getNameNoLibraries(children.get(0), ALOG, "type name");
         
         // Get type
         NSTLType t = TypeParser.parseType(children.get(1), module, module.getContext());
@@ -462,13 +487,20 @@ public class TopLevelParser {
      * @throws CompilationException 
      */
     private static void defineName(ASTModule module, ASTNode node) throws CompilationException {
+        ASTNode nameNode;
         String name;
         
         if(node.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_VALUE_CREATION) {
             // the only one of the group where name isn't the first child
-            name = node.getChildren().get(1).getValue();
+            nameNode = node.getChildren().get(1);
         } else {
-            name = node.getChildren().get(0).getValue();
+            nameNode = node.getChildren().get(0);
+        }
+        
+        if(node.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_EXTERNAL_FUNCTION_HEADER) {
+            name = ASTUtil.getName(nameNode);
+        } else {
+            name = ASTUtil.getNameNoLibraries(nameNode, ALOG, "top level name");
         }
         
         if(module.nameExists(name)) {
@@ -549,7 +581,7 @@ public class TopLevelParser {
         // Get file name if specified
         if(children.size() == 2) {
             if(children.get(1).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_LNAME) {
-                // Deprecated but I don't have access to the parser generator
+                // Deprecated but I don't wanna mess with the grammar
                 ALOG.severe(topNode, "Deprecated syntax: library inclusion with global name");
                 throw new CompilationException("deprecated");
             }
@@ -558,7 +590,7 @@ public class TopLevelParser {
             fileName = children.get(1).getValue();
             fileName = fileName.substring(1, fileName.length() - 1); // trim quotation marks
         } else if(children.size() == 3) {
-            // Deprecated but I don't have access to the parser generator
+            // Deprecated but I don't wanna mess with the grammar
             ALOG.severe(topNode, "Deprecated syntax: library inclusion with global name");
             throw new CompilationException("deprecated");
         } // size 1 = fine

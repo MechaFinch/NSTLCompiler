@@ -68,7 +68,7 @@ public class IROptV1 implements IROptimizer {
                     sourceFileName = sourceFileName.substring(0, sourceFileName.lastIndexOf("."));
                     Path outputFile = this.intermediateOutputDirectory.resolve(sourceFileName + "_" + passNumber + ".nir");
                     
-                    LOG.info("Writing optimized IR to " + outputFile);
+                    LOG.info("Writing intermediate IR to " + outputFile);
                     
                     try(BufferedOutputStream bos = new BufferedOutputStream(Files.newOutputStream(outputFile))) {
                         StreamPrinter filePrinter = new StreamPrinter(bos);

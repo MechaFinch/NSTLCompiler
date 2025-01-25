@@ -6,7 +6,6 @@ import java.util.logging.Logger;
 
 import org.graphstream.graph.Graph;
 import org.graphstream.graph.implementations.SingleGraph;
-import org.graphstream.ui.view.Viewer;
 
 import notsotiny.lang.ir.parts.IRBasicBlock;
 import notsotiny.lang.ir.parts.IRBranchInstruction;

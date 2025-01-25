@@ -291,7 +291,7 @@ public class ASTCodeParser {
                 IRValue leftVal = leftPair.a,
                         rightVal = rightPair.a;
                 
-                boolean signed = ((RawType) leftPair.b).isSigned();
+                boolean signed = leftPair.b.isSigned();
                 
                 // Get condition
                 IRCondition condition = switch(conditionNode.getSymbol().getID()) {
@@ -558,12 +558,20 @@ public class ASTCodeParser {
             
             Pair<IRValue, NSTLType> pair = ReferenceParser.parseReferenceAsValue(subrefNode, "", RawType.NONE, irBB, manager, sourceBB.getContext(), sourceFunction.getParentModule(), targetFunction, irModule);
             IRValue pointerValue = pair.a;
-            NSTLType pointedType = pair.b;
+            NSTLType pointerType = pair.b,
+                     pointedType;
             
             // Are we overriding the type of the subreference?
             if(refChildren.size() == 3) {
                 // yes
                 pointedType = TypeParser.parseType(refChildren.get(0), sourceFunction.getParentModule(), sourceBB.getContext());
+            } else if(pointerType instanceof PointerType pt) {
+                // no, unwrap
+                pointedType = pt.getPointedType();
+            } else {
+                // no, and we don't have a typed pointer
+                ALOG.severe(node, "AT without a type requires a typed pointer, got " + pointerType);
+                throw new CompilationException();
             }
             
             // Get the assignment value

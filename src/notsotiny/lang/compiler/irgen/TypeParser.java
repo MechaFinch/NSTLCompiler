@@ -91,7 +91,7 @@ public class TypeParser {
             }
         } else {
             // Named type
-            String name = children.get(0).getValue();
+            String name = ASTUtil.getNameNoLibraries(children.get(0), ALOG, "type name");
             NSTLType t = module.getTypeDefinitionMap().get(name).getRealType();
             
             if(t != null) {

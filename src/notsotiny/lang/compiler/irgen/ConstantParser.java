@@ -174,7 +174,7 @@ public class ConstantParser {
         List<ASTNode> children = node.getChildren();
         
         // Get type
-        NSTLType nameType = module.getTypeDefinitionMap().get(children.get(0).getValue());
+        NSTLType nameType = module.getTypeDefinitionMap().get(ASTUtil.getNameNoLibraries(children.get(0), ALOG, "structure name"));
         
         // Ensure it's a structure
         StructureType structType;
@@ -199,7 +199,7 @@ public class ConstantParser {
             List<ASTNode> memberChildren = memberNode.getChildren();
             
             // Get name, make sure it exists in the structure
-            String memberName = memberChildren.get(0).getValue();
+            String memberName = ASTUtil.getNameNoLibraries(memberChildren.get(0), ALOG, "structure member");
             
             if(expectedNames.contains(memberName)) {
                 // Name is a member. Compute it
@@ -297,7 +297,7 @@ public class ConstantParser {
                 
                 // Try local names first
                 if(typeChildren.size() == 1 && typeChildren.get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_NAME) {
-                    String name = typeChildren.get(0).getValue();
+                    String name = ASTUtil.getNameNoLibraries(typeChildren.get(0), ALOG, "type name");
                     
                     if(module.variableExists(name, context)) {
                         // Found a variable
@@ -349,7 +349,7 @@ public class ConstantParser {
             case NstlgrammarLexer.ID.TERMINAL_NAME: {
                 // Named value
                 // To be valid in a constant expression, must be a constant
-                String name = children.get(0).getValue();
+                String name = ASTUtil.getName(children.get(0));
                 if(module.constantExists(name, context)) {
                     TypedValue tv = module.getConstantValue(name, context);
                     LOG.finest("Got constant " + tv);

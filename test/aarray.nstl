@@ -1,0 +1,180 @@
+
+-- Associate Array
+
+library _os from "fakeos/os";
+
+-- Creates an associative array
+-- table_size	Number of entries in the base table. Rounded down to powers of 2
+function create of u16 table_size returns aarray begin
+	-- Create array struct
+	variable aarr is aarray gets (call _os.malloc with sizeof aarray_s);
+	
+	-- Compute table size & hash mask
+	variable tsize_shifted is i16 gets table_size;
+	variable true_size is u16 gets (1 << 15);
+	
+	while tsize_shifted > 0 do
+		tsize_shifted gets tsize_shifted << 1;
+		true_size gets true_size >> 1;
+	end while
+	
+	aarr.size_mask gets true_size - 1;
+	
+	-- Create table
+	aarr.table gets (call _os.malloc with (sizeof ptr * true_size) as u32);
+	
+	-- Fill with zeros
+	for i is u16 gets 0; i < true_size; i gets i + 1 do
+		aarr.table index i gets 0;
+	end for
+	
+	return aarr;
+end function
+
+-- Destroy an associative array
+-- De-allocates all allocations performed by the given aarray. Does not deallocate values.
+function destroy of aarray aarr begin
+	-- Deallocate table entries
+	variable table_size is u16 gets aarr.size_mask + 1;
+	
+	for i is u16 gets 0; i < table_size; i gets i + 1 do
+		call destroy_node with aarr.table index i;
+	end for
+	
+	-- Deallocate table struct
+	call _os.free with aarr;
+end function
+
+function destroy_node of aarray_ll_node pointer node begin
+	if node != 0 then
+		call destroy_node with node.next;
+		call _os.free with node;
+	end if
+end function
+
+-- Adds an association from key to value. 
+function put of aarray aarr, u8 key_len, u8 pointer key_ptr, ptr val returns none begin
+	-- Get hash
+	variable h is u16 gets (call hash with key_len, key_ptr);
+	
+	-- Get table slot
+	variable slot is aarray_ll_node pointer pointer gets to (aarr.table index (h and aarr.size_mask));
+	variable node is aarray_ll_node pointer gets at slot;
+	
+	while node != 0 do
+		slot gets to node.next;
+		node gets node.next;
+	end while
+	
+	-- Create entry
+	node gets (call _os.malloc with sizeof aarray_ll_node);
+	at slot gets node;
+	
+	-- Populate entry
+	variable key_copy is u8 pointer gets (call _os.malloc with key_len as u32);
+	call copy with key_len, key_ptr, key_copy;
+	
+	node.next gets 0;
+	node.key_ptr gets key_copy;
+	node.key_len gets key_len;
+	node.data gets val;
+end function
+
+-- Gets the value associated with key, or 0
+function get of aarray aarr, u8 key_len, u8 pointer key_ptr returns ptr begin
+	-- Get slot
+	variable slot is aarray_ll_node pointer pointer gets (call get_slot with aarr, key_len, key_ptr);
+	
+	-- Return data if present
+	if slot != 0 then
+		return (at slot).data;
+	else
+		return 0;
+	end if
+end function
+
+-- Removes the associated from key to its value, returning the value.
+function remove of aarray aarr, u8 key_len, u8 pointer key_ptr returns ptr begin
+	-- Get slot
+	variable slot is aarray_ll_node pointer pointer gets (call get_slot with aarr, key_len, key_ptr);
+	
+	-- Remove if present
+	if slot != 0 then
+		variable node is aarray_ll_node pointer gets at slot;
+		variable data is ptr gets node.data;	-- get data before deallocation
+		
+		-- Deallocate key copy
+		call _os.free with node.key_ptr;
+		
+		-- Deallocate node
+		call _os.free with node;
+		
+		-- Remove dead pointer
+		at slot gets 0;
+		
+		return data;
+	else
+		return 0;
+	end if
+end function
+
+function get_slot of aarray aarr, u8 key_len, u8 pointer key_ptr returns aarray_ll_node pointer pointer begin
+	-- Get hash
+	variable h is u16 gets (call hash with key_len, key_ptr);
+	
+	-- Get node
+	variable slot is aarray_ll_node pointer pointer gets to (aarr.table index (h and aarr.size_mask));
+	variable node is aarray_ll_node pointer gets at slot;
+	
+	searching: while node != 0 do
+		-- Does the key match
+		if key_len != node.key_len then
+			-- No, different lengths
+			node gets node.next;
+			continue;
+		end if
+		
+		for i is u8 gets 0; i < key_len; i gets i + 1 do
+			if (key_ptr index i) != (node.key_ptr index i) then
+				-- No, difference found
+				node gets node.next;
+				continue searching;
+			end if
+		end for
+		
+		-- Found!
+		break;
+	end while
+	
+	-- Found node or 0
+	if node != 0 then
+		return slot;
+	else
+		return 0;
+	end if
+end function
+
+-- Hashes a string
+function hash of u8 key_len, u8 pointer key_ptr returns u16 begin
+	variable h is u16 gets 0;
+	
+	for i is u8 gets 0; i < key_len; i gets i + 1 do
+		h gets (h * 31) + ((key_ptr index i) as u16);
+	end for
+	
+	return h;
+end function
+
+-- Copies a string
+function copy of u8 str_len, u8 pointer src, u8 pointer dst begin
+	for i is u8 gets 0; i < str_len; i gets i + 1 do
+		dst index i gets src index i;
+	end for
+end function
+
+
+
+-- placeholder
+function main of none begin
+
+end function
