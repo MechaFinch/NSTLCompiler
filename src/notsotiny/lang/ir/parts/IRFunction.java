@@ -42,6 +42,9 @@ public class IRFunction implements IRSourceInfo {
     // TODO: not properly maintained
     Map<IRIdentifier, IRType> localTypeMap;
     
+    // Function-unique ID number, used to create unique identifiers
+    private int fuid;
+    
     /**
      * Full constructor w/ external possibility
      * @param id
@@ -49,10 +52,11 @@ public class IRFunction implements IRSourceInfo {
      * @param arguments
      * @param basicBlocks
      * @param external
+     * @param fuid
      * @param sourceModule
      * @param sourceLineNumber
      */
-    public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, List<IRBasicBlock> basicBlocks, boolean external, IRModule sourceModule, int sourceLineNumber) {
+    public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, List<IRBasicBlock> basicBlocks, boolean external, int fuid, IRModule sourceModule, int sourceLineNumber) {
         this.id = id;
         this.returnType = returnType;
         this.arguments = arguments;
@@ -60,6 +64,7 @@ public class IRFunction implements IRSourceInfo {
         this.isExternal = external;
         this.module = sourceModule;
         this.sourceLineNumber = sourceLineNumber;
+        this.fuid = fuid;
         
         // Build basic block map
         this.blockNameMap = new HashMap<>();
@@ -83,8 +88,8 @@ public class IRFunction implements IRSourceInfo {
      * @param sourceModule
      * @param sourceLineNumber
      */
-    public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, List<IRBasicBlock> basicBlocks, IRModule sourceModule, int sourceLineNumber) {
-        this(id, returnType, arguments, basicBlocks, false, sourceModule, sourceLineNumber);
+    public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, List<IRBasicBlock> basicBlocks, int fuid, IRModule sourceModule, int sourceLineNumber) {
+        this(id, returnType, arguments, basicBlocks, false, fuid, sourceModule, sourceLineNumber);
     }
     
     /**
@@ -96,8 +101,8 @@ public class IRFunction implements IRSourceInfo {
      * @param sourceModule
      * @param sourceLineNumber
      */
-    public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, boolean external, IRModule sourceModule, int sourceLineNumber) {
-        this(id, returnType, arguments, new ArrayList<>(), external, sourceModule, sourceLineNumber);
+    public IRFunction(IRIdentifier id, IRType returnType, IRArgumentList arguments, boolean external, int fuid, IRModule sourceModule, int sourceLineNumber) {
+        this(id, returnType, arguments, new ArrayList<>(), external, fuid, sourceModule, sourceLineNumber);
     }
     
     /**
@@ -108,8 +113,8 @@ public class IRFunction implements IRSourceInfo {
      * @param sourceModule
      * @param sourceLineNumber
      */
-    public IRFunction(IRIdentifier id, IRType returnType, boolean external, IRModule sourceModule, int sourceLineNumber) {
-        this(id, returnType, new IRArgumentList(), new ArrayList<>(), external, sourceModule, sourceLineNumber);
+    public IRFunction(IRIdentifier id, IRType returnType, boolean external, int fuid, IRModule sourceModule, int sourceLineNumber) {
+        this(id, returnType, new IRArgumentList(), new ArrayList<>(), external, fuid, sourceModule, sourceLineNumber);
     }
     
     /**
@@ -119,8 +124,8 @@ public class IRFunction implements IRSourceInfo {
      * @param sourceModule
      * @param sourceLineNumber
      */
-    public IRFunction(IRIdentifier id, IRType returnType, IRModule sourceModule, int sourceLineNumber) {
-        this(id, returnType, new IRArgumentList(), new ArrayList<>(), false, sourceModule, sourceLineNumber);
+    public IRFunction(IRIdentifier id, IRType returnType, int fuid, IRModule sourceModule, int sourceLineNumber) {
+        this(id, returnType, new IRArgumentList(), new ArrayList<>(), false, fuid, sourceModule, sourceLineNumber);
     }
     
     /**
@@ -191,6 +196,14 @@ public class IRFunction implements IRSourceInfo {
      */
     public IRType getLocalType(IRIdentifier id) {
         return this.localTypeMap.get(id);
+    }
+    
+    /**
+     * Get a number that is unique within the function
+     * @return
+     */
+    public int getFUID() {
+        return this.fuid++;
     }
 
     @Override

@@ -39,38 +39,79 @@ public class IRUtil {
     private static Logger LOG = Logger.getLogger(IRUtil.class.getName());
     
     /**
+     * Determines the type of each local
+     * @param bb
+     * @return
+     */
+    public static Map<IRIdentifier, IRType> getTypeMap(IRFunction function) {
+        Map<IRIdentifier, IRType> typeMap = new HashMap<>();
+        
+        // Get function arguments
+        addTypeInfo(function.getArguments(), typeMap);
+        
+        // Go through basic blocks
+        for(IRBasicBlock bb : function.getBasicBlockList()) {
+            // Add bb args
+            addTypeInfo(bb.getArgumentList(), typeMap);
+            
+            // For each instruction, if it defines something, add its type
+            for(IRLinearInstruction li : bb.getInstructions()) {
+                if(li.getOp().hasDestination()) {
+                    typeMap.put(li.getDestinationID(), li.getDestinationType());
+                }
+            }
+        }
+        
+        return typeMap;
+    }
+    
+    /**
+     * Adds type information of an argument list to a type map
+     * @param args
+     * @param typeMap
+     */
+    private static void addTypeInfo(IRArgumentList args, Map<IRIdentifier, IRType> typeMap) {
+        for(int i = 0; i < args.getArgumentCount(); i++) {
+            typeMap.put(args.getName(i), args.getType(i));
+        }
+    }
+    
+    /**
      * Computes the liveness sets of each basic block in the function. 
      * @param function
+     * @param argAssignmentsAreLiveOut If true, values assigned to the arguments of successors are considered live-out
      * @return Map from BB ID to Pair<Live-In set, Live-Out set>
      */
-    public static Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> getLivenessSets(IRFunction function) {
+    public static Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> getLivenessSets(IRFunction function, boolean argAssignmentsAreLiveOut) {
         Pair<List<IRIdentifier>, Map<Integer, Integer>> dfsInfoPair = getPreorderInfo(function);
         List<IRIdentifier> dfsOrderList = dfsInfoPair.a;
         Map<Integer, Integer> dfsAncestryMap = dfsInfoPair.b;
         
-        return getLivenessSets(function, dfsOrderList, dfsAncestryMap);
+        return getLivenessSets(function, argAssignmentsAreLiveOut, dfsOrderList, dfsAncestryMap);
     }
     
     /**
      * Computes the liveness sets of each basic block in the function, given preorder DFS information
      * @param function
+     * @param argAssignmentsAreLiveOut If true, values assigned to the arguments of successors are considered live-out
      * @param dfsOrderList
      * @param dfsAncestryMap
      * @return Map from BB ID to Pair<Live-In set, Live-Out set>
      */
-    public static Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> getLivenessSets(IRFunction function, List<IRIdentifier> dfsOrderList, Map<Integer, Integer> dfsAncestryMap) {
-        return getLivenessSets(function, getLoopNestingForest(function, dfsOrderList, dfsAncestryMap), dfsOrderList, dfsAncestryMap);
+    public static Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> getLivenessSets(IRFunction function, boolean argAssignmentsAreLiveOut, List<IRIdentifier> dfsOrderList, Map<Integer, Integer> dfsAncestryMap) {
+        return getLivenessSets(function, argAssignmentsAreLiveOut, getLoopNestingForest(function, dfsOrderList, dfsAncestryMap), dfsOrderList, dfsAncestryMap);
     }
     
     /**
      * Computes the liveness sets of each basic block in the function, given the loop nesting forest and preorder DFS information
      * @param function
+     * @param argAssignmentsAreLiveOut If true, values assigned to the arguments of successors are considered live-out
      * @param loopNestingForest
      * @param dfsOrderList
      * @param dfsAncestryMap
      * @return Map from BB ID to Pair<Live-In set, Live-Out set>
      */
-    public static Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> getLivenessSets(IRFunction function, UnionFindForest<IRIdentifier> loopNestingForest, List<IRIdentifier> dfsOrderList, Map<Integer, Integer> dfsAncestryMap) {
+    public static Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> getLivenessSets(IRFunction function, boolean argAssignmentsAreLiveOut, UnionFindForest<IRIdentifier> loopNestingForest, List<IRIdentifier> dfsOrderList, Map<Integer, Integer> dfsAncestryMap) {
         Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSetMap = new HashMap<>();
         
         // Initialize map
@@ -79,7 +120,7 @@ public class IRUtil {
         }
         
         // Postorder partial liveness
-        glsPartialLivenessDFS(function.getEntryBlock().getID(), livenessSetMap, new HashSet<>(), function, listToMap(dfsOrderList), dfsAncestryMap);
+        glsPartialLivenessDFS(function.getEntryBlock().getID(), argAssignmentsAreLiveOut, livenessSetMap, new HashSet<>(), function, listToMap(dfsOrderList), dfsAncestryMap);
         
         // Propagate liveness through loops
         for(TreeNode<IRIdentifier> loopHeaderNode : loopNestingForest.getRoots()) {
@@ -92,12 +133,13 @@ public class IRUtil {
     /**
      * Computes partial liveness information via a DFS
      * @param bbID
+     * @param argAssignmentsAreLiveOut If true, values assigned to the arguments of successors are considered live-out
      * @param livenessSetMap
      * @param function
      * @param dfsOrderList
      * @param dfsAncestryMap
      */
-    private static void glsPartialLivenessDFS(IRIdentifier bbID, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSetMap, Set<IRIdentifier> processed, IRFunction function, Map<IRIdentifier, Integer> dfsIndexMap, Map<Integer, Integer> dfsAncestryMap) {
+    private static void glsPartialLivenessDFS(IRIdentifier bbID, boolean argAssignmentsAreLiveOut, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSetMap, Set<IRIdentifier> processed, IRFunction function, Map<IRIdentifier, Integer> dfsIndexMap, Map<Integer, Integer> dfsAncestryMap) {
         IRBasicBlock bb = function.getBasicBlock(bbID);
         
         Pair<Set<IRIdentifier>, Set<IRIdentifier>> livenessSetPair = livenessSetMap.get(bbID);
@@ -107,31 +149,33 @@ public class IRUtil {
         // Process each unprocessed successor that isn't a backedge
         for(IRIdentifier successorID : bb.getSuccessorBlocks()) {
             if(!isBackedge(bbID, successorID, dfsIndexMap, dfsAncestryMap) && !processed.contains(successorID)) {
-                glsPartialLivenessDFS(successorID, livenessSetMap, processed, function, dfsIndexMap, dfsAncestryMap);
+                glsPartialLivenessDFS(successorID, argAssignmentsAreLiveOut, livenessSetMap, processed, function, dfsIndexMap, dfsAncestryMap);
             }
         }
         
-        // Initialize 'currently live' with variables assigned to BB args
+        // Initialize 'currently live' with variables assigned to BB args if applicable
         Set<IRIdentifier> liveSet = new HashSet<>();
         
         IRBranchInstruction bbExit = bb.getExitInstruction();
         IRArgumentMapping trueMapping = bbExit.getTrueArgumentMapping(),
                           falseMapping = bbExit.getFalseArgumentMapping();
         
-        if(trueMapping != null) {
-            trueMapping.getMap().values().forEach(irv -> {
-                if(irv instanceof IRIdentifier id && id.getIDClass() == IRIdentifierClass.LOCAL) {
-                    liveSet.add(id);
-                }
-            });
-        }
-        
-        if(falseMapping != null) {
-            falseMapping.getMap().values().forEach(irv -> {
-                if(irv instanceof IRIdentifier id && id.getIDClass() == IRIdentifierClass.LOCAL) {
-                    liveSet.add(id);
-                }
-            });
+        if(argAssignmentsAreLiveOut) {
+            if(trueMapping != null) {
+                trueMapping.getMap().values().forEach(irv -> {
+                    if(irv instanceof IRIdentifier id && id.getIDClass() == IRIdentifierClass.LOCAL) {
+                        liveSet.add(id);
+                    }
+                });
+            }
+            
+            if(falseMapping != null) {
+                falseMapping.getMap().values().forEach(irv -> {
+                    if(irv instanceof IRIdentifier id && id.getIDClass() == IRIdentifierClass.LOCAL) {
+                        liveSet.add(id);
+                    }
+                });
+            }
         }
         
         // Include non-bbarg live-ins of non-backedge successors in live set
@@ -150,6 +194,25 @@ public class IRUtil {
         
         // Record current live set as live-outs for this bb
         liveOutSet.addAll(liveSet);
+        
+        // If assignments are not considered live-out, add them to the live set here
+        if(!argAssignmentsAreLiveOut) {
+            if(trueMapping != null) {
+                trueMapping.getMap().values().forEach(irv -> {
+                    if(irv instanceof IRIdentifier id && id.getIDClass() == IRIdentifierClass.LOCAL) {
+                        liveSet.add(id);
+                    }
+                });
+            }
+            
+            if(falseMapping != null) {
+                falseMapping.getMap().values().forEach(irv -> {
+                    if(irv instanceof IRIdentifier id && id.getIDClass() == IRIdentifierClass.LOCAL) {
+                        liveSet.add(id);
+                    }
+                });
+            }
+        }
         
         // Go through the BB's code backwards, updating liveness accordingly
         // For each instruction, remove variables that are defined and add variables being used to/from the live set
@@ -818,12 +881,12 @@ public class IRUtil {
                     
                     if(bb.getID().equals(predTrueSuccessor)) {
                         // We're the true successor
-                        predExit.getTrueArgumentMapping().getMap().remove(argName);
+                        predExit.getTrueArgumentMapping().removeArgument(argName);
                     }
                     
                     if(bb.getID().equals(predFalseSuccessor)) {
                         // We're the false successor
-                        predExit.getFalseArgumentMapping().getMap().remove(argName);
+                        predExit.getFalseArgumentMapping().removeArgument(argName);
                     }
                 }
             }

@@ -4,7 +4,7 @@
 	https://www.cs.cornell.edu/courses/cs412/2007sp/lectures/lec31.pdf
 	https://www.cs.cornell.edu/courses/cs412/2007sp/lectures/lec32.pdf
 	https://www.cs.cornell.edu/courses/cs412/2007sp/lectures/lec33.pdf
-	
+		
 	IR -> DAG of IR
 		DAG of operands and operations
 		see notes in notebook i think
@@ -84,4 +84,7 @@
 	-	Branch instructions
 	-	LOAD instructions
 	-	STORE instructions
+	
+	
+	
 	

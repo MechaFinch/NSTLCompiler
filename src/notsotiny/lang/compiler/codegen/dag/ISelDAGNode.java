@@ -1,5 +1,6 @@
 package notsotiny.lang.compiler.codegen.dag;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -7,13 +8,17 @@ import java.util.List;
  */
 public abstract class ISelDAGNode {
     
-    private ISelDAG dag;
+    protected ISelDAG dag;
     
-    private ISelDAGNode chainNode;
+    protected ISelDAGNode chainNode;
+    
+    protected List<ISelDAGProducerNode> inputNodes;
     
     protected ISelDAGNode(ISelDAG dag) {
         this.dag = dag;
+        
         this.chainNode = null;
+        this.inputNodes = new ArrayList<>();
     }
     
     /**
@@ -44,6 +49,8 @@ public abstract class ISelDAGNode {
      * Returns a list of DAG nodes assigned as inputs, from left to right.
      * @return
      */
-    public abstract List<ISelDAGNode> getInputNodes();
+    public List<ISelDAGProducerNode> getInputNodes() {
+        return this.inputNodes;
+    }
     
 }

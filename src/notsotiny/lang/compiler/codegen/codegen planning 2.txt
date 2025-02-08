@@ -1,0 +1,103 @@
+
+	how to gen code (part 2)
+
+Code Generation
+	Instruction Selection
+		IR -> DAG of IR
+		DAG of IR -> DAG of Abstract Assembly sequences					<-- Planning this
+
+	Scheduling
+		DAG of Abstract Assembly sequences -> Abstract Assembly listing
+
+	Register Allocation
+		Abstract Assembly listing -> Assembly listing
+	
+
+
+NOTE:	Abstract assembly in both DAG and listing form should preserve live-in and live-out information
+
+	
+	
+DAG structure
+	ISelDAG
+		Represents a basic block as DAG nodes
+		-	List<ISelDAGNode> List of all nodes in the block
+		-	List<ISelDAGNode> List of nodes that do not produce values or whose values are not used
+		-	Map<IRIdentifier, ISelDAGNode> Map from local identifier to ISelDAGProducerNode which produces it
+	
+	ISelDAGNode
+		either ISelDAGProducerNode or ISelDAGTerminatorNode
+		
+		Both
+			-	ISelDAG Parent DAG
+			-	List<ISelDAGNode> ordered list of input nodes
+			-	ISelDAGNode Side-effect ordering chain node
+		
+		ISelDAGProducerNode
+			Instructions that produce values, live-ins, constants
+			-	ISelDAGProducerOperation Operation
+			-	IRCondition Condition for SELECT
+			-	IRValue Produced Value
+				-	IRConstant for compile-time constants
+				-	IRIdentifier for live-in and link-time constants
+			-	IRType Produced Type
+			-	List of consumers (may not be necessary -> remove?)
+		
+		ISelDAGTerminatorNode
+			Instructions that do not produce values, live-outs
+			-	ISelDAGTerminatorOperation Operation
+			-	IRCondition Condition for JCC
+			-	IRIdentifier OUT target
+			-	IRIdentifier JCC true target
+			-	IRIdentifier JCC false target
+
+
+
+DAG Pattern Matching
+-	Tree patterns only (for sanity)
+	-	DAG patterns can be represented with duplication e.g.
+		the tree pattern
+		STORE
+			ADD
+				LOAD
+					ADD
+						LOCAL x
+						CONSTANT 4
+				LOCAL y
+			ADD
+				LOCAL x
+				CONSTANT 4
+		-> ADD [%x + 4], %y
+		-> ADD
+			MEMORY
+				LOCAL x
+				CONSTANT 4
+			LOCAL y
+		would match regardless of if (ADD (LOCAL x) (CONSTANT 4)) is two
+		separate ADD nodes or a common subexpression
+-	Might use s-expression syntax? just writing out that example makes repesentation feel easy
+-	Including references to other patterns within patterns is a necessity for DRY but how do we handle
+	the result of a sub-pattern?
+	-	we're doing DAG to DAG. Sub-patterns get names which are referenced in output?
+
+
+Example Format
+Syntax
+pattern = pattern_name: <expression> -> <expression>
+expression = ([identifier: string] [type: I8, I16, I32, ANY] <operation> <expression> [<expression> ...])
+
+mem_offs: (I32 ADD (I32 LOCAL x) (ANY CONSTANT y))
+-> (MEMORY (I32 LOCAL x) (I16 LOCAL NONE) (I32 CONSTANT y))
+
+add_mem_i16:
+	(STORE
+		(I16 ADD
+			(I16 LOAD (x mem_offs))
+			(I16 LOCAL y))
+		(x mem_offs)
+	)
+->	(ADD (x) (I16 LOCAL y))
+
+
+-	Identifiers in output refer to output from identified pattern
+	

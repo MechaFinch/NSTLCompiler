@@ -232,6 +232,7 @@ public class IRLinearInstruction implements IRSourceInfo {
     public IRLinearOperation getOp() { return this.op; }
     public IRIdentifier getDestinationID() { return this.destination; }
     public IRType getDestinationType() { return this.destType; }
+    public IRValue getCallTarget() { return this.sourceA; }
     public IRValue getLeftSourceValue() { return this.sourceA; }
     public IRValue getRightSourceValue() { return this.sourceB; }
     public IRCondition getSelectCondition() { return this.cond; }

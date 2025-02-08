@@ -98,7 +98,7 @@ public class ASTFunction {
      */
     public IRFunction getHeaderIR(IRModule sourceModule) throws CompilationException {
         // Make object
-        IRFunction func = new IRFunction(new IRIdentifier(header.getName(), IRIdentifierClass.GLOBAL), this.header.getReturnType().getIRType(), this.external, sourceModule, ASTUtil.getPosition(header.getSource()).getLine());
+        IRFunction func = new IRFunction(new IRIdentifier(header.getName(), IRIdentifierClass.GLOBAL), this.header.getReturnType().getIRType(), this.external, this.fuid, sourceModule, ASTUtil.getPosition(header.getSource()).getLine());
         
         // Add arguments
         List<String> argNames = this.header.getArgumentNames();

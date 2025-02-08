@@ -9,17 +9,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import notsotiny.asm.Assembler.AssemblyObject;
 import notsotiny.asm.components.Component;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
+import notsotiny.lang.compiler.codegen.dag.ISelDAGBuilder;
+import notsotiny.lang.compiler.codegen.dag.ISelDAGRenderer;
 import notsotiny.lang.ir.parts.IRBasicBlock;
+import notsotiny.lang.ir.parts.IRDefinition;
 import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRModule;
+import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.util.IRPrinter;
+import notsotiny.lang.ir.util.IRUtil;
+import notsotiny.lang.util.Pair;
 import notsotiny.lang.util.StreamPrinter;
 
 public class CodeGenV1 implements CodeGenerator {
@@ -52,8 +60,25 @@ public class CodeGenV1 implements CodeGenerator {
             // bb ID -> bb DAG
             Map<IRIdentifier, ISelDAG> bbDAGs = new HashMap<>();
             
-            for(IRBasicBlock irBB : function.getBasicBlockList()) {
+            // Get information about locals
+            Map<IRIdentifier, IRType> typeMap = IRUtil.getTypeMap(function);
+            Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSets = IRUtil.getLivenessSets(function, false);
+            Map<IRIdentifier, IRDefinition> definitionMap = IRUtil.getDefinitionMap(function);
+            
+            // Copy of the list as DAG construction adds BBs for conditional argument mappings
+            // New BBs have their DAGs built when created so they don't need to be included in the loop
+            List<IRBasicBlock> sourceBBs = new ArrayList<>(function.getBasicBlockList());
+            for(IRBasicBlock irBB : sourceBBs) {
+                //LOG.info(livenessSets.get(irBB.getID()) + "");
+                
                 // Build DAG
+                bbDAGs.putAll(ISelDAGBuilder.buildDAG(irBB, typeMap, livenessSets, definitionMap));
+            }
+            
+            if(this.showISelDAG) {
+                for(Entry<IRIdentifier, ISelDAG> entry : bbDAGs.entrySet()) {
+                    ISelDAGRenderer.renderDAG(entry.getValue(), function.getID() + " - " + entry.getKey());
+                }
             }
             
             // Tile ISelDAGs to select instructions

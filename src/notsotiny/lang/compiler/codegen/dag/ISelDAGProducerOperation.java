@@ -1,5 +1,7 @@
 package notsotiny.lang.compiler.codegen.dag;
 
+import notsotiny.lang.ir.parts.IRLinearOperation;
+
 /**
  * Operations which produce output
  */
@@ -40,5 +42,36 @@ public enum ISelDAGProducerOperation {
     IN,     // Live-in
     VALUE,  // Constant or Global (constant address)
     ;
+    
+    public static ISelDAGProducerOperation get(IRLinearOperation op) {
+        return switch(op) {
+            case TRUNC  -> TRUNC;
+            case SX     -> SX;
+            case ZX     -> ZX;
+            case LOAD   -> LOAD;
+            case SELECT -> SELECT;
+            case STACK  -> STACK;
+            case ADD    -> ADD;
+            case SUB    -> SUB;
+            case MULU   -> MULU;
+            case MULS   -> MULS;
+            case DIVU   -> DIVU;
+            case DIVS   -> DIVS;
+            case REMU   -> REMU;
+            case REMS   -> REMS;
+            case SHL    -> SHL;
+            case SHR    -> SHR;
+            case SAR    -> SAR;
+            case ROL    -> ROL;
+            case ROR    -> ROR;
+            case AND    -> AND;
+            case OR     -> OR;
+            case XOR    -> XOR;
+            case NOT    -> NOT;
+            case NEG    -> NEG;
+            case CALLR  -> CALLR;
+            default -> throw new IllegalArgumentException(op + " does not produce a value");
+        };
+    }
     
 }

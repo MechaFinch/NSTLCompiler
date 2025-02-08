@@ -47,9 +47,24 @@ public class ISelDAG {
         // Producer or terminator?
         if(node instanceof ISelDAGProducerNode prod && prod.getProducedValue() instanceof IRIdentifier pid) {
             this.idProducers.put(pid, prod);
-        } else {
-            this.terminators.add(node);
         }
+    }
+    
+    /**
+     * Mark a node as a terminator
+     * @param node
+     */
+    public void addTerminator(ISelDAGNode node) {
+        this.terminators.add(node);
+    }
+    
+    /**
+     * Get the producer of a local
+     * @param local
+     * @return
+     */
+    public ISelDAGProducerNode getProducer(IRIdentifier local) {
+        return this.idProducers.get(local);
     }
     
     public List<ISelDAGNode> getAllNodes() { return this.allNodes; }

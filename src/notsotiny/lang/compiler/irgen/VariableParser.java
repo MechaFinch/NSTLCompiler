@@ -436,10 +436,12 @@ public class VariableParser {
      * @throws CompilationException 
      */
     public static IRArgumentMapping parseFunctionArguments(ASTNode node, IRArgumentList irArgs, FunctionHeader astHeader, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
-        IRArgumentMapping mapping = new IRArgumentMapping();
+        IRArgumentMapping mapping;
         
         // Do we have a header
         if(irArgs != null) {
+            mapping = new IRArgumentMapping(irArgs.getNameList());
+            
             // Assumes if irArgs != null, astHeader != null. Current code only gets irArgs from source function
             boolean hasArguments = node.getSymbol().getID() != NstlgrammarLexer.ID.TERMINAL_KW_NONE;
             boolean needsArguments = irArgs.getArgumentCount() != 0;
@@ -490,6 +492,8 @@ public class VariableParser {
                 throw new CompilationException();
             }
         } else {
+            mapping = new IRArgumentMapping();
+            
             // No header. Type inference only
             if(node.getChildren().size() == 0) {
                 return mapping;

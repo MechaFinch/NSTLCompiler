@@ -51,9 +51,6 @@ public class SSAManager {
     // Records the IRType of a variable
     private Map<String, IRType> variableTypeMap;
     
-    // Function-unique ID counter
-    private int fuid;
-    
     /**
      * Create an empty SSA manager
      */
@@ -65,7 +62,6 @@ public class SSAManager {
         this.unmappedBBArguments = new HashMap<>();
         this.argumentSourceMap = new HashMap<>();
         this.variableTypeMap= new HashMap<>();
-        this.fuid = 0;
         
         // Write arguments in entry
         IRIdentifier entryID = new IRIdentifier("entry", IRIdentifierClass.BLOCK);
@@ -84,7 +80,7 @@ public class SSAManager {
      * @return
      */
     public IRIdentifier getUniqueLocalID(String name) {
-        int id = fuid++;
+        int id = this.targetFunction.getFUID();
         String uname;
         
         if(name.equals("")) {

@@ -9,6 +9,11 @@ end type
 type mat is matrix pointer;
 
 function main of none returns none begin
+	variable a is ptr gets 12;
+	variable b is ptr gets 13;
+	
+	u8 at b gets u8 at a;
+
 	variable y is u8 gets 12;
 	
 	until y = 0 do

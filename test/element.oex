@@ -1,2 +1,2 @@
-#entry element.main
+#entry element.test/asm
 out\element.obj

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * Describes a map from locals to arguments
@@ -12,21 +13,27 @@ import java.util.Map;
  */
 public class IRArgumentMapping {
     
-    // The contents of the list are mapped by index to the associated argument list
+    private List<IRIdentifier> ordering;
+    
     private Map<IRIdentifier, IRValue> args;
     
     /**
      * @param args
      */
-    public IRArgumentMapping(Map<IRIdentifier, IRValue> args) {
+    public IRArgumentMapping(Map<IRIdentifier, IRValue> args, List<IRIdentifier> ordering) {
+        this.ordering = ordering;
         this.args = args;
+    }
+    
+    public IRArgumentMapping(List<IRIdentifier> ordering) {
+        this(new HashMap<>(), ordering);
     }
     
     /**
      * Empty constructor
      */
     public IRArgumentMapping() {
-        this.args = new HashMap<>();
+        this(new HashMap<>(), new ArrayList<>());
     }
     
     /**
@@ -43,7 +50,20 @@ public class IRArgumentMapping {
      * @param arg
      */
     public void addMapping(IRIdentifier id, IRValue arg) {
+        if(!this.ordering.contains(id)) {
+            this.ordering.add(id);
+        }
+        
         this.args.put(id, arg);
+    }
+    
+    /**
+     * Remove an argument from the mapping
+     * @param id
+     */
+    public void removeArgument(IRIdentifier id) {
+        this.ordering.remove(id);
+        this.args.remove(id);
     }
     
     /**
@@ -51,9 +71,12 @@ public class IRArgumentMapping {
      * @param map
      */
     public void putAll(IRArgumentMapping map) {
-        this.args.putAll(map.getMap());
+        for(IRIdentifier id : map.getOrdering()) {
+            this.addMapping(id, map.getMapping(id));
+        }
     }
     
+    public List<IRIdentifier> getOrdering() { return this.ordering; }
     public Map<IRIdentifier, IRValue> getMap() { return this.args; }
     
 }

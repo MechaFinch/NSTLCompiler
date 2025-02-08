@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 import org.graphstream.graph.Graph;
+import org.graphstream.graph.Node;
 import org.graphstream.graph.implementations.SingleGraph;
 
 /**
@@ -41,7 +42,7 @@ public class ISelDAGRenderer {
         
         dagGraph.setAttribute("ui.stylesheet",
             "node{\n" +
-            "fill-color: #f0f0f0;\n" +
+            "fill-color: #404040;\n" +
             "size: 25px, 25px;\n" +
             "text-mode:normal;\n" +
             "text-background-mode: plain;\n" +
@@ -54,6 +55,7 @@ public class ISelDAGRenderer {
         Map<ISelDAGNode, String> inGraph = new HashMap<>();
         Unique ugen = new Unique();
         
+        // Fill graph
         for(ISelDAGNode terminator : dag.getTerminators()) {
             addToGraph(terminator, dagGraph, inGraph, ugen);
         }
@@ -68,26 +70,57 @@ public class ISelDAGRenderer {
         
         // Generate name & label
         String nodeName = "node" + ugen.get(),
-               nodeLabel = "";
+               nodeLabel = "",
+               nodeStyle = "";
         
         if(node instanceof ISelDAGProducerNode pn) {
             nodeLabel = pn.getProducedType() + " " + pn.getOperation() + " " + pn.getProducedValue();
+            nodeStyle = "shape: diamond;";
             
             // TODO: Additional information according to operation
+            switch(pn.getOperation()) {
+                case IN, VALUE:
+                    nodeStyle = "shape: circle;";
+                    break;
+                
+                default:
+            }
         } else if(node instanceof ISelDAGTerminatorNode tn) {
             nodeLabel = tn.getOperation() + "";
+            nodeStyle = "shape: box;";
             
             // TODO: Additional information according to operation
+            switch(tn.getOperation()) {
+                case JMP:
+                    nodeLabel += " " + tn.getTrueTargetBlock();
+                    break;
+                    
+                case JCC:
+                    nodeLabel += " " + tn.getCondition() + " " + tn.getTrueTargetBlock() + " " + tn.getFalseTargetBlock();
+                    break;
+                
+                case OUT:
+                    nodeLabel += " " + tn.getTarget();
+                    break;
+                
+                default:
+            }
         }
         
-        LOG.finest(nodeName + ": " + nodeLabel);
+        //LOG.finest(nodeName + ": " + nodeLabel);
+        
+        if(node == null) {
+            return;
+        }
         
         // Add node to graph
         inGraph.put(node, nodeName);
-        g.addNode(nodeName).setAttribute("ui.label", nodeLabel);
+        Node gNode = g.addNode(nodeName);
+        gNode.setAttribute("ui.label", nodeLabel);
+        gNode.setAttribute("ui.style", nodeStyle);
         
         // Process inputs
-        List<ISelDAGNode> inputs = node.getInputNodes();
+        List<ISelDAGProducerNode> inputs = node.getInputNodes();
         
         for(int i = 0; i < inputs.size(); i++) {
             // Get input
@@ -102,8 +135,27 @@ public class ISelDAGRenderer {
             
             // Create edge
             try {
-                g.addEdge(inputName + nodeName, inputName, nodeName).setAttribute("ui.label", edgeLabel);
-            } catch(Exception e) {}
+                g.addEdge(inputName + nodeName, inputName, nodeName, true).setAttribute("ui.label", edgeLabel);
+            } catch(Exception e) {
+                LOG.finest(e.getMessage());
+            }
+        }
+        
+        // Process chain
+        if(node.getChain() != null) {
+            ISelDAGNode chainNode = node.getChain();
+            
+            // Add if not present
+            addToGraph(chainNode, g, inGraph, ugen);
+            String chainName = inGraph.get(chainNode);
+            
+            // Create edge
+            try {
+                g.addEdge(chainName + nodeName + "chain", chainName, nodeName, true)
+                 .setAttribute("ui.style", "stroke-mode: dots;\nfill-mode: none;\nsize: 0px;\nstroke-width: 2px;");
+            } catch(Exception e) {
+                LOG.finest(e.getMessage());
+            }
         }
     }
     
