@@ -3,7 +3,7 @@ package notsotiny.lang.compiler.codegen.dag;
 /**
  * Operations which do not produce values
  */
-public enum ISelDAGTerminatorOperation {
+public enum ISelDAGTerminatorOperation implements ISelDAGOperation {
     // Linear operations 
     STORE,  // Store to memory
     CALLN,  // Function Call without Return
@@ -15,5 +15,9 @@ public enum ISelDAGTerminatorOperation {
     
     // DAG operations
     OUT,    // Assign to live-out
+    ENTRY,  // Chain end 
     ;
+    
+    // All operations are ordered, so no variable
+    
 }

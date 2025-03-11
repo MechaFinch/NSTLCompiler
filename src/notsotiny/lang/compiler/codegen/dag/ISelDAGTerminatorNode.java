@@ -16,7 +16,7 @@ public class ISelDAGTerminatorNode extends ISelDAGNode {
     private IRIdentifier trueTargetBlock,
                          falseTargetBlock;
     
-    private IRIdentifier target;
+    private IRIdentifier targetRegister;
     
     private IRCondition condition;
     
@@ -27,7 +27,7 @@ public class ISelDAGTerminatorNode extends ISelDAGNode {
         
         this.trueTargetBlock = null;
         this.falseTargetBlock = null;
-        this.target = null;
+        this.targetRegister = null;
         this.condition = null;
         
         this.dag.addNode(this);
@@ -83,13 +83,13 @@ public class ISelDAGTerminatorNode extends ISelDAGNode {
      * OUT constructor
      * @param dag
      * @param op
-     * @param target
+     * @param targetRegister
      * @param value
      */
-    public ISelDAGTerminatorNode(ISelDAG dag, ISelDAGTerminatorOperation op, IRIdentifier target, ISelDAGProducerNode value) {
+    public ISelDAGTerminatorNode(ISelDAG dag, ISelDAGTerminatorOperation op, IRIdentifier targetRegister, ISelDAGProducerNode value) {
         this(dag, op);
         
-        this.target = target;
+        this.targetRegister = targetRegister;
         
         value.addConsumer(this);
         
@@ -134,12 +134,24 @@ public class ISelDAGTerminatorNode extends ISelDAGNode {
         this.inputNodes.add(value);
     }
     
+    /**
+     * ENTRY constructor
+     * @param dag
+     * @param chain
+     */
+    public ISelDAGTerminatorNode(ISelDAG dag, ISelDAGNode chain) {
+        this(dag, ISelDAGTerminatorOperation.ENTRY);
+        
+        chain.setChain(this);
+    }
+    
     public ISelDAGTerminatorOperation getOperation() { return this.op; }
     public IRIdentifier getTrueTargetBlock() { return this.trueTargetBlock; }
     public IRIdentifier getFalseTargetBlock() { return this.falseTargetBlock; }
-    public IRIdentifier getTarget() { return this.target; }
-    public IRIdentifier getCallTarget() { return this.target; }
-    public IRIdentifier getTargetRegister() { return this.target; }
+    public IRIdentifier getTargetRegister() { return this.targetRegister; }
     public IRCondition getCondition() { return this.condition; }
+    
+    @Override
+    public ISelDAGOperation getOp() { return this.op; }
     
 }

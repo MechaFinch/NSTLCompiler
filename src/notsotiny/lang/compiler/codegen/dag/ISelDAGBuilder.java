@@ -67,27 +67,23 @@ public class ISelDAGBuilder {
         
         // Traverse backwards. Start with branch instruction
         IRBranchInstruction branch = bb.getExitInstruction();
+        ISelDAGTerminatorNode branchNode;
         
         switch(branch.getOp()) {
             case JCC:
-                // If a target has an argument mapping, direct it to a new DAG/bb which contains the mapping OUT nodes
-                // If computing the value for a mapping involves no side effects, it may be beneficial to move it to
-                // the new DAG
-                if(branch.getTrueArgumentMapping().getMap().size() > 0) {
-                    assignInNewDAG(branch, true, bb, dag, dagMap, typeMap, livenessSets, definitionMap);
-                }
-                
-                if(branch.getFalseArgumentMapping().getMap().size() > 0) {
-                    assignInNewDAG(branch, false, bb, dag, dagMap, typeMap, livenessSets, definitionMap);
+                // Conditional argument mappings are moved to their own basic blocks as a pretransformation.
+                // Verify that this is the case to ensure things aren't silently missed
+                if((branch.getTrueArgumentMapping().getMap().size() > 0) || (branch.getFalseArgumentMapping().getMap().size() > 0)) {
+                    throw new IllegalArgumentException("Found conditional argument mappping: " + branch);
                 }
                 
                 ISelDAGProducerNode compLeftNode = buildProducer(branch.getCompareLeft(), bb, dag, typeMap, livenessSets, definitionMap);
                 ISelDAGProducerNode compRightNode = buildProducer(branch.getCompareRight(), bb, dag, typeMap, livenessSets, definitionMap);
-                new ISelDAGTerminatorNode(dag, ISelDAGTerminatorOperation.JCC, branch.getTrueTargetBlock(), branch.getFalseTargetBlock(), compLeftNode, compRightNode, branch.getCondition());
+                branchNode = new ISelDAGTerminatorNode(dag, ISelDAGTerminatorOperation.JCC, branch.getTrueTargetBlock(), branch.getFalseTargetBlock(), compLeftNode, compRightNode, branch.getCondition());
                 break;
                 
             case JMP:
-                new ISelDAGTerminatorNode(dag, ISelDAGTerminatorOperation.JMP, branch.getTrueTargetBlock());
+                branchNode = new ISelDAGTerminatorNode(dag, ISelDAGTerminatorOperation.JMP, branch.getTrueTargetBlock());
                 
                 // OUT nodes for target arg mapping
                 Map<IRIdentifier, ISelDAGProducerNode> mapNodes = buildArgumentMapping(branch.getTrueArgumentMapping(), bb, dag, typeMap, livenessSets, definitionMap);
@@ -99,14 +95,17 @@ public class ISelDAGBuilder {
                 
             case RET:
                 ISelDAGProducerNode valNode = buildProducer(branch.getReturnValue(), bb, dag, typeMap, livenessSets, definitionMap);
-                new ISelDAGTerminatorNode(dag, ISelDAGTerminatorOperation.RET, valNode);
+                branchNode = new ISelDAGTerminatorNode(dag, ISelDAGTerminatorOperation.RET, valNode);
                 break;
+            
+            default:
+                throw new IllegalArgumentException("Unexpected branch operation: " + branch.getOp());
         }
         
         Set<IRIdentifier> liveOut = livenessSets.get(bb.getID()).b;
         
         // Traverse through LIs
-        ISelDAGNode chainNode = null;
+        ISelDAGNode chainNode = branchNode;
         
         for(int i = bb.getInstructions().size() - 1; i >= 0; i--) {
             IRLinearInstruction li = bb.getInstructions().get(i);
@@ -120,11 +119,12 @@ public class ISelDAGBuilder {
                     ISelDAGProducerNode node = buildProducer(li.getDestinationID(), bb, dag, typeMap, livenessSets, definitionMap);
                     
                     // Record chain if side effects involved
-                    if(sideEffects) {
-                        if(chainNode != null) {
-                            chainNode.setChain(node);
-                        }
-                        
+                    if(node.getOp() == ISelDAGProducerOperation.CALLR) {
+                        // Calls produce a chain of PUSHs
+                        chainNode.setChain(node);
+                        chainNode = node.getInputNodes().get(node.getInputNodes().size() - 1);
+                    } else if(sideEffects) {
+                        chainNode.setChain(node);
                         chainNode = node;
                     }
                     
@@ -150,16 +150,7 @@ public class ISelDAGBuilder {
                     
                     case CALLN:
                         // call
-                        IRArgumentMapping mapping = li.getCallArgumentMapping();
-                        Map<IRIdentifier, ISelDAGProducerNode> argMap = buildArgumentMapping(mapping, bb, dag, typeMap, livenessSets, definitionMap);
-                        List<ISelDAGProducerNode> argList = new ArrayList<>();
-                        argList.add(buildProducer(li.getCallTarget(), bb, dag, typeMap, livenessSets, definitionMap));
-                        
-                        // Get target function's argument list to determine ordering
-                        for(IRIdentifier argName : mapping.getOrdering()) {
-                            argList.add(argMap.get(argName));
-                        }
-                        
+                        List<ISelDAGProducerNode> argList = buildCallArguments(li, bb, dag, typeMap, livenessSets, definitionMap);
                         node = new ISelDAGTerminatorNode(dag, ISelDAGTerminatorOperation.CALLN, argList);
                         break;
                     
@@ -168,78 +159,21 @@ public class ISelDAGBuilder {
                 }
                 
                 // Record chain
-                if(chainNode != null) {
+                if(node.getOp() == ISelDAGTerminatorOperation.CALLN) {
+                    // Calls produce a chain of PUSHs
+                    chainNode.setChain(node);
+                    chainNode = node.getInputNodes().get(node.getInputNodes().size() - 1);
+                } else {
                     chainNode.setChain(node);
                     chainNode = node;
                 }
             }
         }
         
+        // Add chain end
+        new ISelDAGTerminatorNode(dag, chainNode);
+        
         return dagMap;
-    }
-    
-    /**
-     * Creates a new IRBasicBlock and corresponding ISelDAG which performs the assignments of the specified branch target.
-     * The IR is modified to redirect through the new basic block. 
-     * @param branch
-     * @param isTrue If true, applies to the true target. If false, applies to the false target
-     * @param bb
-     * @param mainDAG
-     * @param dagMap
-     * @return The ID of the new basic block
-     */
-    private static IRIdentifier assignInNewDAG(IRBranchInstruction branch, boolean isTrue, IRBasicBlock bb, ISelDAG mainDAG, Map<IRIdentifier, ISelDAG> dagMap, Map<IRIdentifier, IRType> typeMap, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSets, Map<IRIdentifier, IRDefinition> definitionMap) {
-        IRIdentifier target = isTrue ? branch.getTrueTargetBlock() : branch.getFalseTargetBlock();
-        IRArgumentMapping mapping = isTrue ? branch.getTrueArgumentMapping() : branch.getFalseArgumentMapping();
-        
-        // Create new BB
-        IRIdentifier newID = new IRIdentifier(bb.getID().getName() + "%" + (isTrue ? "true" : "false") + "%" + bb.getFunction().getFUID(), IRIdentifierClass.BLOCK);
-        IRBasicBlock newBB = new IRBasicBlock(newID, bb.getModule(), bb.getFunction(), branch.getSourceLineNumber());
-        
-        bb.getFunction().addBasicBlock(newBB);
-        
-        // Move target to new BB IR argument mapping
-        newBB.setExitInstruction(new IRBranchInstruction(IRBranchOperation.JMP, target, mapping, newBB, branch.getSourceLineNumber()));
-        
-        // Retarget branch
-        if(isTrue) {
-            branch.setTrueTargetBlock(newID);
-            branch.setTrueArgumentMapping(new IRArgumentMapping());
-        } else {
-            branch.setFalseTargetBlock(newID);
-            branch.setFalseArgumentMapping(new IRArgumentMapping());
-        }
-        
-        // Create new DAG
-        ISelDAG newDAG = new ISelDAG(newBB);
-        dagMap.put(newID, newDAG);
-        
-        // Fill new DAG
-        // Exit instruction
-        new ISelDAGTerminatorNode(newDAG, ISelDAGTerminatorOperation.JMP, target);
-        
-        // Create OUT nodes in each DAG
-        // Doing manually instead of buildArgumentMapping to avoid constructing maps
-        for(Entry<IRIdentifier, IRValue> entry : mapping.getMap().entrySet()) {
-            // Argument assignment OUT nodes
-            ISelDAGProducerNode prod;
-            
-            // Each producer is either VALUE or IN
-            if(entry.getValue() instanceof IRConstant c) {
-                prod = new ISelDAGProducerNode(newDAG, c, c.getType(), ISelDAGProducerOperation.VALUE); 
-            } else {
-                IRIdentifier id = (IRIdentifier) entry.getValue();
-                prod = new ISelDAGProducerNode(newDAG, id, typeMap.get(id), ISelDAGProducerOperation.IN);
-                
-                // Live-out in main DAG
-                new ISelDAGTerminatorNode(mainDAG, ISelDAGTerminatorOperation.OUT, id, buildProducer(id, bb, mainDAG, typeMap, livenessSets, definitionMap));
-            }
-            
-            // Live-out in new DAG
-            new ISelDAGTerminatorNode(newDAG, ISelDAGTerminatorOperation.OUT, entry.getKey(), prod);
-        }
-        
-        return newID;
     }
     
     /**
@@ -263,6 +197,53 @@ public class ISelDAGBuilder {
     }
     
     /**
+     * Constructs the DAG nodes for the arguments of a CALLR or CALLN instruction.
+     * @param li
+     * @param bb
+     * @param dag
+     * @param typeMap
+     * @param livenessSets
+     * @param definitionMap
+     * @return
+     */
+    private static List<ISelDAGProducerNode> buildCallArguments(IRLinearInstruction li, IRBasicBlock bb, ISelDAG dag, Map<IRIdentifier, IRType> typeMap, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSets, Map<IRIdentifier, IRDefinition> definitionMap) {
+        Map<IRIdentifier, ISelDAGProducerNode> argMap = buildArgumentMapping(li.getCallArgumentMapping(), bb, dag, typeMap, livenessSets, definitionMap);
+        List<ISelDAGProducerNode> argList = new ArrayList<>();
+        argList.add(buildProducer(li.getCallTarget(), bb, dag, typeMap, livenessSets, definitionMap));
+        
+        /*
+         * Calls are built so that arguments are given PUSH nodes rather than being direct inputs to the CALL to allow argument computation
+         * to be interlaced with argument pushes, reducing register pressure. Chains ensure that the pushes happen in the correct order.
+         * 
+         * The original idea saw sets of PUSHs have their own chains independent of the main side-effector chain, but this introduces a
+         * scheduling problem about how to represent the fact that PUSHs from separate CALLs can be interlaced but only if all PUSHs from
+         * one call happen between the same pair of PUSHs from the other. 
+         * Including PUSHs in the main side-effector chain reduces the amount of possible interlacing, but causes no such representation
+         * problem.
+         */
+        
+        // Connect arguments via PUSH nodes
+        ISelDAGProducerNode previousPush = null;
+        
+        // Get target function's argument list to determine ordering
+        for(IRIdentifier argName : li.getCallArgumentMapping().getOrdering()) {
+            // arg -> PUSH -> CALL
+            ISelDAGProducerNode argNode = argMap.get(argName);
+            ISelDAGProducerNode pushNode = new ISelDAGProducerNode(dag, new IRIdentifier("push%" + bb.getFunction().getFUID(), IRIdentifierClass.LOCAL), argNode.getProducedType(), ISelDAGProducerOperation.PUSH, argNode);
+            
+            // chain PUSHs for correct ordering
+            if(previousPush != null) {
+                previousPush.setChain(pushNode);
+            }
+                        
+            argList.add(pushNode);
+            previousPush = pushNode;
+        }
+        
+        return argList;
+    }
+    
+    /**
      * Construct the DAG nodes required to produce the given value
      * @param value
      * @param bb
@@ -276,7 +257,10 @@ public class ISelDAGBuilder {
         // What are we dealing with
         if(value instanceof IRConstant c) {
             // Currently available constant
-            return new ISelDAGProducerNode(dag, c, c.getType(), ISelDAGProducerOperation.VALUE);
+            IRIdentifier constID = new IRIdentifier("const%" + bb.getFunction().getFUID(), IRIdentifierClass.LOCAL);
+            typeMap.put(constID, c.getType());
+            
+            return new ISelDAGProducerNode(dag, constID, c, c.getType(), ISelDAGProducerOperation.VALUE);
         }
         
         // Must be ID
@@ -284,7 +268,10 @@ public class ISelDAGBuilder {
         
         if(id.getIDClass() != IRIdentifierClass.LOCAL) { 
             // Resolves to some address
-            return new ISelDAGProducerNode(dag, id, IRType.I32, ISelDAGProducerOperation.VALUE);
+            IRIdentifier localID = new IRIdentifier(id.getName() + "%" + bb.getFunction().getFUID(), IRIdentifierClass.LOCAL);
+            typeMap.put(localID, IRType.I32);
+            
+            return new ISelDAGProducerNode(dag, localID, id, IRType.I32, ISelDAGProducerOperation.VALUE);
         }
         
         // Local. Have we produced it yet?
@@ -299,6 +286,12 @@ public class ISelDAGBuilder {
         
         // No. Make it.
         IRType type = typeMap.get(id);
+        
+        // Function arguments and live-ins have their own nodes
+        if(bb.getFunction().getArguments().getNameList().contains(id)) {
+            return new ISelDAGProducerNode(dag, id, type, ISelDAGProducerOperation.ARG);
+        }
+        
         Set<IRIdentifier> liveIn = livenessSets.get(bb.getID()).a;
         
         if(liveIn.contains(id)) {
@@ -312,42 +305,30 @@ public class ISelDAGBuilder {
         IRLinearInstruction inst = definitionMap.get(id).getLinearInstruction();
         ISelDAGProducerOperation op = ISelDAGProducerOperation.get(inst.getOp());
         
-        switch(op) {
-            case TRUNC, SX, ZX, LOAD, STACK, NOT, NEG:
+        if(op == ISelDAGProducerOperation.CALLR) {
+            // call
+            List<ISelDAGProducerNode> argList = buildCallArguments(inst, bb, dag, typeMap, livenessSets, definitionMap);
+            return new ISelDAGProducerNode(dag, id, type, op, argList);
+        } else if(op == ISelDAGProducerOperation.SELECT) {
+            // select
+            ISelDAGProducerNode compLeftNode = buildProducer(inst.getLeftComparisonValue(), bb, dag, typeMap, livenessSets, definitionMap);
+            ISelDAGProducerNode compRightNode = buildProducer(inst.getRightComparisonValue(), bb, dag, typeMap, livenessSets, definitionMap);
+            ISelDAGProducerNode valLeftNode = buildProducer(inst.getLeftSourceValue(), bb, dag, typeMap, livenessSets, definitionMap);
+            ISelDAGProducerNode valRightNode = buildProducer(inst.getRightSourceValue(), bb, dag, typeMap, livenessSets, definitionMap);
+            
+            return new ISelDAGProducerNode(dag, id, type, op, compLeftNode, compRightNode, valLeftNode, valRightNode, inst.getSelectCondition());
+        } else switch(op.getArgCount()) {
+            case 1:
                 // 1-argument
                 ISelDAGProducerNode argNode = buildProducer(inst.getLeftSourceValue(), bb, dag, typeMap, livenessSets, definitionMap);
                 return new ISelDAGProducerNode(dag, id, type, op, argNode);
-            
-            case ADD, SUB, MULU, MULS, DIVU, DIVS, REMU, REMS,
-                 SHL, SHR, SAR, ROL, ROR, AND, OR, XOR:
+                
+            case 2:
                 // two-argument
                 ISelDAGProducerNode leftNode = buildProducer(inst.getLeftSourceValue(), bb, dag, typeMap, livenessSets, definitionMap);
                 ISelDAGProducerNode rightNode = buildProducer(inst.getRightSourceValue(), bb, dag, typeMap, livenessSets, definitionMap);
                 
                 return new ISelDAGProducerNode(dag, id, type, op, leftNode, rightNode);
-                
-            case SELECT:
-                // select
-                ISelDAGProducerNode compLeftNode = buildProducer(inst.getLeftComparisonValue(), bb, dag, typeMap, livenessSets, definitionMap);
-                ISelDAGProducerNode compRightNode = buildProducer(inst.getRightComparisonValue(), bb, dag, typeMap, livenessSets, definitionMap);
-                ISelDAGProducerNode valLeftNode = buildProducer(inst.getLeftSourceValue(), bb, dag, typeMap, livenessSets, definitionMap);
-                ISelDAGProducerNode valRightNode = buildProducer(inst.getRightSourceValue(), bb, dag, typeMap, livenessSets, definitionMap);
-                
-                return new ISelDAGProducerNode(dag, id, type, op, compLeftNode, compRightNode, valLeftNode, valRightNode, inst.getSelectCondition());
-            
-            case CALLR:
-                // call
-                IRArgumentMapping mapping = inst.getCallArgumentMapping();
-                Map<IRIdentifier, ISelDAGProducerNode> argMap = buildArgumentMapping(mapping, bb, dag, typeMap, livenessSets, definitionMap);
-                List<ISelDAGProducerNode> argList = new ArrayList<>();
-                argList.add(buildProducer(inst.getCallTarget(), bb, dag, typeMap, livenessSets, definitionMap));
-                
-                // Get target function's argument list to determine ordering
-                for(IRIdentifier argName : mapping.getOrdering()) {
-                    argList.add(argMap.get(argName));
-                }
-                
-                return new ISelDAGProducerNode(dag, id, type, op, argList);
             
             default:
                 LOG.warning("Unimplemented: " + inst);

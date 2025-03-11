@@ -1,0 +1,4 @@
+
+# Constant Patterns
+# Patterns using constants as operands
+

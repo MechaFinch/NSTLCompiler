@@ -32,7 +32,9 @@ public class TypeParser {
      * @throws CompilationException 
      */
     public static NSTLType parseType(ASTNode node, ASTModule module, ASTContextTree context) throws CompilationException {
-        LOG.finest("Parsing type: " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing type: " + ASTUtil.detailed(node));
+        }
         
         if(node.getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_NONE) {
             return RawType.NONE;

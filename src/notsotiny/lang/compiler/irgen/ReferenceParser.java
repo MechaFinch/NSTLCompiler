@@ -1,6 +1,7 @@
 package notsotiny.lang.compiler.irgen;
 
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
@@ -57,7 +58,9 @@ public class ReferenceParser {
      * @throws CompilationException 
      */
     public static Pair<IRValue, NSTLType> parseReferenceAsValue(ASTNode node, String destName, NSTLType expectedType, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing value of reference " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing value of reference " + ASTUtil.detailed(node));
+        }
         
         // If the dest name is empty, generate one
         if(destName.equals("")) {
@@ -193,7 +196,9 @@ public class ReferenceParser {
                         if(tv instanceof StringType) {
                             return new Pair<>(new IRIdentifier(func.getID().getName() + "." + acc.getUniqueName(), IRIdentifierClass.GLOBAL), new PointerType(RawType.U8));
                         } else {
-                            ALOG.finest(subrefNode, "Cannot point to non-string local constants: TO " + ASTUtil.detailed(subrefNode));
+                            if(LOG.isLoggable(Level.FINEST)) {
+                                ALOG.finest(subrefNode, "Cannot point to non-string local constants: TO " + ASTUtil.detailed(subrefNode));
+                            }
                             throw new CompilationException();
                         }
                     } else if(sourceModule.getFunctionMap().containsKey(targetName)) {
@@ -408,7 +413,9 @@ public class ReferenceParser {
      * @throws CompilationException 
      */
     public static Pair<IRValue, NSTLType> parseReferenceAsPointer(ASTNode node, String destName, NSTLType expectedType, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing pointer of reference " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing pointer of reference " + ASTUtil.detailed(node));
+        }
         
         // If the dest name is empty, generate one
         if(destName.equals("")) {

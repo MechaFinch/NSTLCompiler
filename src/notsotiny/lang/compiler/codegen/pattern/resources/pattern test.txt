@@ -1,0 +1,126 @@
+
+# pattern experimentation
+
+# identifier postfixes
+# An identifier can be followed by another identifier to reference some part of the previous
+# If the identifier is a local, <high> and <low> can be postfixed to reference the high and low
+# halves respectively
+# If the identifier is a subpattern reference, identifiers within the subpttern can be postfixed,
+# including <out> and sub-subpatterns
+
+
+
+# Matches BIO memory access
+mem_index:
+	(I32 ZX (I16 LOCAL <x>))	-> "<x>" |
+	(I32 MULU
+		(I32 ZX (I16 LOCAL <x>))
+		(ANY CONSTANT 2))		-> "<x>*2" |
+	(I32 SHL
+		(I32 ZX (I16 LOCAL <x>))
+		(ANY CONSTANT 1))		-> "<x>*2" |
+	(I32 MULU
+		(I32 ZX (I16 LOCAL <x>))
+		(ANY CONSTANT 4))		-> "<x>*4" |
+	(I32 SHL
+		(I32 ZX (I16 LOCAL <x>))
+		(ANY CONSTANT 2))		-> "<x>*4";
+
+mem_bio:
+	(I32 ADD (I32 LOCAL <x>) (ANY CONSTANT <y>))		-> "[<x> + <y>]" |
+	(<x> mem_index)										-> "[<x>]" |
+	(I32 ADD (<x> mem_index) (ANY CONSTANT <y>))		-> "[<x> + <y>]" |
+	(I32 ADD
+		(I32 ADD (<x> mem_index) (ANY CONSTANT <y>))
+		(I32 LOCAL <z>))								-> "[<z> + <x> + <y>]" |
+	(I32 ADD
+		(I32 ADD (I32 LOCAL <x>) (ANY CONSTANT <y>))
+		(<z> mem_index))								-> "[<x> + <z> + <y>]" |
+	(I32 ADD
+		(I32 ADD (I32 LOCAL <x>) (<y> mem_index))
+		(ANY CONSTANT <z>))								-> "[<x> + <y> + <z>]";
+
+mem:
+	(I32 LOCAL <x>)	-> "[<x>]" |
+	(<x> mem_bio)	-> "<x>";
+
+
+
+# Matches zero-extension
+zx_i16:
+	(I16 ZX (I8 LOCAL <x>))			-> "MOVZ <out>, <x>" |
+	(I16 ZX (I8 LOAD (<x> mem)))	-> "MOVZ <out>, <x>";
+
+zx_i32:
+	(I32 ZX (I16 LOCAL <x>))		-> "MOVZ <out>, <x>" |
+	(I32 ZX (I16 LOAD (<x> mem)))	-> "MOVZ <out>, <x>" |
+	(I32 ZX (I8 LOCAL <x>))			-> "MOVZ <out><low>, <x>; MOVZ <out>, <out><low>" |
+	(I32 ZX (I8 LOAD (<x> mem)))	-> "MOVZ <out><low>, <x>; MOVZ <out>, <out><low>" |
+
+
+
+# Matches sign-extension
+sx_i16:
+	(I16 SX (I8 LOCAL <x>))			-> "MOVS <out>, <x>" |
+	(I16 SX (I8 LOAD (<x> mem)))	-> "MOVS <out>, <x>";
+
+sx_i32:
+	(I32 SX (I16 LOCAL <x>))		-> "MOVS <out>, <x>" |
+	(I32 SX (I16 LOAD (<x> mem)))	-> "MOVS <out>, <x>" |
+	(I32 SX (I8 LOCAL <x>))			-> "MOVS <out><low>, <x>; MOVS <out>, <out><low>" |
+	(I32 SX (I8 LOAD (<x> mem)))	-> "MOVS <out><low>, <x>; MOVS <out>, <out><low>" |
+	
+
+
+
+# Matches additions
+add_i8:
+	(I8 ADD (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I8 ADD (I8 LOCAL <x>) (I8 CONSTANT <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(STORE
+		(I8 ADD
+			(I8 LOAD (<x> mem))
+			(I8 LOCAL <y>))
+		(<x>))									-> "ADD <x>, <y>";
+
+add_i16:
+	(I16 ADD (I16 LOCAL <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I16 ADD (I16 LOCAL <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I16 ADD (I16 LOCAL <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(STORE
+		(I16 ADD
+			(I16 LOAD (<x> mem))
+			(I16 LOCAL <y>))
+		(<x>))										-> "ADD <x>, <y>";
+
+add_i32:
+	(I32 ADD (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "
+		MOV <out>, <x>; 
+		ADD <low><out>, <low><y>;
+		ADC <high><out>, <high><y>" |
+	(<x> mem_bio)								-> "LEA <out>, <x>";
+
+
+
+# Matches subtractions
+sub_i8:
+	(I8 SUB (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I8 SUB (I8 LOCAL <x>) (I8 CONSTANT <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I8 SUB (I8 CONSTANT <x>) (I8 LOCAL <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(STORE
+		(I8 SUB
+			(I8 LOAD (<x> mem))
+			(I8 LOCAL <y>))
+		(<x>))									-> "SUB <x>, <y>";
+
+sub_i16:
+	(I16 SUB (I16 LOCAL <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I16 LOCAL <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I16 CONSTANT <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I16 LOCAL <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I8 CONSTANT <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(STORE
+		(I16 SUB
+			(I16 LOAD (<x> mem))
+			(I16 LOCAL <y>))
+		(<x>))										-> "SUB <x>, <y>";

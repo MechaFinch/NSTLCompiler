@@ -58,7 +58,9 @@ public class VariableParser {
      * @throws CompilationException 
      */
     public static Pair<IRValue, NSTLType> parseIntegerExpression(ASTNode node, String destName, NSTLType expectedType, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing integer expression " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing integer expression " + ASTUtil.detailed(node));
+        }
         
         // If the dest name is empty, generate one
         if(destName.equals("")) {
@@ -141,7 +143,9 @@ public class VariableParser {
      * @throws CompilationException 
      */
     private static Pair<IRValue, NSTLType> parseIntegerBinary(ASTNode node, String destName, NSTLType expectedType, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing integer binary " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing integer binary " + ASTUtil.detailed(node));
+        }
         
         List<ASTNode> children = node.getChildren();
         ASTNode leftNode = children.get(0);
@@ -157,6 +161,10 @@ public class VariableParser {
         
         if(expectedType.equals(RawType.NONE)) {
             expectedType = leftType;
+            
+            if(expectedType.equals(RawType.NONE)) {
+                expectedType = rightType;
+            }
         }
         
         ASTUtil.ensureTypesMatch(expectedType, leftType, false, leftNode, ALOG, "from integer expression");
@@ -239,7 +247,9 @@ public class VariableParser {
      * @throws CompilationException 
      */
     private static Pair<IRValue, NSTLType> parseIntegerUnary(ASTNode node, String destName, NSTLType expectedType, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing integer unary " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing integer unary " + ASTUtil.detailed(node));
+        }
         
         ASTNode valNode = node.getChildren().get(0);
         
@@ -272,7 +282,9 @@ public class VariableParser {
      * @throws CompilationException 
      */
     private static Pair<IRValue, NSTLType> parseIntegerCast(ASTNode node, String destName, NSTLType expectedType, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing integer cast " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing integer cast " + ASTUtil.detailed(node));
+        }
         
         /*
          * variable_expr type
@@ -342,7 +354,9 @@ public class VariableParser {
      * @throws CompilationException 
      */
     private static Pair<IRValue, NSTLType> parseIntegerValue(ASTNode node, String destName, NSTLType expectedType, IRBasicBlock irBB, SSAManager manager, ASTContextTree context, ASTModule sourceModule, IRFunction func, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing integer value " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing integer value " + ASTUtil.detailed(node));
+        }
         
         /*
          * constant_value ->

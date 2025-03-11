@@ -446,7 +446,7 @@ public class SAPCompiler implements NSTCompiler {
                         ResolvableMemory ptrMem = ptrVal.getMemory();
                         
                         if(ptrMem.getOffset().isResolved()) {
-                            ptrVal = new ResolvableLocationDescriptor(LocationType.MEMORY, ptrVal.getSize(),
+                            ptrVal = new ResolvableLocationDescriptor(LocationType.MEMORY, src.getSize(),
                                      new ResolvableMemory(ptrMem.getBase(), ptrMem.getIndex(), ptrMem.getScale(), new ResolvableConstant(ptrMem.getOffset().value() + src.getMemory().getOffset().value())));
                             
                             allInstructions.set(i - 1, new Instruction(
@@ -459,6 +459,7 @@ public class SAPCompiler implements NSTCompiler {
                             allInstructions.set(i, nullComponent);
                             LOG.finest("Eliminated LEA as address");
                         } else if(src.getMemory().getOffset().value() == 0) {
+                            ptrVal.setSize(src.getSize(), false);
                             allInstructions.set(i - 1, new Instruction(
                                 i3.getOpcode(),
                                 dst,

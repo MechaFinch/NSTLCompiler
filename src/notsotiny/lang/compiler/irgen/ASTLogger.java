@@ -32,8 +32,16 @@ public class ASTLogger {
         return "(" + pos.getLine() + ":" + pos.getColumn() + "): ";
     }
     
+    /**
+     * General log
+     * @param level
+     * @param node
+     * @param message
+     */
     public void log(Level level, ASTNode node, String message) {
-        this.log.log(level, getSourceInfoString(node) + message);
+        if(this.log.isLoggable(level)) {
+            this.log.log(level, getSourceInfoString(node) + message);
+        }
     }
     
     /**

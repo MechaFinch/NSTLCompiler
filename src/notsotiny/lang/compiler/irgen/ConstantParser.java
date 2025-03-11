@@ -118,7 +118,9 @@ public class ConstantParser {
      * @throws CompilationException
      */
     private static TypedValue parseConstantArray(ASTNode node, ASTModule module, ASTContextTree context, NSTLType expectedType, Level nonConstantSeverity) throws CompilationException {
-        LOG.finest("Parsing constant array " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing constant array " + ASTUtil.detailed(node));
+        }
         
         ArrayType eat;
         if(expectedType instanceof ArrayType at) {
@@ -161,7 +163,9 @@ public class ConstantParser {
      * @throws CompilationException 
      */
     private static TypedValue parseConstantStructure(ASTNode node, ASTModule module, ASTContextTree context, Level nonConstantSeverity) throws CompilationException {
-        LOG.finest("Parsing constant structure " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing constant structure " + ASTUtil.detailed(node));
+        }
         
         /*
          * constant_structure -> NAME KW_OF! constant_assignment_list KW_END! KW_STRUCTURE!;
@@ -241,7 +245,9 @@ public class ConstantParser {
      * @return
      */
     private static TypedValue parseConstantValue(ASTNode node, ASTModule module, ASTContextTree context, NSTLType expectedType, boolean requireNotNone, Level nonConstantSeverity) throws CompilationException {
-        LOG.finest("Parsing constant value " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing constant value " + ASTUtil.detailed(node));
+        }
         
         /*
          * constant_value ->
@@ -374,7 +380,9 @@ public class ConstantParser {
      * @throws CompilationException 
      */
     private static TypedValue parseUnaryExpression(ASTNode node, ASTModule module, ASTContextTree context, NSTLType expectedType, boolean requireNotNone, Level nonConstantSeverity) throws CompilationException {
-        LOG.finest("Parsing constant unary expression " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing constant unary expression " + ASTUtil.detailed(node));
+        }
         
         /*
          * constant_unary ->
@@ -422,7 +430,9 @@ public class ConstantParser {
      * @throws CompilationException 
      */
     private static TypedValue parseComparisonExpression(ASTNode node, ASTModule module, ASTContextTree context, NSTLType exepctedType, boolean requireNotNone, Level nonConstantSeverity) throws CompilationException {
-        LOG.finest("Parsing constant comparison expression " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing constant comparison expression " + ASTUtil.detailed(node));
+        }
         
         /*
          * constant_comparison ->
@@ -496,7 +506,9 @@ public class ConstantParser {
      * @throws CompilationException 
      */
     private static TypedValue parseCast(ASTNode node, ASTModule module, ASTContextTree context, NSTLType exptectedType, boolean requireNotNone, Level nonConstantSeverity) throws CompilationException {
-        LOG.finest("Parsing constant cast " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing constant cast " + ASTUtil.detailed(node));
+        }
         
         /*
          * constant_cast ->
@@ -528,7 +540,9 @@ public class ConstantParser {
      * @throws CompilationException 
      */
     private static TypedValue parseBinaryExpression(ASTNode node, ASTModule module, ASTContextTree context, NSTLType expectedType, boolean requireNotNone, Level nonConstantSeverity) throws CompilationException {
-        LOG.finest("Parsing constant binary expression " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing constant binary expression " + ASTUtil.detailed(node));
+        }
         
         /*
          * KW_AND

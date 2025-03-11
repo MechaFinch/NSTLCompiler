@@ -86,18 +86,19 @@ Syntax
 pattern = pattern_name: <expression> -> <expression>
 expression = ([identifier: string] [type: I8, I16, I32, ANY] <operation> <expression> [<expression> ...])
 
-mem_offs: (I32 ADD (I32 LOCAL x) (ANY CONSTANT y))
--> (MEMORY (I32 LOCAL x) (I16 LOCAL NONE) (I32 CONSTANT y))
+mem_offs: (I32 ADD (I32 LOCAL <x>) (ANY CONSTANT <y>)) -> "[I32:<x> + <y>]"
 
 add_mem_i16:
 	(STORE
 		(I16 ADD
-			(I16 LOAD (x mem_offs))
-			(I16 LOCAL y))
-		(x mem_offs)
+			(I16 LOAD (<x> mem_offs))
+			(I16 LOCAL <y>))
+		(<x> mem_offs)
 	)
-->	(ADD (x) (I16 LOCAL y))
+->	"ADD I16:<x>, I16:<y>"
 
+ret_i16: (RET (I16 LOCAL <x>))
+->	"MOV A, <x>; RET"
 
 -	Identifiers in output refer to output from identified pattern
 	

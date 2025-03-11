@@ -206,7 +206,7 @@ public class TopLevelParser {
         Set<String> functionNames = new HashSet<>(module.getFunctionMap().keySet());
         
         for(String functionName : functionNames) {
-            if(functionName.startsWith(module.getName()) && module.getFunctionMap().get(functionName).isExternal()) {
+            if(functionName.startsWith(module.getName() + ".") && module.getFunctionMap().get(functionName).isExternal()) {
                 module.getFunctionMap().remove(functionName);
             }
         }
@@ -246,7 +246,9 @@ public class TopLevelParser {
      * @throws CompilationException
      */
     private static void parseInternalFunctionHeader(ASTModule module, ASTNode headerNode, ASTNode codeNode) throws CompilationException {
-        LOG.finest("Parsing internal function header " + ASTUtil.detailed(headerNode));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing internal function header " + ASTUtil.detailed(headerNode));
+        }
         
         // Get header
         FunctionHeader header = parseFunctionHeader(module, headerNode);
@@ -263,7 +265,9 @@ public class TopLevelParser {
      * @throws CompilationException
      */
     private static void parseExternalFunctionHeader(ASTModule module, ASTNode node) throws CompilationException {
-        LOG.finest("Parsing external function header " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing external function header " + ASTUtil.detailed(node));
+        }
         
         // just a header
         FunctionHeader header = parseFunctionHeader(module, node);
@@ -354,7 +358,9 @@ public class TopLevelParser {
      * @throws CompilationException
      */
     private static void parseGlobalCreation(ASTModule module, ASTNode node) throws CompilationException {
-        LOG.finest("Parsing global creation " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing global creation " + ASTUtil.detailed(node));
+        }
         
         /*
          * value_creation ->
@@ -413,7 +419,9 @@ public class TopLevelParser {
         List<String> memberNames = new ArrayList<>();
         List<NSTLType> memberTypes = new ArrayList<>();
         
-        LOG.finest("Parsing structure definition " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing structure definition " + ASTUtil.detailed(node));
+        }
         
         for(ASTNode member : members) {
             List<ASTNode> memberChildren = member.getChildren();

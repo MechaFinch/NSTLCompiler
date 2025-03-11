@@ -5,6 +5,7 @@ import java.util.List;
 
 import notsotiny.lang.ir.parts.IRCondition;
 import notsotiny.lang.ir.parts.IRIdentifier;
+import notsotiny.lang.ir.parts.IRIdentifierClass;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
 
@@ -12,6 +13,8 @@ import notsotiny.lang.ir.parts.IRValue;
  * An instruction selection DAG node which produces a value
  */
 public class ISelDAGProducerNode extends ISelDAGNode {
+    
+    private IRIdentifier producedName;
     
     private IRValue producedValue;
     
@@ -24,13 +27,13 @@ public class ISelDAGProducerNode extends ISelDAGNode {
     private IRCondition condition;
     
     /**
-     * IN/VALUE constructor
+     * VALUE constructor
      * @param dag
      * @param producedValue
      * @param producedType
      * @param op
      */
-    public ISelDAGProducerNode(ISelDAG dag, IRValue producedValue, IRType producedType, ISelDAGProducerOperation op) {
+    public ISelDAGProducerNode(ISelDAG dag, IRIdentifier producedName, IRValue producedValue, IRType producedType, ISelDAGProducerOperation op) {
         super(dag);
         
         this.producedValue = producedValue;
@@ -39,6 +42,27 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         
         this.consumers = new ArrayList<>();
         this.condition = null;
+        
+        // producedName must be a local.
+        if(producedName.getIDClass() != IRIdentifierClass.LOCAL) {
+            throw new IllegalArgumentException("produced name must be LOCAL");
+        } else {
+            // producedName is a local, just use it
+            this.producedName = producedName;
+        }
+        
+        this.dag.addNode(this);
+    }
+    
+    /**
+     * IN/ARG constructor
+     * @param dag
+     * @param producedValue
+     * @param producedType
+     * @param op
+     */
+    public ISelDAGProducerNode(ISelDAG dag, IRIdentifier producedValue, IRType producedType, ISelDAGProducerOperation op) {
+        this(dag, producedValue, producedValue, producedType, op);
     }
     
     /**
@@ -55,7 +79,6 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         input.addConsumer(this);
         
         this.inputNodes.add(input);
-        this.dag.addNode(this);
     }
     
     /**
@@ -75,7 +98,6 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         
         this.inputNodes.add(left);
         this.inputNodes.add(right);
-        this.dag.addNode(this);
     }
     
     /**
@@ -87,7 +109,7 @@ public class ISelDAGProducerNode extends ISelDAGNode {
      * @param target
      * @param arguments args where the first argument is the call target
      */
-    public ISelDAGProducerNode(ISelDAG dag, IRValue producedValue, IRType producedType, ISelDAGProducerOperation op, List<ISelDAGProducerNode> arguments) {
+    public ISelDAGProducerNode(ISelDAG dag, IRIdentifier producedValue, IRType producedType, ISelDAGProducerOperation op, List<ISelDAGProducerNode> arguments) {
         this(dag, producedValue, producedType, op);
         
         for(ISelDAGProducerNode arg : arguments) {
@@ -95,7 +117,6 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         }
         
         this.inputNodes.addAll(arguments);
-        this.dag.addNode(this);
     }
     
     /**
@@ -124,7 +145,6 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         this.inputNodes.add(compRight);
         this.inputNodes.add(trueValue);
         this.inputNodes.add(falseValue);
-        this.dag.addNode(this);
     }
     
     /**
@@ -135,11 +155,17 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         this.consumers.add(node);
     }
     
-    public ISelDAGProducerOperation getOperation() { return this.op; }
-    public List<ISelDAGNode> getConsumers() { return this.consumers; }
-    
     /**
      * Returns the identifier of the value produced by this node
+     * @return
+     */
+    public IRIdentifier getProducedName() {
+        return this.producedName;
+    }
+    
+    /**
+     * Returns the value produced by this node
+     * Equivalent to getProducedName except for VALUE nodes
      * @return
      */
     public IRValue getProducedValue() {
@@ -154,6 +180,18 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         return this.producedType;
     }
     
+    /**
+     * @return A description of the node
+     */
+    public String getDescription() {
+        return this.producedType + " " + this.producedName + " = " + this.op;
+    }
+    
+    public ISelDAGProducerOperation getOperation() { return this.op; }
+    public List<ISelDAGNode> getConsumers() { return this.consumers; }
     public IRCondition getCondition() { return this.condition; }
+    
+    @Override
+    public ISelDAGOperation getOp() { return this.op; }
     
 }

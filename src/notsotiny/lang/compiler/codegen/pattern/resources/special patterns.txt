@@ -1,0 +1,3 @@
+
+# Special Patterns
+# Special cases as patterns

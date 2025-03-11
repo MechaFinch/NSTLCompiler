@@ -74,12 +74,17 @@ public class ISelDAGRenderer {
                nodeStyle = "";
         
         if(node instanceof ISelDAGProducerNode pn) {
-            nodeLabel = pn.getProducedType() + " " + pn.getOperation() + " " + pn.getProducedValue();
+            if(pn.getProducedName().equals(pn.getProducedValue())) {
+                nodeLabel = pn.getProducedType() + " " + pn.getOperation() + " " + pn.getProducedValue();
+            } else {
+                nodeLabel = pn.getProducedType() + " " + pn.getProducedName() + " = " + pn.getProducedValue();
+            }
+            
             nodeStyle = "shape: diamond;";
             
             // TODO: Additional information according to operation
             switch(pn.getOperation()) {
-                case IN, VALUE:
+                case IN, VALUE, ARG:
                     nodeStyle = "shape: circle;";
                     break;
                 
@@ -100,7 +105,7 @@ public class ISelDAGRenderer {
                     break;
                 
                 case OUT:
-                    nodeLabel += " " + tn.getTarget();
+                    nodeLabel += " " + tn.getTargetRegister();
                     break;
                 
                 default:

@@ -1,6 +1,7 @@
 package notsotiny.lang.compiler.irgen;
 
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
@@ -95,7 +96,10 @@ public class CFGParser {
                     break;
                 
                 case NstlgrammarParser.ID.VARIABLE_RETURN:
-                    LOG.finest("Added code " + ASTUtil.detailed(node) + " to " + basicBlock.getName());
+                    if(LOG.isLoggable(Level.FINEST)) { 
+                        LOG.finest("Added code " + ASTUtil.detailed(node) + " to " + basicBlock.getName());
+                    }
+                    
                     basicBlock.setExitCode(node, ASTBasicBlock.ExitType.RETURN);
                     
                     // Remove successors if present
@@ -111,7 +115,9 @@ public class CFGParser {
                 
                 default:
                     // Not involved with control flow
-                    LOG.finest("Added code " + ASTUtil.detailed(node) + " to " + basicBlock.getName());
+                    if(LOG.isLoggable(Level.FINEST)) { 
+                        LOG.finest("Added code " + ASTUtil.detailed(node) + " to " + basicBlock.getName());
+                    }
                     basicBlock.addCode(node);
             }
         }
@@ -128,7 +134,9 @@ public class CFGParser {
      * @throws CompilationException
      */
     private static ASTBasicBlock parseIfConstruct(ASTNode constructNode, ASTBasicBlock parent, ASTFunction function, ASTContextTree context) throws CompilationException {
-        LOG.finer("Parsing IF construct " + ASTUtil.detailed(constructNode));
+        if(LOG.isLoggable(Level.FINER)) {
+            LOG.finer("Parsing IF construct " + ASTUtil.detailed(constructNode));
+        }
         
         /*
          * if_construct -> KW_IF! variable_expression KW_THEN! {function_code*} if_tail;
@@ -167,7 +175,9 @@ public class CFGParser {
      * @throws CompilationException
      */
     private static ASTBasicBlock parseIfTail(ASTNode tailNode, ASTBasicBlock parent, ASTFunction function, ASTContextTree context) throws CompilationException {
-        LOG.finest("Parsing IF tail " + ASTUtil.detailed(tailNode));
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Parsing IF tail " + ASTUtil.detailed(tailNode));
+        }
         
         /*
          * if_tail ->
@@ -250,7 +260,9 @@ public class CFGParser {
      * @throws CompilationException
      */
     private static ASTBasicBlock parseWhileConstruct(ASTNode constructNode, ASTBasicBlock parent, ASTFunction function, ASTContextTree context) throws CompilationException {
-        LOG.finer("Parsing WHILE construct " + ASTUtil.detailed(constructNode));
+        if(LOG.isLoggable(Level.FINER)) {
+            LOG.finer("Parsing WHILE construct " + ASTUtil.detailed(constructNode));
+        }
         
         /*
          * while_construct -> {label?} KW_WHILE! variable_expression KW_DO! {function_code*} KW_END! KW_WHILE!;
@@ -314,7 +326,9 @@ public class CFGParser {
      * @throws CompilationException
      */
     private static ASTBasicBlock parseUntilConstruct(ASTNode constructNode, ASTBasicBlock parent, ASTFunction function, ASTContextTree context) throws CompilationException {
-        LOG.finer("Parsing UNTIL construct " + ASTUtil.detailed(constructNode));
+        if(LOG.isLoggable(Level.FINER)) {
+            LOG.finer("Parsing UNTIL construct " + ASTUtil.detailed(constructNode));
+        }
         
         /*
          * until_construct -> {label?} KW_UNTIL! variable_expression KW_DO! {function_code*} KW_END! KW_UNTIL!;
@@ -378,7 +392,9 @@ public class CFGParser {
      * @throws CompilationException
      */
     private static ASTBasicBlock parseForConstruct(ASTNode constructNode, ASTBasicBlock parent, ASTFunction function, ASTContextTree context) throws CompilationException {
-        LOG.finer("Parsing FOR construct " + ASTUtil.detailed(constructNode));
+        if(LOG.isLoggable(Level.FINER)) {
+            LOG.finer("Parsing FOR construct " + ASTUtil.detailed(constructNode));
+        }
         
         /*
          * for_construct ->
@@ -453,7 +469,9 @@ public class CFGParser {
      * @throws CompilationException
      */
     private static void parseBreak(ASTNode node, ASTBasicBlock parent, ASTFunction function, ASTContextTree context) throws CompilationException {
-        LOG.finer("Parsing BREAK statement " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINER)) {
+            LOG.finer("Parsing BREAK statement " + ASTUtil.detailed(node));
+        }
         
         /*
          * break ->
@@ -489,7 +507,9 @@ public class CFGParser {
      * @throws CompilationException
      */
     private static void parseContinue(ASTNode node, ASTBasicBlock parent, ASTFunction function, ASTContextTree context) throws CompilationException {
-        LOG.finer("Parsing CONTINUE statement " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINER)) {
+            LOG.finer("Parsing CONTINUE statement " + ASTUtil.detailed(node));
+        }
         
         /*
          * continue ->

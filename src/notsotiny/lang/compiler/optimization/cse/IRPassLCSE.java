@@ -2,6 +2,7 @@ package notsotiny.lang.compiler.optimization.cse;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import notsotiny.lang.compiler.optimization.IROptimizationLevel;
@@ -64,7 +65,10 @@ public class IRPassLCSE implements IROptimizationPass {
                     IRIdentifier fromID = li.getDestinationID();
                     IRIdentifier toID = def.getID();
                     
-                    LOG.finest("Replacing " + fromID + " with " + toID + " in " + bb.getID());
+                    if(LOG.isLoggable(Level.FINEST)) {
+                        LOG.finest("Replacing " + fromID + " with " + toID + " in " + bb.getID());
+                    }
+                    
                     IRUtil.replaceInFunction(bb.getFunction(), fromID, toID);
                     
                     replaced = true;

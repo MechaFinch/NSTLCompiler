@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import notsotiny.lang.compiler.optimization.IROptimizationLevel;
@@ -203,7 +204,9 @@ public class IRPassSCCP implements IROptimizationPass {
         // Substitute constants
         for(Entry<IRIdentifier, SCCPLatticeElement> latticeEntry : lattice.entrySet()) {
             if(latticeEntry.getValue().getType() != Type.BOTTOM) {
-                LOG.finest("Replacing " + latticeEntry.getKey() + " with " + latticeEntry.getValue());
+                if(LOG.isLoggable(Level.FINEST)) {
+                    LOG.finest("Replacing " + latticeEntry.getKey() + " with " + latticeEntry.getValue());
+                }
                 
                 IRUtil.replaceInFunction(func, latticeEntry.getKey(), latticeEntry.getValue().getValue());
             }
@@ -225,7 +228,9 @@ public class IRPassSCCP implements IROptimizationPass {
                 // If neither edge executable, this will be handled in next step
                 // If one edge executable, convert to JCC
                 if(trueEdgeExecutable && !falseEdgeExecutable) {
-                    LOG.finest("Eliminating flow edge " + falseTriple);
+                    if(LOG.isLoggable(Level.FINEST)) {
+                        LOG.finest("Eliminating flow edge " + falseTriple);
+                    }
                     
                     if(!sameTarget) {
                         // If the true and false targets are different, false target is no longer a successor
@@ -235,7 +240,9 @@ public class IRPassSCCP implements IROptimizationPass {
                     IRBranchInstruction jmpInst = new IRBranchInstruction(IRBranchOperation.JMP, trueID, bbExit.getTrueArgumentMapping(), bb, bbExit.getSourceLineNumber());
                     bb.setExitInstruction(jmpInst);
                 } else if(falseEdgeExecutable && !trueEdgeExecutable) {
-                    LOG.finest("Eliminating flow edge " + trueTriple);
+                    if(LOG.isLoggable(Level.FINEST)) {
+                        LOG.finest("Eliminating flow edge " + trueTriple);
+                    }
                     
                     if(!sameTarget) {
                         // If the true and false targets are different, true target is no longer a successor

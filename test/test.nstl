@@ -1,23 +1,14 @@
 
-
-type x is structure of
-	a is u8,
-	b is u16,
-	c is u32,
-end type
-
-variable g is u8 gets 12;
-
+--
 -- Test
-function main of none returns u8 begin
-	variable a is u8 gets g;
-	variable b is u8 gets g;
-	variable c is u8 gets a + b;
-	variable d is u8 gets b + a;
-	
-	if g = 12 then
-		variable e is u8 gets a + b;
-	else
-		variable f is u8 gets d + 2;
-	end if
+--
+
+function main of none returns none begin
+
+end function
+
+function test1 of u32 a, u32 b, u16 c returns u16  begin
+	variable d is u16 pointer gets a;
+	(d index c) gets (u16 at b) + (d index c);
+	return c;
 end function

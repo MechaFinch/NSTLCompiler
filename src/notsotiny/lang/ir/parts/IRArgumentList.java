@@ -82,6 +82,26 @@ public class IRArgumentList {
         }
     }
     
+    /**
+     * Gets the [BP - x] offset used to access this argument following the
+     * calling convention
+     * @param argName
+     * @return
+     */
+    public int getBPOffset(IRIdentifier argName) {
+        int offset = 0;
+        
+        for(int i = 0; i < this.names.size(); i++) {
+            if(this.names.get(i).equals(argName)) {
+                return offset;
+            }
+            
+            offset += this.types.get(i).getSize();
+        }
+        
+        throw new IllegalArgumentException(argName + " is not in " + this);
+    }
+    
     public List<IRIdentifier> getNameList() { return this.names; }
     public List<IRType> getTypeList() { return this.types; }
     

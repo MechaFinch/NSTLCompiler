@@ -1,4 +1,4 @@
-#entry badapple.test/asm
+#entry badapple.main
 out\util.obj
 out\gutil.obj
 out\badapple.obj

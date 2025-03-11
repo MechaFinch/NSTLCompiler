@@ -1,0 +1,205 @@
+
+library _fxp from "math/fixedpoint";
+library _fxt from "math/fixedtrig";
+library _shapes from "simvideo/shapes";
+library _gutil from "simvideo/gutil";
+library _util;
+
+type fix is i16;
+type fix_dec is i8;
+
+define screen_width is 320;
+define screen_height is 240;
+define center_x is screen_width / 2;
+define center_y is screen_height / 2;
+
+define speed_x is 3;
+define speed_y is 5;
+
+define half_pi is 0x0192;
+define pi is 0x0324;
+define two_pi is 0x0648;
+
+function main of none returns none begin
+	
+	variable length is i16 gets 60;
+	variable angle is fix gets 0x0000;
+	variable d_angle is fix gets 0x0010;
+	
+	constant points is u16 gets 8;
+	variable shape is i16 array size points * 2;
+	variable rotated is i16 array size points * 2;
+	variable bounds is i16 array size 4;
+	
+	variable p_x is i16 gets center_x;
+	variable p_y is i16 gets center_y;
+	variable v_x is i16 gets speed_x;
+	variable v_y is i16 gets speed_y;
+	
+	shape index 0 gets 0 - (length / 4);
+	shape index 1 gets 0 - (length / 2);
+	shape index 2 gets length / 4;
+	shape index 3 gets 0 - (length / 2);
+	
+	shape index 4 gets length / 2;
+	shape index 5 gets 0 - (length / 4);
+	shape index 6 gets length / 2;
+	shape index 7 gets length / 4;
+	
+	shape index 8 gets length / 4;
+	shape index 9 gets length / 2;
+	shape index 10 gets 0 - (length / 4);
+	shape index 11 gets length / 2;
+	
+	shape index 12 gets 0 - (length / 2);
+	shape index 13 gets length / 4;
+	shape index 14 gets 0 - (length / 2);
+	shape index 15 gets 0 - (length / 4);
+	
+	--shape index 0 gets 0 - (length / 2);
+	--shape index 1 gets 0 - (length / 2);
+	--shape index 2 gets length / 2;
+	--shape index 3 gets 0 - (length / 2);
+	--shape index 4 gets length / 2;
+	--shape index 5 gets length / 2;
+	--shape index 6 gets 0 - (length / 2);
+	--shape index 7 gets length / 2;
+	
+	call _gutil.set_color with 0x01, 0x00808080;
+	call _gutil.set_color with 0xFF, 0x00FFFFFF;
+	
+	while true do
+		call _util.buffer_screen with none;
+		
+		-- erase previous
+		call draw with to rotated, points, 0x01;
+		
+		-- update position
+		-- get new rotation
+		call rotate with to shape, to rotated, points, 0, 0, angle;
+		
+		-- move rotated according to center
+		call shift with to rotated, points, p_x, p_y;
+		call get_bounds with to rotated, points, to bounds;
+		
+		-- snap to inside screen and update velocity
+		if (bounds index 0) < 0 then
+			call shift with to rotated, points, 0 - (bounds index 0), 0;
+			v_x gets speed_x;
+		elseif (bounds index 1) >= screen_width then
+			call shift with to rotated, points, (screen_width - 1) - (bounds index 1), 0;
+			v_x gets 0 - speed_x;
+		end if
+		
+		if (bounds index 2) < 0 then
+			call shift with to rotated, points, 0, 0 - (bounds index 2);
+			v_y gets speed_y;
+		elseif (bounds index 3) >= screen_height then
+			call shift with to rotated, points, 0, (screen_height - 1) - (bounds index 3);
+			v_y gets 0 - speed_y;
+		end if
+		
+		-- update position & angle
+		p_x gets p_x + v_x;
+		p_y gets p_y + v_y;
+		
+		angle gets angle + d_angle;
+		
+		if angle >= two_pi then
+			angle gets angle - two_pi;
+		end if
+		
+		-- draw new
+		call draw with to rotated, points, 0xFF;
+		
+		call _util.unbuffer_screen with none;
+	end while
+	
+	while true do
+		call _util.halt with none;
+	end while
+	
+end function
+
+-- draw a shape
+function draw of i16 pointer shape, u16 num_points, u8 color begin
+	variable num_indices is u16 gets num_points * 2;
+	
+	-- lines from point to point
+	for i is u16 gets 0; i < (num_indices - 2); i gets i + 2 do
+		call _shapes.freeline with
+			(shape index i), (shape index i + 1),
+			(shape index i + 2), (shape index i + 3),
+			color;
+	end for
+	
+	-- line from last to first
+	call _shapes.freeline with
+		(shape index num_indices - 2), (shape index num_indices - 1),
+		(shape index 0), (shape index 1),
+		color;
+end function
+
+-- rotate an array of points
+function rotate of i16 pointer src, i16 pointer dst, u16 num_points, i16 origin_x, i16 origin_y, fix angle begin
+	-- get sin(angle), cos(angle)
+	variable sincos is fix array size 2;
+	call _fxt.cord88 with to sincos, angle;
+	
+	variable sin is fix gets sincos index 0;
+	variable cos is fix gets sincos index 1;
+	
+	-- apply rotation matrix
+	for i is u16 gets 0; i < (num_points * 2); i gets i + 2 do
+		variable x is fix gets (call _fxp.to88 with ((src index i) - origin_x) as fix_dec);
+		variable y is fix gets (call _fxp.to88 with ((src index i + 1) - origin_y) as fix_dec);
+		
+		variable nx is i16 gets (call from_signed with (call _fxp.muls88 with cos, x) - (call _fxp.muls88 with sin, y));
+		variable ny is i16 gets (call from_signed with (call _fxp.muls88 with sin, x) + (call _fxp.muls88 with cos, y));
+		
+		dst index i gets origin_x + nx;
+		dst index i + 1 gets origin_y + ny;
+	end for
+end function
+
+-- shift an array of points by a given amount
+function shift of i16 pointer arr, u16 num_points, i16 x, i16 y begin
+	for i is u16 gets 0; i < (num_points * 2); i gets i + 2 do
+		arr index i gets (arr index i) + x;
+		arr index i + 1 gets (arr index i + 1) + y;
+	end for
+end function
+
+-- get the minimum and maximum x and y of an array of points
+function get_bounds of i16 pointer arr, u16 num_points, i16 pointer bounds begin
+	bounds index 0 gets 0x7FFF;
+	bounds index 1 gets 0x8000;
+	bounds index 2 gets 0x7FFF;
+	bounds index 3 gets 0x8000;
+	
+	for i is u16 gets 0; i < (num_points * 2); i gets i + 2 do
+		variable x is i16 gets arr index i;
+		variable y is i16 gets arr index i + 1;
+		
+		if x < (bounds index 0) then
+			bounds index 0 gets x;
+		end if
+
+		if x > (bounds index 1) then
+			bounds index 1 gets x;
+		end if
+		
+		if y < (bounds index 2) then
+			bounds index 2 gets y;
+		end if
+		
+		if y > (bounds index 3) then
+			bounds index 3 gets y;
+		end if
+	end for
+end function
+
+-- conevrt from fix to i16
+function from_signed of fix a returns i16 begin
+	return ((call _fxp.from88 with a) as fix_dec) as i16;
+end function

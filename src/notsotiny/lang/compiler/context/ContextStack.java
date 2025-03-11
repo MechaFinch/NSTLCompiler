@@ -2,6 +2,7 @@ package notsotiny.lang.compiler.context;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class ContextStack {
@@ -88,7 +89,10 @@ public class ContextStack {
      * @param cs
      */
     public void pushSymbol(ContextSymbol cs) {
-        LOG.finest("Pushed symbol " + cs);
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Pushed symbol " + cs);
+        }
+        
         this.contextStack.push(cs);
     }
     
@@ -96,7 +100,10 @@ public class ContextStack {
      * Begins a new context
      */
     public void pushContext() {
-        LOG.finest("Pushing context");
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Pushing context");
+        }
+        
         this.contextCounter++;
         
         // search for last marker to duplicate
@@ -114,7 +121,10 @@ public class ContextStack {
      * @return Popped ContextMarker or null
      */
     public ContextMarker popContext() {
-        LOG.finest("Popped context");
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Popped context");
+        }
+        
         this.contextCounter--;
         
         // search for the last ContextMarker and pop it

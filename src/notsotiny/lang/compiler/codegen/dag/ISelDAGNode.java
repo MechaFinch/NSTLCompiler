@@ -53,4 +53,10 @@ public abstract class ISelDAGNode {
         return this.inputNodes;
     }
     
+    /**
+     * Gets the operation (of unspecified type)
+     * @return
+     */
+    public abstract ISelDAGOperation getOp();
+    
 }

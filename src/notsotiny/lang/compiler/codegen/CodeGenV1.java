@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.MissingResourceException;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -18,7 +19,14 @@ import notsotiny.asm.components.Component;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGBuilder;
+import notsotiny.lang.compiler.codegen.dag.ISelDAGNode;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGRenderer;
+import notsotiny.lang.compiler.codegen.dag.ISelDAGTile;
+import notsotiny.lang.compiler.codegen.pattern.ISelPattern;
+import notsotiny.lang.compiler.codegen.pattern.ISelPatternCompiler;
+import notsotiny.lang.compiler.codegen.pattern.ISelPatternMatcher;
+import notsotiny.lang.compiler.codegen.pretransform.ISelPretransformConditionalArguments;
+import notsotiny.lang.compiler.codegen.pretransform.ISelPretransformer;
 import notsotiny.lang.ir.parts.IRBasicBlock;
 import notsotiny.lang.ir.parts.IRDefinition;
 import notsotiny.lang.ir.parts.IRFunction;
@@ -40,6 +48,15 @@ public class CodeGenV1 implements CodeGenerator {
     
     private Path abstractOutputDirectory = null;
     private Path finalOutputDirectory = null;
+    
+    // Transformations
+    private static List<ISelPretransformer> pretransformers;
+    
+    static {
+        // Populate transformations
+        pretransformers = new ArrayList<>();
+        pretransformers.add(new ISelPretransformConditionalArguments());
+    }
 
     @Override
     public AssemblyObject generate(IRModule module) throws CompilationException {
@@ -56,20 +73,30 @@ public class CodeGenV1 implements CodeGenerator {
         for(IRFunction function : module.getInternalFunctions().values()) {
             LOG.fine("----Generating code for " + function.getID().getName() + "----");
             
+            // Perform pre-DAG transformations
+            for(ISelPretransformer transformer : pretransformers) {
+                transformer.transform(function);
+            }
+            
             // Convert basic blocks into ISelDAGs
             // bb ID -> bb DAG
             Map<IRIdentifier, ISelDAG> bbDAGs = new HashMap<>();
             
             // Get information about locals
+            // typeMap and livenessSets will be maintained during code generation. definitionMap will not.
             Map<IRIdentifier, IRType> typeMap = IRUtil.getTypeMap(function);
             Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSets = IRUtil.getLivenessSets(function, false);
             Map<IRIdentifier, IRDefinition> definitionMap = IRUtil.getDefinitionMap(function);
             
             // Copy of the list as DAG construction adds BBs for conditional argument mappings
             // New BBs have their DAGs built when created so they don't need to be included in the loop
+            // New BBs are also added to the liveness sets
             List<IRBasicBlock> sourceBBs = new ArrayList<>(function.getBasicBlockList());
             for(IRBasicBlock irBB : sourceBBs) {
                 //LOG.info(livenessSets.get(irBB.getID()) + "");
+                
+                // Ensure we have no unnecessary NONEs
+                IRUtil.inferNoneTypes(irBB, typeMap);
                 
                 // Build DAG
                 bbDAGs.putAll(ISelDAGBuilder.buildDAG(irBB, typeMap, livenessSets, definitionMap));
@@ -81,7 +108,17 @@ public class CodeGenV1 implements CodeGenerator {
                 }
             }
             
-            // Tile ISelDAGs to select instructions
+            // Perform instruction selection
+            for(ISelDAG dag : bbDAGs.values()) {
+                try {
+                // Perform pattern matching to determine what tiles can be used for each node
+                Map<ISelDAGNode, List<ISelDAGTile>> matchingTilesMap = ISelPatternMatcher.matchPatterns(dag, typeMap);
+                
+                // Tile the DAG to select instructions
+                } catch(CompilationException e) {
+                    // TODO temporary
+                }
+            }
             
             // Perform scheduling
             

@@ -147,6 +147,7 @@ public class NSTLCompiler {
                     if(args[flagCount - 1].equals("isel")) {
                         showISelDAG = true;
                     }
+                    break;
                 
                 case "-e":
                     flagCount += 2;
@@ -306,7 +307,7 @@ public class NSTLCompiler {
                     } else {
                         ASTNode root = result.getRoot();
                         LOG.finest("AST");
-                        LOG.finest(() -> {printTree(root, new boolean[] {}); return "";});
+                        LOG.finest(() -> {printTree(LOG, root, new boolean[] {}); return "";});
                         
                         String libname = workingFile.getFileName().toString();
                         libname = libname.substring(0, libname.lastIndexOf('.'));
@@ -473,7 +474,7 @@ public class NSTLCompiler {
         LOG.info("Done.");
     }
     
-    public static void printTree(ASTNode node, boolean[] crossings) {
+    public static void printTree(Logger log, ASTNode node, boolean[] crossings) {
         StringBuilder sb = new StringBuilder();
         
         for(int i = 0; i < crossings.length - 1; i++) {
@@ -486,16 +487,16 @@ public class NSTLCompiler {
         
         if(node != null) {
             sb.append(node.toString());
-            LOG.finest(sb.toString());
+            log.finest(sb.toString());
             
             for(int i = 0; i != node.getChildren().size(); i++) {
                 boolean[] childCrossings = Arrays.copyOf(crossings, crossings.length + 1);
                 childCrossings[childCrossings.length - 1] = (i < node.getChildren().size() - 1);
                 
-                printTree(node.getChildren().get(i), childCrossings);
+                printTree(log, node.getChildren().get(i), childCrossings);
             }
         } else {
-            LOG.finest("null");
+            log.finest("null");
         }
     }
 }

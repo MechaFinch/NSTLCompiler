@@ -17,6 +17,7 @@ import notsotiny.lang.ir.parts.IRArgumentMapping;
 import notsotiny.lang.ir.parts.IRBasicBlock;
 import notsotiny.lang.ir.parts.IRBranchInstruction;
 import notsotiny.lang.ir.parts.IRCondition;
+import notsotiny.lang.ir.parts.IRConstant;
 import notsotiny.lang.ir.parts.IRDefinition;
 import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRIdentifier;
@@ -37,6 +38,147 @@ import notsotiny.lang.util.UnionFindForest;
 public class IRUtil {
     
     private static Logger LOG = Logger.getLogger(IRUtil.class.getName());
+    
+    /**
+     * Where possible, replaces NONE with a concrete type 
+     * @param bb
+     * @param typeMap
+     */
+    public static void inferNoneTypes(IRBasicBlock bb, Map<IRIdentifier, IRType> typeMap) {
+        boolean modifiedTypes;
+        
+        do {
+            modifiedTypes = false;
+            
+            // Infer in body code
+            for(IRLinearInstruction inst : bb.getInstructions()) {
+                switch(inst.getOp()) {
+                    case LOAD:
+                        // pointers are expected to be I32 
+                        if(inst.getLeftSourceValue() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                            inst.setLeftSourceValue(new IRConstant(irc.getValue(), IRType.I32));
+                            modifiedTypes = true;
+                        }
+                        break;
+                    
+                    case STORE:
+                        // pointers are expected to be I32 
+                        if(inst.getRightSourceValue() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                            inst.setRightSourceValue(new IRConstant(irc.getValue(), IRType.I32));
+                            modifiedTypes = true;
+                        }
+                        break;
+                    
+                    case SELECT:
+                        // Infer compared typed, then fall through to two-argument
+                        if(inst.getLeftComparisonValue() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                            IRType inferredType;
+                            
+                            if(inst.getRightComparisonValue() instanceof IRIdentifier id) {
+                                inferredType = typeMap.get(id);
+                            } else {
+                                inferredType = ((IRConstant) inst.getRightComparisonValue()).getType();
+                            }
+                            
+                            inst.setLeftComparisonValue(new IRConstant(irc.getValue(), inferredType));
+                        }
+                        
+                        if(inst.getRightComparisonValue() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                            IRType inferredType;
+                            
+                            if(inst.getLeftComparisonValue() instanceof IRIdentifier id) {
+                                inferredType = typeMap.get(id);
+                            } else {
+                                inferredType = ((IRConstant) inst.getLeftComparisonValue()).getType();
+                            }
+                            
+                            inst.setRightComparisonValue(new IRConstant(irc.getValue(), inferredType));
+                        }
+                    
+                    case ADD, SUB, MULU, MULS, DIVU, DIVS, REMU, REMS,
+                         SHL, SHR, SAR, ROL, ROR, AND, OR, XOR:
+                        // two-argument
+                        if(inst.getLeftSourceValue() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                            inst.setLeftSourceValue(new IRConstant(irc.getValue(), inst.getDestinationType()));
+                            modifiedTypes = true;
+                        }
+                    
+                        if(inst.getRightSourceValue() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                            inst.setRightSourceValue(new IRConstant(irc.getValue(), inst.getDestinationType()));
+                            modifiedTypes = true;
+                        }
+                        break;
+                    
+                    case NOT, NEG:
+                        // 1-argument
+                        if(inst.getLeftSourceValue() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                            inst.setLeftSourceValue(new IRConstant(irc.getValue(), inst.getDestinationType()));
+                            modifiedTypes = true;
+                        }
+                        break;
+                    
+                    case CALLR, CALLN:
+                        // function arguments have expected types
+                        if(inst.getCallTarget() instanceof IRIdentifier id) {
+                            IRArgumentList args = bb.getFunction().getModule().getFunctions().get(id).getArguments();
+                            Map<IRIdentifier, IRValue> mapping = inst.getCallArgumentMapping().getMap();
+                            
+                            for(int i = 0; i < args.getArgumentCount(); i++) {
+                                IRIdentifier argName = args.getName(i);
+                                
+                                if(mapping.get(argName) instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                                    mapping.put(argName, new IRConstant(irc.getValue(), args.getType(i)));
+                                    modifiedTypes = true;
+                                }
+                            }
+                        }
+                        break;
+                    
+                    // These operations aren't inferred
+                    default:
+                }
+            }
+            
+            // Infer in exit code
+            IRBranchInstruction exit = bb.getExitInstruction();
+            switch(exit.getOp()) {
+                case RET:
+                    // infer from return type
+                    if(exit.getReturnValue() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                        exit.setReturnValue(new IRConstant(irc.getValue(), bb.getFunction().getReturnType()));
+                    }
+                    break;
+                
+                case JCC:
+                    // Infer one comparison type from the other
+                    if(exit.getCompareLeft() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                        IRType inferredType;
+                        
+                        if(exit.getCompareRight() instanceof IRIdentifier id) {
+                            inferredType = typeMap.get(id);
+                        } else {
+                            inferredType = ((IRConstant) exit.getCompareRight()).getType();
+                        }
+                        
+                        exit.setCompareLeft(new IRConstant(irc.getValue(), inferredType));
+                    }
+                    
+                    if(exit.getCompareRight() instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                        IRType inferredType;
+                        
+                        if(exit.getCompareLeft() instanceof IRIdentifier id) {
+                            inferredType = typeMap.get(id);
+                        } else {
+                            inferredType = ((IRConstant) exit.getCompareLeft()).getType();
+                        }
+                        
+                        exit.setCompareRight(new IRConstant(irc.getValue(), inferredType));
+                    }
+                
+                default:
+            }
+        } while(modifiedTypes);
+    }
     
     /**
      * Determines the type of each local

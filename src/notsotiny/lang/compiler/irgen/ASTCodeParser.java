@@ -359,7 +359,9 @@ public class ASTCodeParser {
         ASTNode retNode = sourceBB.getExitCode();
         
         if(retNode != null) {
-            LOG.finest("Parsing return statement " + ASTUtil.detailed(retNode));
+            if(LOG.isLoggable(Level.FINEST)) { 
+                LOG.finest("Parsing return statement " + ASTUtil.detailed(retNode));
+            }
             
             if(retNode.getSymbol().getID() != NstlgrammarLexer.ID.TERMINAL_KW_NONE && retNode.getChildren().size() != 0) {
                 NSTLType retType = sourceFunction.getHeader().getReturnType();
@@ -386,7 +388,9 @@ public class ASTCodeParser {
      * @throws CompilationException 
      */
     private static void parseValueCreation(ASTNode node, IRBasicBlock irBB, ASTBasicBlock sourceBB, SSAManager manager, IRFunction targetFunction, ASTFunction sourceFunction, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing value creation " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) { 
+            LOG.finest("Parsing value creation " + ASTUtil.detailed(node));
+        }
         
         /*
          * value_creation ->
@@ -504,7 +508,9 @@ public class ASTCodeParser {
      * @throws CompilationException 
      */
     private static void parseAssignment(ASTNode node, IRBasicBlock irBB, ASTBasicBlock sourceBB, SSAManager manager, IRFunction targetFunction, ASTFunction sourceFunction, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing assignment " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) { 
+            LOG.finest("Parsing assignment " + ASTUtil.detailed(node));
+        }
         
         /*
          * assignment -> reference KW_GETS! variable_expression SEMI!;
@@ -695,7 +701,9 @@ public class ASTCodeParser {
      * @throws CompilationException 
      */
     private static void parseFreeFunctionCall(ASTNode node, IRBasicBlock irBB, ASTBasicBlock sourceBB, SSAManager manager, IRFunction targetFunction, ASTFunction sourceFunction, IRModule irModule) throws CompilationException {
-        LOG.finest("Parsing free-standing function call " + ASTUtil.detailed(node));
+        if(LOG.isLoggable(Level.FINEST)) { 
+            LOG.finest("Parsing free-standing function call " + ASTUtil.detailed(node));
+        }
         
         /*
          * function_call ->

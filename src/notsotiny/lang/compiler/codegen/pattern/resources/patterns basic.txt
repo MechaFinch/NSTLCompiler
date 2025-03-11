@@ -1,0 +1,184 @@
+
+# Basic Patterns
+# A minimal set of patterns that cover every DAG node
+
+
+
+#########################
+# Terminator Operations #
+#########################
+
+term_store:
+	(STORE (ANY LOCAL <x>) (I32 LOCAL <dst>)) -> "MOV [<dst>], <x>" ;
+
+# calln is handled as a special case
+# jmp is handled as a special case
+# jcc is handled as a special case
+
+term_ret:
+	(RET (I8 LOCAL <x>))	-> "MOV AL, <x>; RET" |
+	(RET (I16 LOCAL <x>))	-> "MOV A, <x>; RET" |
+	(RET (I32 LOCAL <x>))	-> "MOV DA, <x>; RET" ;
+
+# out as live-out information is handled as a special case
+term_out:
+	(OUT (ANY LOCAL <x>))	-> "MOV <out>, <x>" ;
+
+
+
+#######################
+# Producer Operations #
+#######################
+
+prod_trunc:
+	(I8 TRUNC (I16 LOCAL <x>))	-> "MOV <out>, <x><low>" |
+	(I8 TRUNC (I32 LOCAL <x>))	-> "MOV <tmp16_0>, <x><low>; MOV <out>, <tmp16_0><low>" |
+	(I16 TRUNC (I32 LOCAL <x>))	-> "MOV <out>, <x><low>" ;
+
+prod_sx:
+	(I16 SX (I8 LOCAL <x>))		-> "MOVS <out>, <x>" |
+	(I32 SX (I8 LOCAL <x>))		-> "MOVS <out><low>, <x>; MOVS <out>, <out><low>" |
+	(I32 SX (I16 LOCAL <x>))	-> "MOVS <out>, <x>" ;
+
+prod_zx:
+	(I16 ZX (I8 LOCAL <x>))		-> "MOVZ <out>, <x>" |
+	(I32 ZX (I8 LOCAL <x>))		-> "MOVZ <out><low>, <x>; MOVZ <out>, <out><low>" |
+	(I32 ZX (I16 LOCAL <x>))	-> "MOVZ <out>, <x>" ;
+
+prod_load:
+	(ANY LOAD (I32 LOCAL <x>))	-> "MOV <out>, [<x>]" ;
+
+# select is handled as a special case
+# stack is handled as a special case
+
+prod_add:
+	(I8 ADD (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I16 ADD (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I32 ADD (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; ADD <out><low>, <y><low>; ADC <out><high>, <y><high>" ;
+
+prod_sub:
+	(I8 SUB (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I32 SUB (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; SUB <out><low>, <y><low>; SBB <out><high>, <y><high>" ;
+
+prod_mulu:
+	(I8 MULU (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I16 MULU (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I32 MULU (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "
+		MOV <out>, <x>;
+		MOV <tmp16_0>, <x><low>;
+		MULH <out>, <y><low>;
+		MUL <tmp16_0>, <y><high>;
+		ADD <out><high>, <tmp16_0>" |
+	
+	(I16 MULU (I16 ZX (I8 LOCAL <x>)) (I16 ZX (I8 LOCAL <y>)))		->
+		"MOV <out><low>, <x>; MULH <out>, <y>" |
+	(I32 MULU (I32 ZX (I16 LOCAL <x>)) (I32 ZX (I16 LOCAL <y>)))	->
+		"MOV <out><low>, <x>; MULH <out>, <y>" ;
+
+prod_muls:
+	(I8 MULS (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I16 MULS (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I32 MULS (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "
+		MOV <out>, <x>;
+		MOV <tmp16_0>, <x><low>;
+		MULSH <out>, <y><low>;
+		MUL <tmp16_0>, <y><high>;
+		ADD <out><high>, <tmp16_0>" |
+	
+	(I16 MULS (I16 SX (I8 LOCAL <x>)) (I16 SX (I8 LOCAL <y>)))		->
+		"MOV <out><low>, <x>; MULSH <out>, <y>" |
+	(I32 MULS (I32 SX (I16 LOCAL <x>)) (I32 SX (I16 LOCAL <y>)))	->
+		"MOV <out><low>, <x>; MULSH <out>, <y>" ;
+
+prod_divu:
+	(I8 DIVU (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; DIV <out>, <y>" |
+	(I16 DIVU (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; DIV <out>, <y>" ;
+	# 32/32 division needs a function call, not sure what to do about it yet
+
+prod_divs:
+	(I8 DIVS (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; DIVS <out>, <y>" |
+	(I16 DIVS (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; DIVS <out>, <y>" ;
+	# 32/32 division needs a function call, not sure what to do about it yet
+
+prod_remu:
+	(I8 REMU (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "
+		MOVZ <tmp16_0>, <x>;
+		DIVM <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I16 REMU (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "
+		MOVZ <tmp32_0>, <x>;
+		DIVM <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" ;
+	# 32/32 division needs a function call, not sure what to do about it yet
+
+prod_rems:
+	(I8 REMS (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "
+		MOVS <tmp16_0>, <x>;
+		DIVMS <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I16 REMS (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "
+		MOVS <tmp32_0>, <x>;
+		DIVMS <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" ;
+	# 32/32 division needs a function call, not sure what to do about it yet
+
+prod_shl:
+	(I8 SHL (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SHL <out>, <y>" |
+	(I16 SHL (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; SHL <out>, <y>" ;
+	# arbitrary 32 bit shifts require loops or a function call
+
+prod_shr:
+	(I8 SHR (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SHR <out>, <y>" |
+	(I16 SHR (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; SHR <out>, <y>" ;
+	# arbitrary 32 bit shifts require loops or a function call
+
+prod_sar:
+	(I8 SAR (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SAR <out>, <y>" |
+	(I16 SAR (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; SAR <out>, <y>" ;
+	# arbitrary 32 bit shifts require loops or a function call
+
+prod_rol:
+	(I8 ROL (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; ROL <out>, <y>" |
+	(I16 ROL (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; ROL <out>, <y>" ;
+	# arbitrary 32 bit shifts require loops or a function call
+
+prod_ror:
+	(I8 ROR (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; ROR <out>, <y>" |
+	(I16 ROR (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; ROR <out>, <y>" ;
+	# arbitrary 32 bit shifts require loops or a function call
+
+prod_and:
+	(I8 AND (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; AND <out>, <y>" |
+	(I16 AND (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; AND <out>, <y>" |
+	(I32 AND (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; AND <out><low>, <y><low>; AND <out><high>, <y><high>" ;
+
+prod_or:
+	(I8 OR (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; OR <out>, <y>" |
+	(I16 OR (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; OR <out>, <y>" |
+	(I32 OR (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; OR <out><low>, <y><low>; OR <out><high>, <y><high>" ;
+
+prod_xor:
+	(I8 XOR (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; XOR <out>, <y>" |
+	(I16 XOR (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; XOR <out>, <y>" |
+	(I32 XOR (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; XOR <out><low>, <y><low>; XOR <out><high>, <y><high>" ;
+
+prod_not:
+	(I8 NOT (I8 LOCAL <x>))		-> "MOV <out>, <x>; NOT <out>" |
+	(I16 NOT (I16 LOCAL <x>))	-> "MOV <out>, <x>; NOT <out>" |
+	(I32 NOT (I32 LOCAL <x>))	-> "MOV <out>, <x>; NOT <out><low>; NOT <out><high>" ;
+
+prod_neg:
+	(I8 NEG (I8 LOCAL <x>))		-> "MOV <out>, <x>; NEG <out>" |
+	(I16 NEG (I16 LOCAL <x>))	-> "MOV <out>, <x>; NEG <out>" |
+	(I32 NEG (I32 LOCAL <x>))	-> "MOV <out>, <x>; NEG <out><low>; NEG <out><high>" ;
+
+# callr is handled as a special case
+# in needs no patterned AASM. in as live-in information is hanlded as a special case
+# arg is handled as a special case
+# value is handled as a special case
+
+prod_push:
+	(I8 PUSH (I8 LOCAL <x>))	-> "PUSH <x>" |
+	(I16 PUSH (I16 LOCAL <x>))	-> "PUSH <x>" |
+	(I32 PUSH (I32 LOCAL <x>))	-> "PUSH <x>" ;	

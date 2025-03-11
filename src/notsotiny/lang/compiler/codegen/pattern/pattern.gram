@@ -1,0 +1,78 @@
+grammar ISelPattern {
+	options {
+		Axiom = "patlist";
+		Separator = "SEPARATOR";
+		CompilationMode = "Source";
+		ParserType = "LR";
+		Runtime = "Java";
+		Namespace = "notsotiny.lang.compiler.codegen.pattern";
+		AccessModifier = "Public";
+	}
+	
+	terminals {
+		NEWLINE		-> U+000D
+					 | U+000A
+					 | U+000D U+000A
+					 | U+2028
+					 | U+2029;
+		WHITESPACE	-> U+0020
+					 | U+0009
+					 | U+000B
+					 | U+000C;
+		COMMENT		-> '#' (.* - (.* NEWLINE .*));
+		SEPARATOR	-> (NEWLINE | WHITESPACE | COMMENT)+;
+		
+		ALPHA			-> [a-zA-Z];
+		ALPHANUMERIC	-> [a-zA-Z0-9_];
+		IDENTIFIER		-> '<' ALPHANUMERIC+ '>';
+		NAME			-> ALPHA ALPHANUMERIC*;
+		NUMBER			-> [0-9_]+;
+		TYPE			-> (('i' | 'I') ('8' | '16' | '32')) | (('a' | 'A') ('n' | 'N') ('y' | 'Y'));
+	}
+	
+	rules {
+		patlist -> pattern*;
+		
+		pattern -> NAME ':'! {conversion ('|'! conversion)*} ';'!;
+		
+		conversion -> expression '->'! assembly;
+		
+		expression ->
+			expr_node^ |
+			expr_pat^ |
+			expr_ref^;
+		
+		expr_node -> '('! IDENTIFIER? TYPE? NAME {(expression | IDENTIFIER | NUMBER)+} ')'!;
+		
+		expr_pat -> '('! IDENTIFIER NAME ')'!;
+		
+		expr_ref -> '('! IDENTIFIER ')'!;
+		
+		assembly ->
+			'"'! instruction (';'! instruction)* '"'! |
+			'"'! memory '"'! |
+			'"'! index '"'! |
+			'"'! IDENTIFIER '"'!;
+		
+		instruction ->
+			NAME (iarg | memory) ','! iarg |
+			NAME iarg ','! (iarg | memory) |
+			NAME (iarg | memory) |
+			NAME;
+		
+		memory ->
+			'['! arg '+'! (index | arg) '+'! arg ']'! |
+			'['! arg ']'!;
+		
+		index -> IDENTIFIER '*'! NUMBER;
+		
+		iarg ->
+			IDENTIFIER IDENTIFIER+ |
+			arg^;
+		
+		arg ->
+			IDENTIFIER^ |
+			NUMBER^ |
+			NAME^;
+	}
+}

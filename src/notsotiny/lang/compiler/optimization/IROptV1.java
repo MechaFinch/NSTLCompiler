@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import notsotiny.lang.compiler.optimization.cse.IRPassLCSE;
@@ -16,6 +17,7 @@ import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRModule;
 import notsotiny.lang.ir.util.IRCFGRenderer;
 import notsotiny.lang.ir.util.IRPrinter;
+import notsotiny.lang.util.LogPrinter;
 import notsotiny.lang.util.StreamPrinter;
 
 /**
@@ -85,6 +87,15 @@ public class IROptV1 implements IROptimizer {
             for(IRFunction fun : module.getInternalFunctions().values()) {
                 IRCFGRenderer.renderCFG(fun, "_opt_ir");
             }
+        }
+        
+        // Log IR if applicable
+        LogPrinter logPrinter = new LogPrinter(LOG, Level.FINEST);
+        if(logPrinter.isLoggable()) {
+            try {
+                logPrinter.println("Optimized IR:");
+                IRPrinter.printModule(logPrinter, module, 0);
+            } catch(IOException e) {}
         }
         
         // Output to file is applicable
