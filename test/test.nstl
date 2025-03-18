@@ -3,12 +3,11 @@
 -- Test
 --
 
-function main of none returns none begin
+function main of none begin
 
 end function
 
-function test1 of u32 a, u32 b, u16 c returns u16  begin
-	variable d is u16 pointer gets a;
-	(d index c) gets (u16 at b) + (d index c);
-	return c;
+function test1 of u16 pointer a, u16 pointer b, u16 c returns u16 begin
+	variable d is u16 gets (a index c) + (b index c);
+	return (a index d + c) + (b index d - c);
 end function

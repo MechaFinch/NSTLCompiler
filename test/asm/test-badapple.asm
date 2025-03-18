@@ -328,11 +328,6 @@ main.loop1:
 main.start1:
 	PUSH B
 	PUSH C
-	CALLA ptr util.buffer_screen
-	POP C
-	POP B
-	PUSH B
-	PUSH C
 	PUSHW ptr badapple.customRegionTable
 	MOVW D:A, ptr [BP + -4]
 	PUSH D
@@ -342,13 +337,6 @@ main.start1:
 	POP C
 	POP B
 	MOVW ptr [BP + -4], D:A
-	PUSH B
-	PUSH C
-	CALLA ptr util.unbuffer_screen
-	POP C
-	POP B
-	INC ptr [BP + -4]
-	ICC ptr [BP + -2]
 	PUSH B
 	PUSH C
 	CALLA ptr util.halt

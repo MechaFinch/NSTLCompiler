@@ -2,12 +2,14 @@ package notsotiny.lang.util;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class MapUtil {
     /**
-     * Get the given map, or crate it
+     * Get the given map, or create it
      * @param <K1>
      * @param <K2>
      * @param <V>
@@ -26,7 +28,7 @@ public class MapUtil {
     }
     
     /**
-     * 
+     * Get the given list, or create it
      * @param <K>
      * @param <V>
      * @param map
@@ -40,6 +42,24 @@ public class MapUtil {
             List<V> list = new ArrayList<V>();
             map.put(key, list);
             return list;
+        }
+    }
+    
+    /**
+     * Get the given set, or create it
+     * @param <K>
+     * @param <V>
+     * @param map
+     * @param key
+     * @return
+     */
+    public static <K, V> Set<V> getOrCreateSet(Map<K, Set<V>> map, K key) {
+        if(map.containsKey(key)) {
+            return map.get(key);
+        } else {
+            Set<V> set = new HashSet<V>();
+            map.put(key, set);
+            return set;
         }
     }
 }

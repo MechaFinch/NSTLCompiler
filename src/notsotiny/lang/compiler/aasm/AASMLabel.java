@@ -9,4 +9,9 @@ package notsotiny.lang.compiler.aasm;
  */
 public record AASMLabel(String name) implements AASMPart {
     
+    @Override
+    public String toString() {
+        return this.name + ":";
+    }
+    
 }

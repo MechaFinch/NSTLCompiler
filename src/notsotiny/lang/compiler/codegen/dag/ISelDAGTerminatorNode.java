@@ -154,4 +154,9 @@ public class ISelDAGTerminatorNode extends ISelDAGNode {
     @Override
     public ISelDAGOperation getOp() { return this.op; }
     
+    @Override
+    public String getDescription() {
+        return this.op + "";
+    }
+    
 }

@@ -120,15 +120,17 @@ public class IRUtil {
                     case CALLR, CALLN:
                         // function arguments have expected types
                         if(inst.getCallTarget() instanceof IRIdentifier id) {
-                            IRArgumentList args = bb.getFunction().getModule().getFunctions().get(id).getArguments();
-                            Map<IRIdentifier, IRValue> mapping = inst.getCallArgumentMapping().getMap();
-                            
-                            for(int i = 0; i < args.getArgumentCount(); i++) {
-                                IRIdentifier argName = args.getName(i);
+                            if(bb.getModule().getInternalFunctions().containsKey(id)) {
+                                IRArgumentList args = bb.getModule().getFunctions().get(id).getArguments();
+                                Map<IRIdentifier, IRValue> mapping = inst.getCallArgumentMapping().getMap();
                                 
-                                if(mapping.get(argName) instanceof IRConstant irc && irc.getType() == IRType.NONE) {
-                                    mapping.put(argName, new IRConstant(irc.getValue(), args.getType(i)));
-                                    modifiedTypes = true;
+                                for(int i = 0; i < args.getArgumentCount(); i++) {
+                                    IRIdentifier argName = args.getName(i);
+                                    
+                                    if(mapping.get(argName) instanceof IRConstant irc && irc.getType() == IRType.NONE) {
+                                        mapping.put(argName, new IRConstant(irc.getValue(), args.getType(i)));
+                                        modifiedTypes = true;
+                                    }
                                 }
                             }
                         }

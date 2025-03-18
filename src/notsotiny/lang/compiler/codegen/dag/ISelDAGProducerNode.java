@@ -180,18 +180,16 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         return this.producedType;
     }
     
-    /**
-     * @return A description of the node
-     */
-    public String getDescription() {
-        return this.producedType + " " + this.producedName + " = " + this.op;
-    }
-    
     public ISelDAGProducerOperation getOperation() { return this.op; }
     public List<ISelDAGNode> getConsumers() { return this.consumers; }
     public IRCondition getCondition() { return this.condition; }
     
     @Override
     public ISelDAGOperation getOp() { return this.op; }
+    
+    @Override
+    public String getDescription() {
+        return this.producedType + " " + this.producedName + " = " + this.op;
+    }
     
 }

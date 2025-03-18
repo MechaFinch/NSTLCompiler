@@ -45,11 +45,33 @@ load_i16:	(I16 LOAD (<x> mem))	-> "<x>" ;
 load_i32:	(I32 LOAD (<x> mem))	-> "<x>" ;
 load_any:	(ANY LOAD (<x> mem))	-> "<x>" ;
 
+# LEA
+# Copy of mem_bio
+# If (<x> mem_bio) -> "LEA <out>, <x>" ; was used, it wouldn't appear in the pattern list for ADD
+prod_lea:
+	(I32 ADD (I32 LOCAL <b>) (ANY CONSTANT <o>))	-> "LEA <out>, [<b> + 0 + <o>]" |
+	(<i> mem_index)									-> "LEA <out>, [0 + <i> + 0]" |
+	(I32 ADD (I32 LOCAL <b>) (<i> mem_index))		-> "LEA <out>, [<b> + <i> + 0]" |
+	(I32 ADD (<i> mem_index) (ANY CONSTANT <o>))	-> "LEA <out>, [0 + <i> + <o>]" |
+	
+	(I32 ADD
+		(I32 ADD (<i> mem_index) (ANY CONSTANT <o>))
+		(I32 LOCAL <b>))							-> "LEA <out>, [<b> + <i> + <o>]" |
+	(I32 ADD
+		(I32 ADD (I32 LOCAL <b>) (ANY CONSTANT <o>))
+		(<i> mem_index))							-> "LEA <out>, [<b> + <i> + <o>]" |
+	(I32 ADD
+		(I32 ADD (I32 LOCAL <b>) (<i> mem_index))
+		(ANY CONSTANT <o>))							-> "LEA <out>, [<b> + <i> + <o>]" ;
+
 
 
 ##################################
 # Terminators with Memory Source #
 ##################################
+
+term_store_mem:
+	(STORE (ANY LOCAL <x>) (<dst> mem))	-> "MOV <dst>, <x>" ;
 
 term_ret_mems:
 	(RET (<x> load_i8))		-> "MOV AL, <x>; RET" |

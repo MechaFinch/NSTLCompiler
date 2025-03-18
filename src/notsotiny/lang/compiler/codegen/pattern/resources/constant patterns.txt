@@ -2,3 +2,22 @@
 # Constant Patterns
 # Patterns using constants as operands
 
+##########################
+# Special Case Producers #
+##########################
+
+prod_shl_sp:
+	(I32 SHL (I32 LOCAL <x>) (ANY CONSTANT 1))	-> "MOV <out>, <x>; SHL <out><low>, 1; RCL <out><high>, 1" |
+	(I32 SHL (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOV <out><high>, <x><low>; MOV <out><low>, 0" ;
+
+prod_shr_sp:
+	(I32 SHR (I32 LOCAL <x>) (ANY CONSTANT 1))	-> "MOV <out>, <x>; SHR <out><high>, 1; RCR <out><low>, 1" |
+	(I32 SHR (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOVZ <out><low>, <x><high>" ;
+
+prod_sar_sp:
+	(I32 SAR (I32 LOCAL <x>) (ANY CONSTANT 1))	-> "MOV <out>, <x>; SAR <out><high>, 1; RCR <out><low>, 1" |
+	(I32 SAR (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOVS <out><low>, <x><high>" ;
+
+prod_rotate_sp:
+	(I32 ROL (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOV <out>, <x>; XCHG <out><high>, <out><low>" |
+	(I32 ROR (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOV <out>, <x>; XCHG <out><high>, <out><low>" ;

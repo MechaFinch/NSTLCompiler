@@ -17,9 +17,12 @@ import java.util.logging.Logger;
 import notsotiny.asm.Assembler.AssemblyObject;
 import notsotiny.asm.components.Component;
 import notsotiny.lang.compiler.CompilationException;
+import notsotiny.lang.compiler.aasm.AASMPart;
+import notsotiny.lang.compiler.aasm.AASMPrinter;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGBuilder;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGNode;
+import notsotiny.lang.compiler.codegen.dag.ISelDAGProducerNode;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGRenderer;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGTile;
 import notsotiny.lang.compiler.codegen.pattern.ISelPattern;
@@ -109,18 +112,24 @@ public class CodeGenV1 implements CodeGenerator {
             }
             
             // Perform instruction selection
+            Map<IRIdentifier, List<AASMPart>> bbAASMs = new HashMap<>(); 
+            
             for(ISelDAG dag : bbDAGs.values()) {
-                try {
                 // Perform pattern matching to determine what tiles can be used for each node
-                Map<ISelDAGNode, List<ISelDAGTile>> matchingTilesMap = ISelPatternMatcher.matchPatterns(dag, typeMap);
+                Map<ISelDAGNode, Set<ISelDAGTile>> matchingTilesMap = ISelPatternMatcher.matchPatterns(dag, typeMap);
                 
                 // Tile the DAG to select instructions
-                } catch(CompilationException e) {
-                    // TODO temporary
-                }
+                Map<ISelDAGNode, ISelDAGTile> selectedTiles = new HashMap<>();
+                Map<ISelDAGNode, Set<ISelDAGTile>> coveringTiles = new HashMap<>();
+                ISelTileSelector.selectTiles(selectedTiles, coveringTiles, dag, matchingTilesMap);
+                
+                // Perform intra-block scheduling
+                List<AASMPart> schedule = IntraBlockScheduler.scheduleBlock(dag, selectedTiles, coveringTiles);
+                bbAASMs.put(dag.getBasicBlock().getID(), schedule);
             }
             
-            // Perform scheduling
+            // Perform inter-block scheduling
+            List<AASMPart> scheduledCode = InterBlockScheduler.scheduleBlocks(function, bbAASMs, livenessSets);
             
             // Perform register allocation
             

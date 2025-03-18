@@ -83,13 +83,13 @@ public class IRArgumentList {
     }
     
     /**
-     * Gets the [BP - x] offset used to access this argument following the
+     * Gets the [BP + x] offset used to access this argument following the
      * calling convention
      * @param argName
      * @return
      */
     public int getBPOffset(IRIdentifier argName) {
-        int offset = 0;
+        int offset = 8;
         
         for(int i = 0; i < this.names.size(); i++) {
             if(this.names.get(i).equals(argName)) {

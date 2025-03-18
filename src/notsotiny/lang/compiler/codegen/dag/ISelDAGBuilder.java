@@ -115,6 +115,9 @@ public class ISelDAGBuilder {
                         sideEffects = involvesSideEffects.contains(li.getOp());
                 
                 if(makesLiveOut || sideEffects) {
+                    // Is this node is an input to another node
+                    boolean hasLocalUser = dag.getProducers().containsKey(li.getDestinationID());
+                    
                     // LI produces a live-out or involves side effects. Get node.
                     ISelDAGProducerNode node = buildProducer(li.getDestinationID(), bb, dag, typeMap, livenessSets, definitionMap);
                     
@@ -131,8 +134,8 @@ public class ISelDAGBuilder {
                     if(makesLiveOut) {
                         // LI produces a live-out. Create OUT terminator
                         new ISelDAGTerminatorNode(dag, ISelDAGTerminatorOperation.OUT, li.getDestinationID(), node);
-                    } else {
-                        // LI doesn't produce a live-out. Mark node as a terminator
+                    } else if(!hasLocalUser) {
+                        // LI doesn't produce a live-out and isn't used locally, mark as terminator
                         dag.addTerminator(node);
                     }
                 }

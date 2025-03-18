@@ -47,7 +47,7 @@ public class NSTLCompiler {
     
     public static void main(String[] args) throws IOException, InitializationException {
         // handle arguments
-        if(args.length < 1 || args.length > 16) {
+        if(args.length < 1) {
             System.out.println("Usage: NSTLCompiler [options] <input file>");
             System.out.println("Flags:");
             System.out.println("\t-d\t\t\tEnable debug-friendly object files. If enabled, references are verbose and files much larger.");

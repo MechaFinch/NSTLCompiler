@@ -1,7 +1,9 @@
 package notsotiny.lang.compiler.codegen.pattern;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +27,7 @@ import notsotiny.lang.compiler.aasm.AASMOperation;
 import notsotiny.lang.compiler.aasm.AASMPart;
 import notsotiny.lang.compiler.aasm.AASMPatternIndex;
 import notsotiny.lang.compiler.aasm.AASMPatternReference;
+import notsotiny.lang.compiler.aasm.AASMPrinter;
 import notsotiny.lang.compiler.aasm.AASMStackSlot;
 import notsotiny.lang.compiler.codegen.CodeGenV1;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
@@ -44,6 +47,7 @@ import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRIdentifierClass;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
+import notsotiny.lang.util.MapUtil;
 import notsotiny.lang.util.Pair;
 
 /**
@@ -60,6 +64,10 @@ public class ISelPatternMatcher {
     // Maps root node operation to patterns
     private static Map<ISelDAGOperation, List<ISelPattern>> patternRootMap;
     
+    // For (STORE (OP ...), maps OP to patterns
+    // Stores extraneously check a large number of patterns without this
+    private static Map<ISelDAGOperation, List<ISelPattern>> patternStoreMap;
+    
     static {
         // Load selection patterns
         try {
@@ -68,8 +76,8 @@ public class ISelPatternMatcher {
             List<String> patternFiles = List.of(
                     "patterns basic.txt",
                     "memory patterns.txt",
-                    //"constant patterns.txt",
-                    "special patterns.txt",
+                    "constant patterns.txt",
+                    //"special patterns.txt",
                     "" // placeholder to allow trailing comma
             );
             
@@ -84,19 +92,29 @@ public class ISelPatternMatcher {
             throw new MissingResourceException(e.getMessage(), CodeGenV1.class.getName(), "instruction selection patterns file");
         }
         
-        // Build pattern root map
+        // Build pattern root maps
         patternRootMap = new HashMap<>();
+        patternStoreMap = new HashMap<>();
         
         for(List<ISelPattern> group : patternGroupMap.values()) {
             for(ISelPattern pattern : group) {
                 if(pattern.getRoot() instanceof ISelPatternNodeNode node) {
                     ISelDAGOperation op = node.getOperation();
                     
-                    if(!patternRootMap.containsKey(op)) {
-                        patternRootMap.put(op, new ArrayList<>());
+                    if(op == ISelDAGTerminatorOperation.STORE) {
+                        // Store has its own map
+                        if(node.getArgumentNodes().get(0) instanceof ISelPatternNodeNode storedNode) {
+                            ISelDAGOperation storedOp = storedNode.getOperation();
+                            
+                            MapUtil.getOrCreateList(patternStoreMap, storedOp).add(pattern);
+                        } else {
+                            // With non nodes going in the general map
+                            MapUtil.getOrCreateList(patternRootMap, op).add(pattern);
+                        }
+                    } else {
+                        // General map
+                        MapUtil.getOrCreateList(patternRootMap, op).add(pattern);
                     }
-                    
-                    patternRootMap.get(op).add(pattern);
                 }
             }
         }
@@ -109,23 +127,37 @@ public class ISelPatternMatcher {
      * @return
      * @throws CompilationException 
      */
-    public static Map<ISelDAGNode, List<ISelDAGTile>> matchPatterns(ISelDAG dag, Map<IRIdentifier, IRType> typeMap) throws CompilationException {
+    public static Map<ISelDAGNode, Set<ISelDAGTile>> matchPatterns(ISelDAG dag, Map<IRIdentifier, IRType> typeMap) throws CompilationException {
         LOG.finer("Matching patterns for " + dag.getBasicBlock().getID());
         
-        Map<ISelDAGNode, List<ISelDAGTile>> tileMap = new HashMap<>();
+        Map<ISelDAGNode, Set<ISelDAGTile>> tileMap = new HashMap<>();
         
         IRArgumentList functionArgs = dag.getBasicBlock().getFunction().getArguments();
-        
         boolean hasUnmatchedNodes = false;
+        
+        // Dependency graph - maps each DAG node to all DAG nodes that must come before it
+        Map<ISelDAGNode, Set<ISelDAGNode>> dependencyMap = new HashMap<>();
+        
+        for(ISelDAGNode node : dag.getReverseTopologicalSort(true)) {
+            Set<ISelDAGNode> dependencies = new HashSet<>();
+            
+            for(ISelDAGNode inputNode : node.getInputNodes()) {
+                dependencies.addAll(dependencyMap.get(inputNode));
+                dependencies.add(inputNode);
+            }
+            
+            if(node.getChain() != null) {
+                dependencies.addAll(dependencyMap.get(node.getChain()));
+                dependencies.add(node.getChain());
+            }
+            
+            dependencyMap.put(node, dependencies);
+        }
         
         // Process each node
         for(ISelDAGNode node : dag.getAllNodes()) {
             if(LOG.isLoggable(Level.FINEST)) { 
-                if(node instanceof ISelDAGProducerNode pn) {
-                    LOG.finest("Matching patterns for node " + pn.getDescription());
-                } else {
-                    LOG.finest("Matching patterns for node " + node.getOp());
-                }
+                LOG.finest("Matching patterns for node " + node.getDescription());
             }
             
             List<ISelDAGTile> matchingTiles = new ArrayList<>();
@@ -140,7 +172,7 @@ public class ISelPatternMatcher {
                             LOG.finest("Found special case for IN");
                             // IN produces no AASM
                             List<AASMPart> aasm = List.of();
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(), aasm));
                             break;
                         }
                         
@@ -160,7 +192,7 @@ public class ISelPatternMatcher {
                                 )
                             ));
                             
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(), aasm));
                             break;
                         }
                         
@@ -188,7 +220,7 @@ public class ISelPatternMatcher {
                                 ));
                             }
                             
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(), aasm));
                             break;
                         }
                         
@@ -326,7 +358,7 @@ public class ISelPatternMatcher {
                                 );
                             }
                             
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), new HashSet<>(node.getInputNodes()), aasm));
                             break;
                         }
                         
@@ -339,7 +371,7 @@ public class ISelPatternMatcher {
                                     new AASMStackSlot(pn.getProducedName(), ((IRConstant) pn.getInputNodes().get(0).getProducedValue()).getValue())
                             ));
                             
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(node.getInputNodes().get(0)), aasm));
                             break;
                         }
                         
@@ -348,11 +380,14 @@ public class ISelPatternMatcher {
                             // Call with no return
                             // Arguments have been taken care of by PUSH, so we just need to call, add sp, and move the result to the output
                             List<AASMPart> aasm;
+                            Set<ISelDAGNode> inputs = new HashSet<>();
                             int argsSize = 0;
                             
-                            // Determine size in bytes of the args
+                            // Determine size in bytes of the args, put them in inputs set
                             for(int i = 1; i < pn.getInputNodes().size(); i++) {
-                                argsSize += pn.getInputNodes().get(i).getProducedType().getSize();
+                                ISelDAGProducerNode input = pn.getInputNodes().get(i);
+                                argsSize += input.getProducedType().getSize();
+                                inputs.add(input);
                             }
                             
                             AASMInstruction callInst, moveInst;
@@ -367,11 +402,13 @@ public class ISelPatternMatcher {
                                 );
                             } else {
                                 // Calling a local or number, absolute call
-                                // TODO: call constants directly
+                                // TODO: call compile constants directly
                                 callInst = new AASMInstruction(
                                     AASMOperation.CALLA,
                                     new AASMAbstractRegister(targetNode.getProducedName(), targetNode.getProducedType(), false, false)
                                 );
+                                
+                                inputs.add(targetNode);
                             }
                             
                             // Move result to output
@@ -403,7 +440,7 @@ public class ISelPatternMatcher {
                                 aasm = List.of(callInst, moveInst);
                             }
                             
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), inputs, aasm));
                             break;
                         }
                         
@@ -420,16 +457,17 @@ public class ISelPatternMatcher {
                             // JMP just jumps
                             LOG.finest("Found special case for JMP");
                             List<AASMPart> aasm = List.of(new AASMInstruction(AASMOperation.JMP, new AASMLinkConstant(tn.getTrueTargetBlock())));
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(), aasm));
                             break;
                         }
                         
                         case RET: {
                             // RET NONE is a special case
-                            if(node.getInputNodes().get(0).getProducedType() == IRType.NONE) {
+                            ISelDAGProducerNode input = node.getInputNodes().get(0); 
+                            if(input.getProducedType() == IRType.NONE) {
                                 LOG.finest("Found special case for RET NONE");
                                 List<AASMPart> aasm = List.of(new AASMInstruction(AASMOperation.RET));
-                                matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                                matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(input), aasm));
                             }
                             break;
                         }
@@ -452,61 +490,94 @@ public class ISelPatternMatcher {
                             
                             if(compareType == IRType.I32) {
                                 // Wide type. Compare upper, branch, compare lower, branch
-                                IRCondition upperTrue = switch(cond) {
-                                    case A, AE  -> IRCondition.A;
-                                    case B, BE  -> IRCondition.B;
-                                    case G, GE  -> IRCondition.G;
-                                    case L, LE  -> IRCondition.L;
-                                    default     -> IRCondition.NONE;
-                                };
-                                
-                                IRCondition upperFalse = switch(cond) {
-                                    case A, AE  -> IRCondition.B;
-                                    case B, BE  -> IRCondition.A;
-                                    case G, GE  -> IRCondition.L;
-                                    case L, LE  -> IRCondition.G;
-                                    default     -> IRCondition.NONE;
-                                };
-                                
-                                IRCondition lowerTrue = switch(cond) {
-                                    case A, G   -> IRCondition.A;
-                                    case AE, GE -> IRCondition.AE;
-                                    case B, L   -> IRCondition.B;
-                                    case BE, LE -> IRCondition.BE;
-                                    default     -> IRCondition.NONE;
-                                };
-                                
-                                aasm = List.of(
-                                    new AASMInstruction( // compare upper
-                                        AASMOperation.CMP,
-                                        new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, true),
-                                        new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, true)
-                                    ),
-                                    new AASMInstruction( // branch if resolved
-                                        AASMOperation.JCC,
-                                        new AASMLinkConstant(tn.getTrueTargetBlock()),
-                                        upperTrue
-                                    ),
-                                    new AASMInstruction(
-                                        AASMOperation.JCC,
-                                        new AASMLinkConstant(tn.getFalseTargetBlock()),
-                                        upperFalse
-                                    ),
-                                    new AASMInstruction( // compare lower
-                                        AASMOperation.CMP,
-                                        new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, false),
-                                        new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, false)
-                                    ),
-                                    new AASMInstruction( // branch
-                                        AASMOperation.JCC,
-                                        new AASMLinkConstant(tn.getTrueTargetBlock()),
-                                        lowerTrue
-                                    ),
-                                    new AASMInstruction(
-                                        AASMOperation.JMP,
-                                        new AASMLinkConstant(tn.getFalseTargetBlock())
-                                    )
-                                );
+                                if(cond == IRCondition.E || cond == IRCondition.NE) {
+                                    // Equality comparisons have 1 upper branch
+                                    IRIdentifier neTarget = (cond == IRCondition.E) ? tn.getFalseTargetBlock() : tn.getTrueTargetBlock();
+                                    
+                                    aasm = List.of(
+                                        new AASMInstruction( // compare upper
+                                            AASMOperation.CMP,
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, true),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, true)
+                                        ),
+                                        new AASMInstruction( // branch if resolved
+                                            AASMOperation.JCC,
+                                            new AASMLinkConstant(neTarget),
+                                            IRCondition.NE
+                                        ),
+                                        new AASMInstruction( // compare lower
+                                            AASMOperation.CMP,
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, false),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, false)
+                                        ),
+                                        new AASMInstruction( // branch
+                                            AASMOperation.JCC,
+                                            new AASMLinkConstant(tn.getTrueTargetBlock()),
+                                            cond
+                                        ),
+                                        new AASMInstruction(
+                                            AASMOperation.JMP,
+                                            new AASMLinkConstant(tn.getFalseTargetBlock())
+                                        )
+                                    );
+                                } else {
+                                    // Other comparisons have 2 upper branches
+                                    IRCondition upperTrue = switch(cond) {
+                                        case A, AE  -> IRCondition.A;
+                                        case B, BE  -> IRCondition.B;
+                                        case G, GE  -> IRCondition.G;
+                                        case L, LE  -> IRCondition.L;
+                                        default     -> IRCondition.NONE;
+                                    };
+                                    
+                                    IRCondition upperFalse = switch(cond) {
+                                        case A, AE  -> IRCondition.B;
+                                        case B, BE  -> IRCondition.A;
+                                        case G, GE  -> IRCondition.L;
+                                        case L, LE  -> IRCondition.G;
+                                        default     -> IRCondition.NONE;
+                                    };
+                                    
+                                    IRCondition lowerTrue = switch(cond) {
+                                        case A, G   -> IRCondition.A;
+                                        case AE, GE -> IRCondition.AE;
+                                        case B, L   -> IRCondition.B;
+                                        case BE, LE -> IRCondition.BE;
+                                        default     -> IRCondition.NONE;
+                                    };
+                                    
+                                    aasm = List.of(
+                                        new AASMInstruction( // compare upper
+                                            AASMOperation.CMP,
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, true),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, true)
+                                        ),
+                                        new AASMInstruction( // branch if resolved
+                                            AASMOperation.JCC,
+                                            new AASMLinkConstant(tn.getTrueTargetBlock()),
+                                            upperTrue
+                                        ),
+                                        new AASMInstruction(
+                                            AASMOperation.JCC,
+                                            new AASMLinkConstant(tn.getFalseTargetBlock()),
+                                            upperFalse
+                                        ),
+                                        new AASMInstruction( // compare lower
+                                            AASMOperation.CMP,
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, false),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, false)
+                                        ),
+                                        new AASMInstruction( // branch
+                                            AASMOperation.JCC,
+                                            new AASMLinkConstant(tn.getTrueTargetBlock()),
+                                            lowerTrue
+                                        ),
+                                        new AASMInstruction(
+                                            AASMOperation.JMP,
+                                            new AASMLinkConstant(tn.getFalseTargetBlock())
+                                        )
+                                    );
+                                }
                             } else {
                                 // Normal type. Compare and branch
                                 aasm = List.of(
@@ -527,7 +598,7 @@ public class ISelPatternMatcher {
                                 );
                             }
                             
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(leftNode, rightNode), aasm));
                             break;
                         }
                         
@@ -536,11 +607,14 @@ public class ISelPatternMatcher {
                             // Call with no return
                             // Arguments have been taken care of by PUSH, so we just need to call and add sp
                             List<AASMPart> aasm;
+                            Set<ISelDAGNode> inputNodes = new HashSet<>();
                             int argsSize = 0;
                             
                             // Determine size in bytes of the args
                             for(int i = 1; i < tn.getInputNodes().size(); i++) {
-                                argsSize += tn.getInputNodes().get(i).getProducedType().getSize();
+                                ISelDAGProducerNode input = tn.getInputNodes().get(i); 
+                                argsSize += input.getProducedType().getSize();
+                                inputNodes.add(input);
                             }
                             
                             AASMInstruction callInst;
@@ -555,11 +629,13 @@ public class ISelPatternMatcher {
                                 );
                             } else {
                                 // Calling a local or number, absolute call
-                                // TODO: call constants directly
+                                // TODO: call compile constants directly
                                 callInst = new AASMInstruction(
                                     AASMOperation.CALLA,
                                     new AASMAbstractRegister(targetNode.getProducedName(), targetNode.getProducedType(), false, false)
                                 );
+                                
+                                inputNodes.add(targetNode);
                             }
                             
                             if(argsSize != 0) {
@@ -577,7 +653,7 @@ public class ISelPatternMatcher {
                                 aasm = List.of(callInst);
                             }
                             
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), inputNodes, aasm));
                             break;
                         }
                         
@@ -585,7 +661,7 @@ public class ISelPatternMatcher {
                             LOG.finest("Found special case for ENTRY");
                             // ENTRY produces no AASM
                             List<AASMPart> aasm = List.of();
-                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), aasm));
+                            matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(), aasm));
                             break;
                         }
                         
@@ -601,12 +677,17 @@ public class ISelPatternMatcher {
             // Log special case results
             if(matchingTiles.size() != 0) {
                 if(LOG.isLoggable(Level.FINEST)) {
-                    LOG.finest("Got " + getAASMString(matchingTiles.get(0).aasm()));
+                    LOG.finest("Got " + AASMPrinter.getAASMString(matchingTiles.get(0).aasm()));
                 }
             }
             
             // Check each pattern with the same root as the node
             List<ISelPattern> potentialPatterns = patternRootMap.getOrDefault(node.getOp(), new ArrayList<>());
+            
+            if(node.getOp() == ISelDAGTerminatorOperation.STORE) {
+                // Store has its own map according to stored node
+                potentialPatterns.addAll(patternStoreMap.getOrDefault(node.getInputNodes().get(0).getOp(), new ArrayList<>()));
+            }
             
             for(ISelPattern pattern : potentialPatterns) {
                 if(!pattern.producesInstructions()) {
@@ -614,7 +695,7 @@ public class ISelPatternMatcher {
                 }
                 
                 // Try to match the pattern with the node
-                List<ISelDAGTile> tiles = matchPattern(node, pattern, typeMap);
+                List<ISelDAGTile> tiles = matchPattern(node, pattern, typeMap, dependencyMap);
                 
                 if(tiles != null) {
                     // Found a match!
@@ -630,13 +711,7 @@ public class ISelPatternMatcher {
                 
                 StringBuilder message = new StringBuilder();
                 message.append("No matching pattern found for node ");
-                
-                if(node instanceof ISelDAGProducerNode pn) {
-                    message.append(pn.getDescription());
-                } else {
-                    message.append(node.getOp());
-                }
-                
+                message.append(node.getDescription());                
                 message.append(" in block ");
                 message.append(sourceBB.getID());
                 message.append(" in function ");
@@ -650,7 +725,7 @@ public class ISelPatternMatcher {
             }
             
             LOG.finest("Got " + matchingTiles.size() + " tiles");
-            tileMap.put(node, matchingTiles);
+            tileMap.put(node, new HashSet<>(matchingTiles));
         }
         
         if(hasUnmatchedNodes) {
@@ -667,13 +742,13 @@ public class ISelPatternMatcher {
      * @param typeMap
      * @return Resulting ISelDAGTile, or null if the pattern does not match
      */
-    private static List<ISelDAGTile> matchPattern(ISelDAGNode node, ISelPattern pattern, Map<IRIdentifier, IRType> typeMap) {
+    private static List<ISelDAGTile> matchPattern(ISelDAGNode node, ISelPattern pattern, Map<IRIdentifier, IRType> typeMap, Map<ISelDAGNode, Set<ISelDAGNode>> dependencyMap) {
         if(LOG.isLoggable(Level.FINEST)) {
             LOG.finest("Trying to match against " + pattern.getDescription());
         }
         
         // Local information
-        ISelMatchData matchData = new ISelMatchData(pattern, node, new HashMap<>(), new HashMap<>(), new ArrayList<>());
+        ISelMatchData matchData = new ISelMatchData(pattern, node, new HashMap<>(), new HashMap<>(), new ArrayList<>(), new ArrayList<>());
         
         // Try to match the pattern. This will populate the above maps.
         boolean matches = tryMatch(node, pattern.getRoot(), matchData);
@@ -693,7 +768,7 @@ public class ISelPatternMatcher {
                 for(AASMPart part : tile.aasm()) {
                     if(!(part instanceof AASMInstruction || part instanceof AASMLabel)) {
                         if(LOG.isLoggable(Level.FINEST)) {
-                            LOG.finest("Not a top level pattern: " + getAASMString(tile.aasm()));
+                            LOG.finest("Not a top level pattern: " + AASMPrinter.getAASMString(tile.aasm()));
                         }
                         
                         // Invalid top level AASM, reject tile
@@ -719,7 +794,7 @@ public class ISelPatternMatcher {
                         if(!coveredChained.contains(chainedNode.getChain())) {
                             if(hasOutside) {
                                 if(LOG.isLoggable(Level.FINEST)) {
-                                    LOG.finest("Violates chain: " + getAASMString(tile.aasm()));
+                                    LOG.finest("Violates internal chain: " + AASMPrinter.getAASMString(tile.aasm()));
                                 }
                                 
                                 // Multiple outside chains, reject tile
@@ -727,6 +802,31 @@ public class ISelPatternMatcher {
                             }
                             
                             hasOutside = true;
+                        }
+                    }
+                }
+                
+                // Verify that no input of the tile eventually chains into the tile
+                for(ISelDAGNode inputNode : tile.inputNodes()) {
+                    // Check directly
+                    if(tile.coveredNodes().contains(inputNode.getChain())) {
+                        if(LOG.isLoggable(Level.FINEST)) {
+                            LOG.finest("Violates input chain: " + AASMPrinter.getAASMString(tile.aasm()));
+                        }
+                        
+                        // An input chains into the tile, reject tile
+                        continue checking;
+                    }
+                    
+                    // Check dependencies
+                    for(ISelDAGNode inputDependency : dependencyMap.get(inputNode)) {
+                        if(tile.coveredNodes().contains(inputDependency.getChain())) {
+                            if(LOG.isLoggable(Level.FINEST)) {
+                                LOG.finest("Violates dependency chain: " + AASMPrinter.getAASMString(tile.aasm()));
+                            }
+                            
+                            // A dependency of an input chain into the tile, reject tile
+                            continue checking;
                         }
                     }
                 }
@@ -752,11 +852,7 @@ public class ISelPatternMatcher {
      */
     private static boolean tryMatch(ISelDAGNode dagNode, ISelPatternNode patNode, ISelMatchData matchData) {
         if(LOG.isLoggable(Level.FINEST)) {
-            if(dagNode instanceof ISelDAGProducerNode p) {
-                LOG.finest("Trying to match " + p.getDescription() + " with " + patNode);
-            } else {
-                LOG.finest("Trying to match " + dagNode.getOp() + " with " + patNode);
-            }
+            LOG.finest("Trying to match " + dagNode.getDescription() + " with " + patNode);
         }
         
         // What are we trying to match against
@@ -847,6 +943,7 @@ public class ISelPatternMatcher {
                     if(localNode.getType() == IRType.NONE || localNode.getType() == prod.getProducedType()) {
                         // Match!
                         matchData.matchMap().put(localNode.getIdentifier(), prod);
+                        matchData.inputNodes().add(prod);
                         return true;
                     } else {
                         LOG.finest("Match failed: Wrong type");
@@ -894,7 +991,7 @@ public class ISelPatternMatcher {
                 List<ISelMatchData> matchGroup = new ArrayList<>();
                 
                 for(ISelPattern subpat : patternGroup) {
-                    ISelMatchData subpatData = new ISelMatchData(subpat, dagNode, new HashMap<>(), new HashMap<>(), new ArrayList<>());
+                    ISelMatchData subpatData = new ISelMatchData(subpat, dagNode, new HashMap<>(), new HashMap<>(), new ArrayList<>(), new ArrayList<>());
                     boolean matched = tryMatch(dagNode, subpatData.pattern().getRoot(), subpatData);
                     
                     if(matched) {
@@ -944,7 +1041,7 @@ public class ISelPatternMatcher {
     private static boolean try2ArgMatch(ISelDAGNode dagNode, ISelPatternNodeNode nodeNode, ISelDAGNode firstDAGArg, ISelDAGNode secondDAGArg, ISelMatchData matchData) {
         // Use a copy of the state information in case second argument fails
         // subpatternMap is a shallow copy wrt the lists as values shouldn't be overwritten
-        ISelMatchData tmpMatchData = new ISelMatchData(matchData.pattern(), matchData.matchRoot(), new HashMap<>(matchData.matchMap()), new HashMap<>(matchData.subpatternMap()), new ArrayList<>());
+        ISelMatchData tmpMatchData = new ISelMatchData(matchData.pattern(), matchData.matchRoot(), new HashMap<>(matchData.matchMap()), new HashMap<>(matchData.subpatternMap()), new ArrayList<>(), new ArrayList<>());
         
         // Try to match first argument
         boolean firstMatches = tryMatch(firstDAGArg, nodeNode.getArgumentNodes().get(0), tmpMatchData);
@@ -963,6 +1060,7 @@ public class ISelPatternMatcher {
             matchData.subpatternMap().putAll(tmpMatchData.subpatternMap());
             matchData.coveredNodes().addAll(tmpMatchData.coveredNodes());
             matchData.coveredNodes().add(dagNode);
+            matchData.inputNodes().addAll(tmpMatchData.inputNodes());
             
             if(nodeNode.getIdentifier() != null) {
                 matchData.matchMap().put(nodeNode.getIdentifier(), dagNode);
@@ -1022,7 +1120,7 @@ public class ISelPatternMatcher {
         
         if(LOG.isLoggable(Level.FINEST)) {
             for(ISelDAGTile conv : conversions) {
-                LOG.finest("Got " + getAASMString(conv.aasm()));
+                LOG.finest("Got " + AASMPrinter.getAASMString(conv.aasm()));
             }
         }
         
@@ -1040,10 +1138,12 @@ public class ISelPatternMatcher {
     private static ISelDAGTile doConversion(ISelMatchData match, Map<String, ISelDAGTile> subpatternResults, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap) {
         List<AASMPart> parts = new ArrayList<>();
         Set<ISelDAGNode> coveredNodes = new HashSet<>(match.coveredNodes());
+        Set<ISelDAGNode> inputNodes = new HashSet<>(match.inputNodes());
         
-        // Merge covered sets of chosen matches
+        // Merge covered & input sets of chosen matches
         for(ISelDAGTile subTile : subpatternResults.values()) {
             coveredNodes.addAll(subTile.coveredNodes());
+            inputNodes.addAll(subTile.inputNodes());
         }
         
         // Convert AASM parts
@@ -1051,7 +1151,7 @@ public class ISelPatternMatcher {
             parts.add(convertPart(patternPart, match, subpatternResults, tmpMap, typeMap));
         }
         
-        return new ISelDAGTile(match.matchRoot(), coveredNodes, parts, match);
+        return new ISelDAGTile(match.matchRoot(), coveredNodes, inputNodes, parts, match);
     }
     
     /**
@@ -1335,27 +1435,6 @@ public class ISelPatternMatcher {
                 indices.removeLast();
             }
         }
-    }
-    
-    /**
-     * @param aasm
-     */
-    private static String getAASMString(List<AASMPart> aasm) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("{");
-        
-        boolean first = true;
-        for(AASMPart part : aasm) {
-            if(!first) {
-                sb.append("; ");
-            }
-            
-            first = false;
-            sb.append(part);
-        }
-        
-        sb.append("}");
-        return sb.toString();
     }
     
 }

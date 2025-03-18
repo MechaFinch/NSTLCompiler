@@ -14,8 +14,9 @@ import notsotiny.lang.compiler.codegen.dag.ISelDAGNode;
  * @param matchMap Map from pattern-local identifier to matched DAG node
  * @param subpatternMap Map from pattern-local identifier to subpattern match data
  * @param coveredNodes Nodes covered by this match (does not include subpatterns)
+ * @param inputNodes Nodes matched to LOCAL pattern nodes
  */
-public record ISelMatchData(ISelPattern pattern, ISelDAGNode matchRoot, Map<String, ISelDAGNode> matchMap, Map<String, List<ISelMatchData>> subpatternMap, List<ISelDAGNode> coveredNodes) {
+public record ISelMatchData(ISelPattern pattern, ISelDAGNode matchRoot, Map<String, ISelDAGNode> matchMap, Map<String, List<ISelMatchData>> subpatternMap, List<ISelDAGNode> coveredNodes, List<ISelDAGNode> inputNodes) {
     
     /**
      * Returns coveredNodes as a set

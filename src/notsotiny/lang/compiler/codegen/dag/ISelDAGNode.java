@@ -59,4 +59,9 @@ public abstract class ISelDAGNode {
      */
     public abstract ISelDAGOperation getOp();
     
+    /**
+     * @return A description of the node
+     */
+    public abstract String getDescription();
+    
 }
