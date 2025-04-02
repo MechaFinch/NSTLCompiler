@@ -19,6 +19,7 @@ import notsotiny.asm.components.Component;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.aasm.AASMPart;
 import notsotiny.lang.compiler.aasm.AASMPrinter;
+import notsotiny.lang.compiler.codegen.alloc.RegisterAllocator;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGBuilder;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGNode;
@@ -46,6 +47,8 @@ public class CodeGenV1 implements CodeGenerator {
     private static Logger LOG = Logger.getLogger(CodeGenV1.class.getName());
     
     private boolean showISelDAG = false;
+    private boolean showRAIGUncolored = false;
+    private boolean showRAIGColored = false;
     private boolean outputAbstractToFile = false;
     private boolean outputFinalToFile = false;
     
@@ -69,8 +72,11 @@ public class CodeGenV1 implements CodeGenerator {
         module.getLibraryFileMap().forEach((p, n) -> libraryFilesMap.put(p.toFile(), n));
         
         // Parts filled out by code generation
-        List<Component> assemblyComponents = new ArrayList<>();                         // List of assembly Components
-        HashMap<String, Integer> assemblyLabelIndexMap= new HashMap<>();                // Maps label name to index in assemblyComponents
+        List<Component> assemblyComponents = new ArrayList<>();             // List of assembly Components
+        HashMap<String, Integer> assemblyLabelIndexMap = new HashMap<>();   // Maps label name to index in assemblyComponents
+        
+        // pre-register allocation AASM so we can output 1 file per module instead of 1 file per function
+        Map<IRIdentifier, List<List<AASMPart>>> abstractResults = new HashMap<>();
         
         // Generate code :)
         for(IRFunction function : module.getInternalFunctions().values()) {
@@ -112,7 +118,7 @@ public class CodeGenV1 implements CodeGenerator {
             }
             
             // Perform instruction selection
-            Map<IRIdentifier, List<AASMPart>> bbAASMs = new HashMap<>(); 
+            Map<IRIdentifier, List<List<AASMPart>>> bbAASMs = new HashMap<>(); 
             
             for(ISelDAG dag : bbDAGs.values()) {
                 // Perform pattern matching to determine what tiles can be used for each node
@@ -124,22 +130,49 @@ public class CodeGenV1 implements CodeGenerator {
                 ISelTileSelector.selectTiles(selectedTiles, coveringTiles, dag, matchingTilesMap);
                 
                 // Perform intra-block scheduling
-                List<AASMPart> schedule = IntraBlockScheduler.scheduleBlock(dag, selectedTiles, coveringTiles);
+                List<List<AASMPart>> schedule = IntraBlockScheduler.scheduleBlock(dag, selectedTiles, coveringTiles);
                 bbAASMs.put(dag.getBasicBlock().getID(), schedule);
             }
             
             // Perform inter-block scheduling
-            List<AASMPart> scheduledCode = InterBlockScheduler.scheduleBlocks(function, bbAASMs, livenessSets);
+            List<List<AASMPart>> scheduledCode = InterBlockScheduler.scheduleBlocks(function, bbAASMs, livenessSets);
+            
+            if(this.outputAbstractToFile) {
+                abstractResults.put(function.getID(), scheduledCode);
+            }
             
             // Perform register allocation
+            List<AASMPart> allocatedCode = RegisterAllocator.allocateRegisters(scheduledCode, function, showRAIGUncolored, showRAIGColored);
+            
+            // Perform peephole optimizations
+            // Mainly cleaning up RA output
+            List<AASMPart> optimizedCode = PeepholeOptimizer.optimize(allocatedCode, function);
             
             // Convert to assembly components
+            // TODO
         }
+        
+        // Output abstract assembly to file if needed
+        if(this.outputAbstractToFile) {
+            // Get name, trim extension
+            String sourceFileName = module.getSourceFile().getFileName().toString();
+            sourceFileName = sourceFileName.substring(0, sourceFileName.lastIndexOf("."));
+            Path outputFile = this.abstractOutputDirectory.resolve(sourceFileName + ".aasm");
+            
+            LOG.info("Writing generated abstract assembly to " + outputFile);
+            
+            try(BufferedOutputStream bos = new BufferedOutputStream(Files.newOutputStream(outputFile))) {
+                StreamPrinter filePrinter = new StreamPrinter(bos);
+                AASMPrinter.printModule(filePrinter, abstractResults);
+            } catch(IOException e) {}
+        }
+        
+        // TODO: convert globals to assembly components
         
         // Done!
         AssemblyObject ao = new AssemblyObject(assemblyComponents, assemblyLabelIndexMap, module.getName(), libraryFilesMap, new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>());
         
-        // Output to file if needed
+        // Output concrete assembly to file if needed
         if(this.outputFinalToFile) {
             // Get name, trim extension
             String sourceFileName = module.getSourceFile().getFileName().toString();
@@ -157,8 +190,10 @@ public class CodeGenV1 implements CodeGenerator {
     }
 
     @Override
-    public void setDAGVisualization(boolean isel) {
+    public void setGraphVisualization(boolean isel, boolean raUncolored, boolean raColored) {
         this.showISelDAG = isel;
+        this.showRAIGUncolored = raUncolored;
+        this.showRAIGColored = raColored;
     }
 
     @Override

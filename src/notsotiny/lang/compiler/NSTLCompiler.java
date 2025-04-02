@@ -62,6 +62,7 @@ public class NSTLCompiler {
             System.out.println("\t-irfo <output directory>\tOptimized IR Output. Specifies where to output optimzied IR and enables optimized IR file output");
             System.out.println("\t-asmfa <output directory>\tAbstract Assembly Output. Specifies where to output abstract assembly and enbles abstract assembly file output");
             System.out.println("\t-asmfo <output directory>\tFinal Assembly Output. Specifies where to output assembly and enables assembly file output");
+            System.out.println("\t-raig <type>\t\tShow register allocation interference graphs. Type = uncolored, colored");
             return; 
         }
         
@@ -78,7 +79,9 @@ public class NSTLCompiler {
                 hasOIROutputDir = false,
                 hasAASMOutputDir = false,
                 hasFASMOutputDir = false,
-                showISelDAG = false;
+                showISelDAG = false,
+                showRAIGUncolored = false,
+                showRAIGColored = false;
         
         String inputFileArg = "",
                execFileArg = "",
@@ -146,6 +149,15 @@ public class NSTLCompiler {
                     flagCount += 2;
                     if(args[flagCount - 1].equals("isel")) {
                         showISelDAG = true;
+                    }
+                    break;
+                
+                case "-raig":
+                    flagCount += 2;
+                    if(args[flagCount - 1].equals("colored")) {
+                        showRAIGColored = true;
+                    } else if(args[flagCount - 1].equals("uncolored")) {
+                        showRAIGUncolored = true;
                     }
                     break;
                 
@@ -269,7 +281,7 @@ public class NSTLCompiler {
                             optimizer.setLevel(IROptimizationLevel.THREE);
                             
                             CodeGenerator codegen = new CodeGenV1();
-                            codegen.setDAGVisualization(showISelDAG);
+                            codegen.setGraphVisualization(showISelDAG, showRAIGUncolored, showRAIGColored);
                             
                             if(hasAASMOutputDir) {
                                 // make the abstract assembly output directory if it doesn't exist

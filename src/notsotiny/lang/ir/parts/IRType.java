@@ -61,4 +61,18 @@ public enum IRType {
             };
         }
     }
+    
+    /**
+     * Converts a size in bytes to type object
+     * @param size
+     * @return
+     */
+    public static IRType fromSize(int size) {
+        return switch(size) {
+            case 1  -> I8;
+            case 2  -> I16;
+            case 4  -> I32;
+            default -> NONE;
+        };
+    }
 }

@@ -1,15 +1,20 @@
 package notsotiny.lang.compiler.aasm;
 
 import notsotiny.asm.Register;
+import notsotiny.lang.ir.parts.IRIdentifier;
+import notsotiny.lang.ir.parts.IRIdentifierClass;
 import notsotiny.lang.ir.parts.IRType;
 
 /**
  * Container for a machine register
- * Most likely just used for BP during instruction selection
- * AbstractRegisters will likely be converted to MachineRegisters during
+ * AbstractRegisters are converted to this as the final step of
  * register allocation
  */
-public record AASMMachineRegister(Register reg) implements AASMRegister {
+public record AASMMachineRegister(Register reg, IRIdentifier id) implements AASMRegister {
+    
+    public AASMMachineRegister(Register reg) {
+        this(reg, new IRIdentifier(reg.name(), IRIdentifierClass.SPECIAL));
+    }
     
     @Override
     public IRType getType() {

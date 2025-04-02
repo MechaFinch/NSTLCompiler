@@ -453,6 +453,9 @@ public class IRUtil {
             Set<IRIdentifier> liveInLoop = new HashSet<>(livenessSetMap.get(headerID).a);
             liveInLoop.removeAll(function.getBasicBlock(headerID).getArgumentList().getNameList());
             
+            // Add liveInLoop to loop header's live-out
+            livenessSetMap.get(headerID).b.addAll(liveInLoop);
+            
             // Add liveInLoop to live-in and live-out of all children
             for(TreeNode<IRIdentifier> child : loopNode.getChildren()) {
                 IRIdentifier childID = child.getElement();

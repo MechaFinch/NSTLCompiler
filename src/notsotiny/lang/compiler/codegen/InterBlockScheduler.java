@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -13,6 +14,7 @@ import notsotiny.lang.compiler.aasm.AASMLiveSet;
 import notsotiny.lang.compiler.aasm.AASMPart;
 import notsotiny.lang.ir.parts.IRBasicBlock;
 import notsotiny.lang.ir.parts.IRBranchInstruction;
+import notsotiny.lang.ir.parts.IRBranchOperation;
 import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.util.Pair;
@@ -31,19 +33,34 @@ public class InterBlockScheduler {
      * @param livenessSets
      * @return
      */
-    public static List<AASMPart> scheduleBlocks(IRFunction function, Map<IRIdentifier, List<AASMPart>> bbAASMs, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSets) {
+    public static List<List<AASMPart>> scheduleBlocks(IRFunction function, Map<IRIdentifier, List<List<AASMPart>>> bbAASMs, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSets) {
         
         LOG.finer("Scheduling blocks in " + function.getID());
         
-        List<AASMPart> parts = new ArrayList<>();
+        List<List<AASMPart>> parts = new ArrayList<>();
         
-        // Remove function arguments from liveness sets
-        // Function arguments are loaded from the stack on demand with current code generation
+        // Modify liveness sets to reflect non-SSA form and current code generation for function arguments
+        // Code at this point is not in SSA form. Therefore, arguments of a BB should be live-out in blocks
+        // that branch to the BB.
+        // Function arguments are loaded on demand for a given BB, therefore remove them from liveness sets
         List<IRIdentifier> argNames = function.getArguments().getNameList();
         
-        for(Pair<Set<IRIdentifier>, Set<IRIdentifier>> liveness : livenessSets.values()) {
-            liveness.a.removeAll(argNames);
-            liveness.b.removeAll(argNames);
+        for(Entry<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> entry : livenessSets.entrySet()) {
+            IRIdentifier bbID = entry.getKey();
+            Set<IRIdentifier> liveIn = entry.getValue().a;
+            Set<IRIdentifier> liveOut = entry.getValue().b;
+            
+            // Remove function arguments from liveness sets
+            liveIn.removeAll(argNames);
+            liveOut.removeAll(argNames);
+            
+            // Add target args to live out
+            // The conditional argument pretransformer ensures only unconditional branches have arg assignments
+            IRBranchInstruction exit = function.getBasicBlock(bbID).getExitInstruction();
+            
+            if(exit.getOp() == IRBranchOperation.JMP) {
+                liveOut.addAll(exit.getTrueArgumentMapping().getMap().keySet());
+            }
         }
         
         // Schedule
@@ -51,11 +68,13 @@ public class InterBlockScheduler {
         
         // Report scheduled code
         if(LOG.isLoggable(Level.FINEST)) {
-            for(AASMPart part : parts) {
-                if(part instanceof AASMLabel) {
-                    LOG.finest(part + "");
-                } else {
-                    LOG.finest("\t" + part + "");
+            for(List<AASMPart> group : parts) {
+                for(AASMPart part : group) {
+                    if(part instanceof AASMLabel) {
+                        LOG.finest(part + "");
+                    } else {
+                        LOG.finest("\t" + part);
+                    }
                 }
             }
         }
@@ -72,7 +91,7 @@ public class InterBlockScheduler {
      * @param livenessSets
      * @param scheduledBlocks
      */
-    private static void schedule(List<AASMPart> parts, IRIdentifier blockID, IRFunction function, Map<IRIdentifier, List<AASMPart>> bbAASMs, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSets, Set<IRIdentifier> scheduledBlocks) {
+    private static void schedule(List<List<AASMPart>> parts, IRIdentifier blockID, IRFunction function, Map<IRIdentifier, List<List<AASMPart>>> bbAASMs, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSets, Set<IRIdentifier> scheduledBlocks) {
         if(scheduledBlocks.contains(blockID)) {
             // Already scheduled
             return;
@@ -86,17 +105,18 @@ public class InterBlockScheduler {
         Set<IRIdentifier> liveInSet = liveness.a;
         Set<IRIdentifier> liveOutSet = liveness.b;
         
-        // Label the block
-        parts.add(new AASMLabel(blockID + ""));
-        
-        // Add live-in information
-        parts.add(new AASMLiveSet(liveInSet));
+        // Label the block and add live-in information
+        parts.add(List.of(new AASMLabel(blockID + ""), new AASMLiveSet(liveInSet, new HashSet<>(), true)));
         
         // Add the basic block's code
-        parts.addAll(bbAASMs.get(blockID));
+        for(List<AASMPart> group : bbAASMs.get(blockID)) {
+            if(!group.isEmpty()) {
+                parts.add(group);
+            }
+        }
         
         // Add live-out information
-        parts.add(new AASMLiveSet(liveOutSet));
+        parts.add(List.of(new AASMLiveSet(liveOutSet, new HashSet<>(), false)));
         
         // Schedule successors
         IRBranchInstruction exit = block.getExitInstruction();

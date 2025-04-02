@@ -24,7 +24,7 @@ import notsotiny.lang.util.Pair;
 
 /**
  * Performs instruction selection given the set of covering tiles for each node
- * Implements the NOLTIS algorithm found in Koes & Goldstein's Near-Optimal Instruction Selection on DAGs 
+ * Implements the NOLTIS algorithm found in Koes & Goldstein Near-Optimal Instruction Selection on DAGs 
  */
 public class ISelTileSelector {
     

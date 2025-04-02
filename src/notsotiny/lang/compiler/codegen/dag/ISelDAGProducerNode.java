@@ -36,6 +36,10 @@ public class ISelDAGProducerNode extends ISelDAGNode {
     public ISelDAGProducerNode(ISelDAG dag, IRIdentifier producedName, IRValue producedValue, IRType producedType, ISelDAGProducerOperation op) {
         super(dag);
         
+        if(producedType == null) {
+            throw new IllegalArgumentException(producedName + ": Produced type cannot be null");
+        }
+        
         this.producedValue = producedValue;
         this.producedType = producedType;
         this.op = op;
@@ -45,7 +49,7 @@ public class ISelDAGProducerNode extends ISelDAGNode {
         
         // producedName must be a local.
         if(producedName.getIDClass() != IRIdentifierClass.LOCAL) {
-            throw new IllegalArgumentException("produced name must be LOCAL");
+            throw new IllegalArgumentException(producedName + ": Produced name must be LOCAL");
         } else {
             // producedName is a local, just use it
             this.producedName = producedName;

@@ -299,7 +299,11 @@ public class ISelDAGBuilder {
         
         if(liveIn.contains(id)) {
             // It's a live-in. Make an IN node
-            return new ISelDAGProducerNode(dag, id, type, ISelDAGProducerOperation.IN);
+            // Live-ins are given a local ID to avoid read-after-write hazards
+            IRIdentifier localID = new IRIdentifier(id.getName() + "%" + bb.getFunction().getFUID(), IRIdentifierClass.LOCAL);
+            typeMap.put(localID, typeMap.get(id));
+            
+            return new ISelDAGProducerNode(dag, localID, id, type, ISelDAGProducerOperation.IN);
         }
         
         //LOG.finest("Making node: " + value);

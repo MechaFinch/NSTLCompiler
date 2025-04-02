@@ -14,7 +14,7 @@ public class EmptyCodeGenerator implements CodeGenerator {
     }
     
     @Override
-    public void setDAGVisualization(boolean isel) {
+    public void setGraphVisualization(boolean isel, boolean raUncolored, boolean raColored) {
         // TODO Auto-generated method stub
         
     }

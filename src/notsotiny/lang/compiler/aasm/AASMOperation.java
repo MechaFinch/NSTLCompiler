@@ -5,54 +5,64 @@ package notsotiny.lang.compiler.aasm;
  * A subset of assembly opcodes
  */
 public enum AASMOperation implements AASMPart {
-    MOV,
-    MOVS,
-    MOVZ,
-    CMOV,
-    XCHG,
-    LEA,
-    PUSH,
-    POP,
+    MOV     (false, true),
+    MOVS    (false, true),
+    MOVZ    (false, true),
+    CMOV    (false, true),
+    XCHG    (true, true),
+    LEA     (false, true),
+    PUSH    (false, false),
+    POP     (false, true),
     
-    ADD,
-    ADC,
-    INC,
-    ICC,
-    SUB,
-    SBB,
-    DEC,
-    DCC,
+    ADD     (true, true),
+    ADC     (true, true),
+    INC     (true, true),
+    ICC     (true, true),
+    SUB     (true, true),
+    SBB     (true, true),
+    DEC     (true, true),
+    DCC     (true, true),
     
-    MUL,
-    MULH,
-    MULSH,
-    DIV,
-    DIVS,
-    DIVM,
-    DIVMS,
+    MUL     (true, true),
+    MULH    (true, true),
+    MULSH   (true, true),
+    DIV     (true, true),
+    DIVS    (true, true),
+    DIVM    (true, true),
+    DIVMS   (true, true),
     
-    AND,
-    OR,
-    XOR,
-    NOT,
-    NEG,
+    AND     (true, true),
+    OR      (true, true),
+    XOR     (true, true),
+    NOT     (true, true),
+    NEG     (true, true),
     
-    SHL,
-    SHR,
-    SAR,
-    ROL,
-    ROR,
-    RCL,
-    RCR,
+    SHL     (true, true),
+    SHR     (true, true),
+    SAR     (true, true),
+    ROL     (true, true),
+    ROR     (true, true),
+    RCL     (true, true),
+    RCR     (true, true),
     
-    CALL,
-    CALLA,
-    RET,
+    CALL    (false, false),
+    CALLA   (false, false),
+    RET     (false, false),
     
-    CMP,
-    TST,
-    JMP,
-    JMPA,
-    JCC,
+    CMP     (true, false),
+    TST     (true, false),
+    JMP     (false, false),
+    JMPA    (false, false),
+    JCC     (false, false),
     ;
+    
+    private boolean usesDestination, definesDestination;
+    
+    private AASMOperation(boolean usesDestination, boolean definesDestination) {
+        this.usesDestination = usesDestination;
+        this.definesDestination = definesDestination;
+    }
+    
+    public boolean usesDestination() { return this.usesDestination; }
+    public boolean definesDestination() { return this.definesDestination; }
 }

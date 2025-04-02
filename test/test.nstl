@@ -7,7 +7,15 @@ function main of none begin
 
 end function
 
-function test1 of u16 pointer a, u16 pointer b, u16 c returns u16 begin
-	variable d is u16 gets (a index c) + (b index c);
-	return (a index d + c) + (b index d - c);
+function test1 of u16 a, u16 b returns u16 begin
+	variable x is u16 gets a;
+	variable y is u16 gets b;
+	
+	while x < y do
+		variable z is u16 gets x;
+		x gets y;
+		y gets z;
+	end while
+	
+	return x;
 end function

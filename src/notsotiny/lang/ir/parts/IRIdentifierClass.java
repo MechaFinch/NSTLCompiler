@@ -6,9 +6,10 @@ package notsotiny.lang.ir.parts;
  * @author Mechafinch
  */
 public enum IRIdentifierClass {
-    GLOBAL  ("@"),
-    LOCAL   ("%"),
-    BLOCK   ("$"),
+    GLOBAL  ("@"),  // Top-level module member, resolves to an address
+    LOCAL   ("%"),  // Local value. Visible to its function only.
+    BLOCK   ("$"),  // Block label. Visible to its function only.
+    SPECIAL ("&"),  // Special. Illegal in code.
     ;
     
     private String prefix;

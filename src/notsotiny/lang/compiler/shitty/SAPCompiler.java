@@ -3123,6 +3123,33 @@ public class SAPCompiler implements NSTCompiler {
                 break;
             
             case NstlgrammarLexer.ID.TERMINAL_OP_REMAINDER:
+                if(type instanceof RawType rt && rt.getSize() < 4) {
+                    // divide into accumulator
+                    inferredType = compileGenericOperation("%accumulator", children.get(0), children.get(1), type, type.isSigned() ? Opcode.DIVMS_RIM : Opcode.DIVM_RIM, false, localCode, localLabelMap);
+                    
+                    // Move from accumulator upper to lower
+                    if(rt.getSize() == 1) {
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL),
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AH),
+                            true
+                        ));
+                    } else {
+                        localCode.add(new Instruction(
+                            Opcode.MOV_RIM,
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.D),
+                            true
+                        ));
+                    }
+                    
+                    return inferredType;
+                } else {
+                    LOG.severe("Cannot take remainder of non-raw or wide types");
+                    errorsEncountered = true;
+                }
+                
                 // TODO
                 LOG.severe("UNIMPLEMENTED: REMAINDER");
                 errorsEncountered = true;
@@ -3411,11 +3438,20 @@ public class SAPCompiler implements NSTCompiler {
                 tv.convertType(targetType);
                 checkType(targetType, tv.getType(), "from constant " + tv + " in generic operation " + op);
                 
-                ResolvableLocationDescriptor accDescriptor = switch(targetType.getSize()) {
-                    case 1  -> accumulatorDescriptor1;
-                    case 2  -> accumulatorDescriptor2;
-                    default -> accumulatorDescriptor4;
-                };
+                ResolvableLocationDescriptor accDescriptor;
+                if(op == Opcode.DIVM_RIM || op == Opcode.DIVMS_RIM) {
+                    // Special case for modulo
+                    accDescriptor = switch(targetType.getSize()) {
+                        case 1  -> accumulatorDescriptor2;
+                        default -> accumulatorDescriptor4;
+                    };
+                } else {
+                    accDescriptor = switch(targetType.getSize()) {
+                        case 1  -> accumulatorDescriptor1;
+                        case 2  -> accumulatorDescriptor2;
+                        default -> accumulatorDescriptor4;
+                    };
+                }
                 
                 ResolvableLocationDescriptor constantDescriptor = new ResolvableLocationDescriptor(LocationType.IMMEDIATE, targetType.getSize(), ((TypedRaw) tv).getValue());
                 
@@ -3448,11 +3484,20 @@ public class SAPCompiler implements NSTCompiler {
                 NSTLType accType = compileValueComputation(rightIsDirectReference ? left : right, localCode, localLabelMap, "%accumulator", isComparison ? RawType.NONE : targetType, false);
                 checkType(targetType, accType, "in generic operation " + op);
                 
-                ResolvableLocationDescriptor accDescriptor = switch(targetType.getSize()) {
-                    case 1  -> accumulatorDescriptor1;
-                    case 2  -> accumulatorDescriptor2;
-                    default -> accumulatorDescriptor4;
-                };
+                ResolvableLocationDescriptor accDescriptor;
+                if(op == Opcode.DIVM_RIM || op == Opcode.DIVMS_RIM) {
+                    // Special case for modulo
+                    accDescriptor = switch(targetType.getSize()) {
+                        case 1  -> accumulatorDescriptor2;
+                        default -> accumulatorDescriptor4;
+                    };
+                } else {
+                    accDescriptor = switch(targetType.getSize()) {
+                        case 1  -> accumulatorDescriptor1;
+                        case 2  -> accumulatorDescriptor2;
+                        default -> accumulatorDescriptor4;
+                    };
+                }
                 
                 generateGenericOperation(accDescriptor, cs.getVariableDescriptor(), op, targetBoolean, localCode, localLabelMap);
                 return isComparison ? RawType.BOOLEAN : targetType;
@@ -3475,11 +3520,20 @@ public class SAPCompiler implements NSTCompiler {
                 NSTLType leftType = compileValueComputation(left, localCode, localLabelMap, "%accumulator", isComparison ? RawType.NONE : targetType, false);
                 checkType(targetType, leftType, "from computation " + detailed(left) + " in generic operation " + op);
                 
-                ResolvableLocationDescriptor accDescriptor = switch(targetType.getSize()) {
-                    case 1  -> accumulatorDescriptor1;
-                    case 2  -> accumulatorDescriptor2;
-                    default -> accumulatorDescriptor4;
-                };
+                ResolvableLocationDescriptor accDescriptor;
+                if(op == Opcode.DIVM_RIM || op == Opcode.DIVMS_RIM) {
+                    // Special case for modulo
+                    accDescriptor = switch(targetType.getSize()) {
+                        case 1  -> accumulatorDescriptor2;
+                        default -> accumulatorDescriptor4;
+                    };
+                } else {
+                    accDescriptor = switch(targetType.getSize()) {
+                        case 1  -> accumulatorDescriptor1;
+                        case 2  -> accumulatorDescriptor2;
+                        default -> accumulatorDescriptor4;
+                    };
+                }
                 
                 ResolvableLocationDescriptor stackDescriptor = new ResolvableLocationDescriptor(LocationType.MEMORY, targetType.getSize(), new ResolvableMemory(Register.SP, Register.NONE, 0, 0));
                 
@@ -3800,7 +3854,26 @@ public class SAPCompiler implements NSTCompiler {
             }
         } else {
             // byte/word operations can be done directly
-            if(left.getSize() == 1 || left.getSize() == 2) {
+            if(left.getSize() == 1 || left.getSize() == 2 || op == Opcode.DIVM_RIM || op == Opcode.DIVMS_RIM) {
+                // hacky bad practice
+                if(op == Opcode.DIVM_RIM || op == Opcode.DIVMS_RIM) {
+                    if(left.getSize() == 2) {
+                        localCode.add(new Instruction(
+                            op == Opcode.DIVMS_RIM ? Opcode.MOVS_RIM : Opcode.MOVZ_RIM,
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.AL),
+                            true
+                        ));
+                    } else {
+                        localCode.add(new Instruction(
+                            op == Opcode.DIVMS_RIM ? Opcode.MOVS_RIM : Opcode.MOVZ_RIM,
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.DA),
+                            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.A),
+                            true
+                        ));
+                    }
+                }
+                
                 if(incdec) {
                     localCode.add(new Instruction(
                         op == Opcode.ADD_RIM ? Opcode.INC_RIM : Opcode.DEC_RIM,

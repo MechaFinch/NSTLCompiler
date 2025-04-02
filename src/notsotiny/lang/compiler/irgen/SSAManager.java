@@ -160,7 +160,7 @@ public class SSAManager {
                 this.argumentSourceMap.put(argID, blockID);
                 
                 writeVariable(name, blockID, argID, this.variableTypeMap.get(name));
-                localVal = mapArguments(name, argID, blockID);                
+                localVal = mapArguments(name, argID, blockID);
             }
         } else {
             // Block might have predecessors added. Create BB argument and put it in the unmapped map
@@ -278,7 +278,12 @@ public class SSAManager {
                 continue;
             }
             
-            tryRemoveArgument(pair.a, pair.b);
+            IRValue argVal = tryRemoveArgument(pair.a, pair.b);
+            
+            // This may have replaced what we just found for val
+            if(pair.a.equals(val)) {
+                val = argVal;
+            }
         }
         
         return val;

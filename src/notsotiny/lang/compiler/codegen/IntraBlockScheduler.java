@@ -36,7 +36,7 @@ public class IntraBlockScheduler {
      * @param coveringTiles
      * @return
      */
-    public static List<AASMPart> scheduleBlock(ISelDAG dag, Map<ISelDAGNode, ISelDAGTile> matchedTiles, Map<ISelDAGNode, Set<ISelDAGTile>> coveringTiles) {
+    public static List<List<AASMPart>> scheduleBlock(ISelDAG dag, Map<ISelDAGNode, ISelDAGTile> matchedTiles, Map<ISelDAGNode, Set<ISelDAGTile>> coveringTiles) {
         LOG.finer("Scheduling tiles in " + dag.getBasicBlock().getID());
         
         // Get a topological ordering of tiles (terminators first)
@@ -123,7 +123,7 @@ public class IntraBlockScheduler {
         }
         
         // Schedule code
-        List<AASMPart> schedule = new ArrayList<>();
+        List<List<AASMPart>> schedule = new ArrayList<>();
         PriorityQueue<ISelDAGTile> readyQueue = new PriorityQueue<>((a, b) -> globalLongest.get(b) - globalLongest.get(a));
         Set<ISelDAGTile> scheduled = new HashSet<>();
         
@@ -142,7 +142,7 @@ public class IntraBlockScheduler {
             
             // Add tile's code to schedule
             scheduled.add(tile);
-            schedule.addAll(tile.aasm());
+            schedule.add(tile.aasm());
             
             // Log the scheduling
             if(LOG.isLoggable(Level.FINEST)) {
@@ -234,6 +234,8 @@ public class IntraBlockScheduler {
             // Already dealt with
             return;
         }
+        
+        //LOG.finest("Visiting " + tile.rootNode().getDescription() + " " + AASMPrinter.getAASMString(tile.aasm()));
         
         // Visit inputs
         for(ISelDAGNode inputNode : tile.inputNodes()) {

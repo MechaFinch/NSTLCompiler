@@ -32,12 +32,12 @@ public record ISelDAGTile(ISelDAGNode rootNode, Set<ISelDAGNode> coveredNodes, S
         }
         
         // coveredNodes must be modifiable
+        boolean rootIsCovered = coveredNodes.contains(rootNode);
+        
         try {
-            coveredNodes.remove(rootNode);
-            coveredNodes.add(rootNode);
+            coveredNodes.remove(null);
         } catch(UnsupportedOperationException e) {
             coveredNodes = new HashSet<>(coveredNodes);
-            coveredNodes.add(rootNode); // in case add failed but not remove
         }
     }
     

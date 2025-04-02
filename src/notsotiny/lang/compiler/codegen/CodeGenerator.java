@@ -33,9 +33,11 @@ public interface CodeGenerator {
     public void setFinalOutput(boolean output, Path directory);
     
     /**
-     * Set what DAGs are visualized
-     * @param isel Instruction Selection
+     * Set what graphs are visualized
+     * @param isel Instruction Selection DAG
+     * @param raUncolored Uncolored register allocation interference graph
+     * @param raColored Colored register allocation interference graph
      */
-    public void setDAGVisualization(boolean isel);
+    public void setGraphVisualization(boolean isel, boolean raUncolored, boolean raColored);
     
 }

@@ -170,8 +170,14 @@ public class ISelPatternMatcher {
                     switch(po) {
                         case IN: {
                             LOG.finest("Found special case for IN");
-                            // IN produces no AASM
-                            List<AASMPart> aasm = List.of();
+                            // IN assigns the funcation-local name to the dag-local name
+                            List<AASMPart> aasm = List.of(
+                                new AASMInstruction(
+                                    AASMOperation.MOV,
+                                    new AASMAbstractRegister(pn.getProducedName(), pn.getProducedType()),
+                                    new AASMAbstractRegister((IRIdentifier) pn.getProducedValue(), pn.getProducedType())
+                                )
+                            );
                             matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(), aasm));
                             break;
                         }
@@ -255,8 +261,8 @@ public class ISelPatternMatcher {
                                     aasm = List.of(
                                         new AASMInstruction( // compare upper
                                             AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, true),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, true)
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, true),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, true)
                                         ),
                                         new AASMInstruction( // if upper NE, comparing lower is unnecessary
                                             AASMOperation.JCC,
@@ -265,8 +271,8 @@ public class ISelPatternMatcher {
                                         ),
                                         new AASMInstruction( // compare lower
                                             AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, false),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, false)
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, false),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, false)
                                         ),
                                         new AASMLabel(labelName),
                                         new AASMInstruction( // perform cmov
@@ -302,8 +308,8 @@ public class ISelPatternMatcher {
                                     aasm = List.of(
                                         new AASMInstruction( // compare upper
                                             AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, true),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, true)
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, true),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, true)
                                         ),
                                         new AASMInstruction( // move false
                                             AASMOperation.MOV,
@@ -323,8 +329,8 @@ public class ISelPatternMatcher {
                                         ),
                                         new AASMInstruction( // compare lower
                                             AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, false),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, false)
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, false),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, false)
                                         ),
                                         new AASMInstruction( // cmov according to lower
                                             AASMOperation.CMOV,
@@ -365,10 +371,15 @@ public class ISelPatternMatcher {
                         case STACK: {
                             LOG.finest("Found special case for STACK");
                             // Create an LEA from a StackSlot
+                            // Stack slots have their own namespace, so don't need to add to type map
+                            // We need a unique ID for the slot, though, to prevent a conflict in the
+                            // case where the STACK's local gets spilled
+                            IRIdentifier slotID = new IRIdentifier(pn.getProducedName().getName() + "%slot%" + dag.getBasicBlock().getFunction().getFUID(), IRIdentifierClass.LOCAL);
+                            
                             List<AASMPart> aasm = List.of(new AASMInstruction(
                                     AASMOperation.LEA,
                                     new AASMAbstractRegister(pn.getProducedName(), IRType.I32),
-                                    new AASMStackSlot(pn.getProducedName(), ((IRConstant) pn.getInputNodes().get(0).getProducedValue()).getValue())
+                                    new AASMStackSlot(slotID, ((IRConstant) pn.getInputNodes().get(0).getProducedValue()).getValue())
                             ));
                             
                             matchingTiles.add(new ISelDAGTile(node, Set.of(node), Set.of(node.getInputNodes().get(0)), aasm));
@@ -497,8 +508,8 @@ public class ISelPatternMatcher {
                                     aasm = List.of(
                                         new AASMInstruction( // compare upper
                                             AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, true),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, true)
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, true),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, true)
                                         ),
                                         new AASMInstruction( // branch if resolved
                                             AASMOperation.JCC,
@@ -507,8 +518,8 @@ public class ISelPatternMatcher {
                                         ),
                                         new AASMInstruction( // compare lower
                                             AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, false),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, false)
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, false),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, false)
                                         ),
                                         new AASMInstruction( // branch
                                             AASMOperation.JCC,
@@ -549,8 +560,8 @@ public class ISelPatternMatcher {
                                     aasm = List.of(
                                         new AASMInstruction( // compare upper
                                             AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, true),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, true)
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, true),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, true)
                                         ),
                                         new AASMInstruction( // branch if resolved
                                             AASMOperation.JCC,
@@ -564,8 +575,8 @@ public class ISelPatternMatcher {
                                         ),
                                         new AASMInstruction( // compare lower
                                             AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I16, true, false),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I16, true, false)
+                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, false),
+                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, false)
                                         ),
                                         new AASMInstruction( // branch
                                             AASMOperation.JCC,
@@ -1146,12 +1157,17 @@ public class ISelPatternMatcher {
             inputNodes.addAll(subTile.inputNodes());
         }
         
-        // Convert AASM parts
-        for(AASMPart patternPart : match.pattern().getTemplate()) {
-            parts.add(convertPart(patternPart, match, subpatternResults, tmpMap, typeMap));
+        try {
+            // Convert AASM parts
+            for(AASMPart patternPart : match.pattern().getTemplate()) {
+                parts.add(convertPart(patternPart, match, subpatternResults, tmpMap, typeMap));
+            }
+            
+            return new ISelDAGTile(match.matchRoot(), coveredNodes, inputNodes, parts, match);
+        } catch(CompilationException e) {
+            // Indicates a non-error conversion failure
+            return null;
         }
-        
-        return new ISelDAGTile(match.matchRoot(), coveredNodes, inputNodes, parts, match);
     }
     
     /**
@@ -1164,10 +1180,8 @@ public class ISelPatternMatcher {
      * @param typeMap Types of temporaries are added to the map
      * @return
      */
-    private static AASMPart convertPart(AASMPart part, ISelMatchData match, Map<String, ISelDAGTile> subpatternResults, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap) {
+    private static AASMPart convertPart(AASMPart part, ISelMatchData match, Map<String, ISelDAGTile> subpatternResults, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap) throws CompilationException {
         //LOG.finest("Converting " + part);
-        
-        // TODO
         
         switch(part) {
             case AASMInstruction patInst: {
@@ -1269,11 +1283,38 @@ public class ISelPatternMatcher {
                                 ISelDAGProducerNode prodRef = (ISelDAGProducerNode) referencedMatch.matchMap().get(refID);
                                 
                                 if(prodRef.getProducedValue() instanceof IRIdentifier id) {
+                                    // Can't take halves of link constants
+                                    if(half) {
+                                        throw new CompilationException("Can't take halves of link constants");
+                                    }
+                                    
                                     // Link time constant
                                     return new AASMLinkConstant(id);
                                 } else {
+                                    int conValue = ((IRConstant) prodRef.getProducedValue()).getValue();
+                                    IRType conType;
+                                    
+                                    if(half) {
+                                        switch(prodRef.getProducedType()) {
+                                            case I16:
+                                                conValue = (high ? (conValue >> 8) : conValue) & 0xFF;
+                                                conType = IRType.I8;
+                                                break;
+                                                
+                                            case I32:
+                                                conValue = (high ? (conValue >> 16) : conValue) & 0xFFFF;
+                                                conType = IRType.I16;
+                                                break;
+                                                
+                                            default:
+                                                throw new IllegalArgumentException("Constant produced none type");
+                                        }
+                                    } else {
+                                        conType = prodRef.getProducedType();
+                                    }
+                                    
                                     // Compile time constant
-                                    return new AASMCompileConstant(((IRConstant) prodRef.getProducedValue()).getValue(), prodRef.getProducedType());
+                                    return new AASMCompileConstant(conValue, conType);
                                 }
                             }
                             
