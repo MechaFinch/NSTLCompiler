@@ -4,11 +4,13 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import notsotiny.asm.Register;
 import notsotiny.lang.compiler.aasm.AASMCompileConstant;
 import notsotiny.lang.compiler.aasm.AASMInstruction;
+import notsotiny.lang.compiler.aasm.AASMInstructionMeta;
 import notsotiny.lang.compiler.aasm.AASMLabel;
 import notsotiny.lang.compiler.aasm.AASMLinkConstant;
 import notsotiny.lang.compiler.aasm.AASMMachineRegister;
@@ -26,39 +28,6 @@ public class PeepholeOptimizer {
     
     private static Logger LOG = Logger.getLogger(PeepholeOptimizer.class.getName());
     
-    /**
-     * Data about an instruction
-     */
-    private static class InstructionMeta {
-        AASMOperation op = null;                    // Opcode
-        boolean causesFlush = false;                // Some instructions flush the peephole area
-        
-        boolean destIsRegister = false,
-                destIsMemory = false,
-                destOffsIsCCon = false;             // True if dest offset is a compile constant
-        Register destRegister = Register.NONE,
-                 destBase = Register.NONE,
-                 destIndex = Register.NONE;
-        int destScale = 0,
-            destOffset = 0;
-        IRType sourceType = IRType.NONE;
-        
-        boolean sourceIsRegister = false,
-                sourceIsMemory = false,
-                sourceIsCompileConstant = false,
-                sourceIsLinkConstant = false,
-                sourceOffsIsCCon = false;           // True if source offset is a compile constant
-        Register sourceRegister = Register.NONE,
-                 sourceBase = Register.NONE,
-                 sourceIndex = Register.NONE;
-        int sourceScale = 0,
-            sourceOffset = 0,
-            sourceValue = 0;
-        IRType destType = IRType.NONE;
-        
-        IRCondition condition = IRCondition.NONE;   // condition
-    }
-    
     private static final int PEEP_SIZE = 3;
     
     /**
@@ -69,63 +38,104 @@ public class PeepholeOptimizer {
     public static List<AASMPart> optimize(List<AASMPart> code, IRFunction sourceFunction) {
         LOG.finer("Performing peephole optimizations on " + sourceFunction.getID());
         
-        List<AASMPart> optimized = new ArrayList<>();
+        List<AASMPart> optimizedCode = new ArrayList<>();
         
         ArrayList<AASMInstruction> peepInst = new ArrayList<>();
-        ArrayList<InstructionMeta> peepMeta = new ArrayList<>();
+        ArrayList<AASMInstructionMeta> peepMeta = new ArrayList<>();
         
-        // Go through each instruction
-        for(AASMPart part : code) {
-            boolean flush = true;
+        // Optimize iteratively
+        boolean optimized = true;
+        while(optimized) {
+            optimized = false;
             
-            if(part instanceof AASMInstruction inst) {
-                InstructionMeta meta = analyzeInstruction(inst);
+            // For each instruction
+            for(int idx = 0; idx < code.size(); idx++) {
+                AASMPart part = code.get(idx);
+                boolean flush = true;
                 
-                // Add to peephole if not flushed
-                if(!meta.causesFlush) {
-                    peepInst.add(inst);
-                    peepMeta.add(meta);
-                    flush = meta.causesFlush;
-                }
-            }
-            
-            // Move oldest out of peephole if applicable
-            if(peepInst.size() > PEEP_SIZE) {
-                AASMInstruction i = peepInst.removeFirst();
-                peepMeta.removeFirst();
-                
-                LOG.finest("\t" + i);
-                optimized.add(i);
-            }
-            
-            if(flush) {
-                // Part flushes the peephole
-                while(!peepInst.isEmpty()) {
-                    optimizeStep(peepInst, peepMeta);
+                if(part instanceof AASMInstruction inst) {
+                    AASMInstructionMeta meta = inst.getMeta();
                     
-                    if(!peepInst.isEmpty()) {
-                        AASMInstruction i = peepInst.removeFirst();
-                        peepMeta.removeFirst();
-                        
-                        LOG.finest("\t" + i);
-                        optimized.add(i);
+                    // Add to peephole if not flushed
+                    if(!meta.causesFlush) {
+                        peepInst.add(inst);
+                        peepMeta.add(meta);
+                        flush = meta.causesFlush;
                     }
                 }
                 
-                if(part instanceof AASMLabel lbl) {
-                    LOG.finest(lbl + "");
+                // Move oldest out of peephole if applicable
+                if(peepInst.size() > PEEP_SIZE) {
+                    AASMInstruction i = peepInst.removeFirst();
+                    peepMeta.removeFirst();
+                    
+                    optimizedCode.add(i);
+                }
+                
+                if(flush) {
+                    // Part flushes the peephole
+                    while(!peepInst.isEmpty()) {
+                        // Optimize until empty
+                        optimized |= optimizeStep(peepInst, peepMeta);
+                        
+                        if(!peepInst.isEmpty()) {
+                            AASMInstruction i = peepInst.removeFirst();
+                            peepMeta.removeFirst();
+                            
+                            optimizedCode.add(i);
+                        }
+                    }
+                    
+                    // Special case - no-op jump elimination\
+                    boolean specialEliminated = false;
+                    if(part instanceof AASMInstruction inst) {
+                        switch(inst.getOp()) {
+                            case JMP, JCC:
+                                // If a next part exists,
+                                // that part is a label,
+                                // the jump is to a label,
+                                // and that label is the immediately subsequent label
+                                if((idx + 1) < code.size() &&
+                                   code.get(idx + 1) instanceof AASMLabel nextLabel) {
+                                    if((inst.getSource() instanceof AASMLabel jumpLabel &&
+                                        jumpLabel.name().equals(nextLabel.name())) ||
+                                       (inst.getSource() instanceof AASMLinkConstant jumpLink &&
+                                        jumpLink.id().toString().equals(nextLabel.name()))) {
+                                        specialEliminated = true;
+                                    }
+                                }
+                                break;
+                            
+                            default:
+                        }
+                    }
+                    
+                    // Then add part
+                    if(!specialEliminated) {
+                        optimizedCode.add(part);
+                    }
+                } else {
+                    // Part was added to the peephole. Optimize!
+                    optimized |= optimizeStep(peepInst, peepMeta);
+                }
+            }
+            
+            code = optimizedCode;
+            optimizedCode = new ArrayList<>();
+        }
+        
+        // Report results
+        if(LOG.isLoggable(Level.FINEST)) {
+            for(AASMPart part : code) {
+                if(part instanceof AASMLabel) {
+                    LOG.finest("" + part);
                 } else {
                     LOG.finest("\t" + part);
                 }
-                
-                optimized.add(part);
-            } else {
-                // Part was added to the peephole. Optimize!
-                optimizeStep(peepInst, peepMeta);
             }
         }
         
-        return optimized;
+        return code;
     }
     
     /**
@@ -133,19 +143,29 @@ public class PeepholeOptimizer {
      * @param peepInst
      * @param peepMeta
      */
-    private static void optimizeStep(ArrayList<AASMInstruction> peepInst, ArrayList<InstructionMeta> peepMeta) {
-        // Checks are separate as functions can remove instructions
-        if(peepInst.size() >= 3) {
-            optimizeThree(peepInst, peepMeta);
+    private static boolean optimizeStep(ArrayList<AASMInstruction> peepInst, ArrayList<AASMInstructionMeta> peepMeta) {
+        boolean optimized = true;
+        boolean optimizedAny = false;
+        
+        // Although we optimize iteratively globally, doing it locally can catch things without iterating over the entire function again
+        while(optimized && peepInst.size() >= 3) {
+            optimized = optimizeThree(peepInst, peepMeta);
+            optimizedAny |= optimized;
         }
         
-        if(peepInst.size() >= 2) {
-            optimizeTwo(peepInst, peepMeta);
+        optimized = true;
+        while(optimized && peepInst.size() >= 2) {
+            optimized = optimizeTwo(peepInst, peepMeta);
+            optimizedAny |= optimized;
         }
         
-        if(peepInst.size() >= 1) {
-            optimizeOne(peepInst, peepMeta);
+        optimized = true;
+        while(optimized && peepInst.size() >= 1) {
+            optimized = optimizeOne(peepInst, peepMeta);
+            optimizedAny |= optimized;
         }
+        
+        return optimizedAny;
     }
     
     /**
@@ -153,9 +173,9 @@ public class PeepholeOptimizer {
      * @param peepInst
      * @param peepMeta
      */
-    private static void optimizeOne(ArrayList<AASMInstruction> peepInst, ArrayList<InstructionMeta> peepMeta) {
+    private static boolean optimizeOne(ArrayList<AASMInstruction> peepInst, ArrayList<AASMInstructionMeta> peepMeta) {
         AASMInstruction inst = peepInst.get(0);
-        InstructionMeta meta = peepMeta.get(0);
+        AASMInstructionMeta meta = peepMeta.get(0);
         
         //LOG.finest("O1: " + inst);
         
@@ -166,27 +186,30 @@ public class PeepholeOptimizer {
                 //LOG.finest("Eliminated no-op move " + inst);
                 peepInst.remove(0);
                 peepMeta.remove(0);
-                return;
+                return true;
             }
         }
         
         // TODO
+        
+        return false;
     }
     
     /**
      * Optimizes using 2 instructions
      * @param peepInst
      * @param peepMeta
+     * @param true if optimization performed
      */
-    private static void optimizeTwo(ArrayList<AASMInstruction> peepInst, ArrayList<InstructionMeta> peepMeta) {
+    private static boolean optimizeTwo(ArrayList<AASMInstruction> peepInst, ArrayList<AASMInstructionMeta> peepMeta) {
         AASMInstruction i0 = peepInst.get(0);
         AASMInstruction i1 = peepInst.get(1);
-        InstructionMeta m0 = peepMeta.get(0);
-        InstructionMeta m1 = peepMeta.get(1);
+        AASMInstructionMeta m0 = peepMeta.get(0);
+        AASMInstructionMeta m1 = peepMeta.get(1);
         
         //LOG.finest("O2: " + i0 + "; " + i1);
         
-        if(m0.op == AASMOperation.MOV && m1.op == AASMOperation.MOV) { 
+        if(m0.op == AASMOperation.MOV && m1.op == AASMOperation.MOV) {
             // MOV ?, ?
             // MOV ?, ?
             
@@ -199,6 +222,8 @@ public class PeepholeOptimizer {
                 // Is equivalent to
                 // MOV [BP - x], y
                 // MOV z, y
+                // Specifically BP rather than general memory access as the stack
+                // is assumed to not be in a side-effecting memory region
                 if(m0.destBase == Register.BP && m1.sourceBase == Register.BP &&
                    m0.destIndex == Register.NONE && m1.sourceIndex == Register.NONE &&
                    m0.destOffsIsCCon && m1.sourceOffsIsCCon &&
@@ -211,156 +236,110 @@ public class PeepholeOptimizer {
                     );
                     
                     peepInst.set(1, new1);
-                    peepMeta.set(1, analyzeInstruction(new1));
-                    return;
+                    peepMeta.set(1, new1.getMeta());
+                    return true;
+                }
+            } else if(m0.sourceIsRegister && m0.destIsRegister &&
+                      m1.sourceIsRegister && m1.destIsRegister) {
+                // MOV R, R
+                // MOV R, R
+                
+                // MOV A, B
+                // MOV B, A
+                // is equivalent to
+                // MOV A, B
+                if(m0.destRegister == m1.sourceRegister &&
+                   m1.destRegister == m0.sourceRegister) {
+                    peepInst.remove(1);
+                    peepMeta.remove(1);
+                    return true;
+                }
+            }
+        } else if(m0.op == AASMOperation.PUSH && m1.op == AASMOperation.PUSH) {
+            // Some pairs of pushes can be combined into single instructions
+            if(m0.sourceIsCompileConstant && m1.sourceIsCompileConstant) {
+                if((m0.sourceType == IRType.I8 && m1.sourceType == IRType.I8) ||
+                   (m0.sourceType == IRType.I16 && m1.sourceType == IRType.I16)) {
+                    // I8 I8 -> I16 or I16 I16 -> I32?
+                    boolean i8 = m0.sourceType == IRType.I8; 
+                    
+                    // Merge constants
+                    AASMCompileConstant newConst = new AASMCompileConstant(
+                        (m0.sourceValue << (i8 ? 8 : 16)) | m1.sourceValue,
+                        i8 ? IRType.I16 : IRType.I32
+                    );
+                    
+                    // Substitute instruction
+                    AASMInstruction newInst = new AASMInstruction(
+                        AASMOperation.PUSH,
+                        newConst
+                    );
+                    
+                    peepInst.remove(1);
+                    peepMeta.remove(1);
+                    peepInst.set(0, newInst);
+                    peepMeta.set(0, newInst.getMeta());
+                    return true;
+                }
+            } else if(m0.sourceIsRegister && m1.sourceIsRegister) {
+                // Register pairs
+                boolean canReplace = false;
+                Register reg = Register.NONE;
+                
+                switch(m0.sourceRegister) {
+                    case A: canReplace = (m1.sourceRegister == Register.B); reg = Register.AB; break;
+                    case B: canReplace = (m1.sourceRegister == Register.C); reg = Register.BC; break;
+                    case C: canReplace = (m1.sourceRegister == Register.D); reg = Register.CD; break;
+                    case D: canReplace = (m1.sourceRegister == Register.A); reg = Register.DA; break;
+                    case J: canReplace = (m1.sourceRegister == Register.I); reg = Register.JI; break;
+                    case L: canReplace = (m1.sourceRegister == Register.K); reg = Register.LK; break;
+                    
+                    case AH: canReplace = (m1.sourceRegister == Register.AL); reg = Register.A; break;
+                    case BH: canReplace = (m1.sourceRegister == Register.BL); reg = Register.B; break;
+                    case CH: canReplace = (m1.sourceRegister == Register.CL); reg = Register.C; break;
+                    case DH: canReplace = (m1.sourceRegister == Register.DL); reg = Register.D; break;
+                    
+                    default:
+                        // Can't pair
+                }
+                
+                if(canReplace) {
+                    // Found a pair
+                    AASMInstruction newInst = new AASMInstruction(
+                        AASMOperation.PUSH,
+                        new AASMMachineRegister(reg)
+                    );
+                    
+                    peepInst.remove(1);
+                    peepMeta.remove(1);
+                    peepInst.set(0, newInst);
+                    peepMeta.set(0, newInst.getMeta());
+                    return true;
                 }
             }
         }
         
         // TODO
+        
+        return false;
     }
     
     /**
      * Optimizes using 3 instructions
      * @param peepInst
      * @param peepMeta
+     * @return true if optimization performed
      */
-    private static void optimizeThree(ArrayList<AASMInstruction> peepInst, ArrayList<InstructionMeta> peepMeta) {
+    private static boolean optimizeThree(ArrayList<AASMInstruction> peepInst, ArrayList<AASMInstructionMeta> peepMeta) {
+        AASMInstruction i0 = peepInst.get(0);
+        AASMInstruction i1 = peepInst.get(1);
+        AASMInstruction i2 = peepInst.get(2);
+        AASMInstructionMeta m0 = peepMeta.get(0);
+        AASMInstructionMeta m1 = peepMeta.get(1);
+        AASMInstructionMeta m2 = peepMeta.get(2);
+        
         // TODO
-    }    
-    
-    /**
-     * Analyzes an instruction
-     * @param inst
-     * @return
-     */
-    private static InstructionMeta analyzeInstruction(AASMInstruction inst) {
-        InstructionMeta meta = new InstructionMeta();
         
-        meta.op = inst.getOp();
-        meta.condition = inst.getCondition();
-        
-        meta.causesFlush = switch(inst.getOp()) {
-            case PUSH, POP, CALL, CALLA, RET, JMP, JMPA, JCC
-                    -> true;
-            default -> false;
-        };
-        
-        try {
-            if(inst.getDestination() != null) {
-                switch(inst.getDestination()) {
-                    case AASMMachineRegister reg: {
-                        meta.destIsRegister = true;
-                        meta.destRegister = reg.reg();
-                        meta.destType = reg.getType();
-                        break;
-                    }
-                    
-                    case AASMMemory mem: {
-                        meta.destIsMemory = true;
-                        meta.destBase = asReg(mem.getBase(), true);
-                        meta.destIndex = asReg(mem.getIndex(), true);
-                        meta.destScale = asInt(mem.getScale(), 1);
-                        meta.destType = mem.getType();
-                        
-                        if(mem.getOffset() instanceof AASMCompileConstant ccon) {
-                            meta.destOffsIsCCon = true;
-                            meta.destOffset = ccon.value();
-                        }
-                        break;
-                    }
-                    
-                    default:
-                        throw new IllegalArgumentException("Unexpected destination type: " + inst);
-                }
-            }
-            
-            if(inst.getSource() != null) {
-                switch(inst.getSource()) {
-                    case AASMMachineRegister reg: {
-                        meta.sourceIsRegister = true;
-                        meta.sourceRegister = reg.reg();
-                        meta.sourceType = reg.getType();
-                        break;
-                    }
-                    
-                    case AASMMemory mem: {
-                        meta.sourceIsMemory = true;
-                        meta.sourceBase = asReg(mem.getBase(), true);
-                        meta.sourceIndex = asReg(mem.getIndex(), true);
-                        meta.sourceScale = asInt(mem.getScale(), 1);
-                        meta.sourceType = mem.getType();
-                        
-                        if(mem.getOffset() instanceof AASMCompileConstant ccon) {
-                            meta.sourceOffsIsCCon = true;
-                            meta.sourceOffset = ccon.value();
-                        }
-                        break;
-                    }
-                    
-                    case AASMCompileConstant cc: {
-                        meta.sourceIsCompileConstant = true;
-                        meta.sourceValue = asInt(cc, 0);
-                        meta.sourceType = cc.getType();
-                        break;
-                    }
-                    
-                    case AASMLinkConstant lc: {
-                        meta.sourceIsLinkConstant = true;
-                        meta.sourceType = lc.getType();
-                        break;
-                    }
-                    
-                    default:
-                        throw new IllegalArgumentException("Unexpected destination type: " + inst);
-                }
-            }
-        } catch(ClassCastException e) {
-            LOG.severe("Unexpected type during instruction analysis");
-            throw e;
-        }
-        
-        return meta;
+        return false;
     }
-    
-    /**
-     * Returns part as a Register
-     * @param part
-     * @return
-     */
-    private static Register asReg(AASMPart part, boolean allowCC0) {
-        if(part == null) {
-            return Register.NONE;
-        }
-        
-        return switch(part) {
-            case AASMMachineRegister reg    -> reg.reg();
-            case AASMCompileConstant ccon   -> {
-                if(allowCC0 && ccon.value() == 0) {
-                    yield Register.NONE;
-                } else {
-                    throw new IllegalArgumentException("Unexpected part as register: " + part);
-                }
-            }
-            default                         -> throw new IllegalArgumentException("Unexpected part as register: " + part);
-        };
-    }
-    
-    /**
-     * Returns part as an integer
-     * @param part
-     * @param def Default on-null value
-     * @return
-     */
-    private static int asInt(AASMPart part, int def) {
-        if(part == null) {
-            return def;
-        }
-        
-        return switch(part) {
-            case AASMCompileConstant cc -> cc.value();
-            default                     -> throw new IllegalArgumentException("Unexpected part as integer: " + part);
-        };
-    }
-    
 }

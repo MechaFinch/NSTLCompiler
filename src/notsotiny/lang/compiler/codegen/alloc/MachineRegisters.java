@@ -18,8 +18,6 @@ public class MachineRegisters {
     public static final IRIdentifier ID_BP = new AASMMachineRegister(Register.BP).id(),
                                      ID_SP = new AASMMachineRegister(Register.SP).id();
     
-    public static final Set<Register> undesirable = Set.of(Register.JI, Register.LK, Register.I, Register.J, Register.K, Register.L);
-    
     private static Map<Register, Set<Register>> registerAliasSets;
     private static Map<RARegisterClass, Set<Register>> classAliasSets;
     

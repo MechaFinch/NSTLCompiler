@@ -1,5 +1,6 @@
 package notsotiny.lang.compiler.aasm;
 
+import notsotiny.asm.Register;
 import notsotiny.lang.ir.parts.IRCondition;
 
 /**
@@ -111,6 +112,130 @@ public class AASMInstruction implements AASMPart {
         }
         
         return sb.toString();
+    }
+    
+    public AASMInstructionMeta getMeta() {
+        AASMInstructionMeta meta = new AASMInstructionMeta();
+        
+        meta.op = this.op;
+        meta.condition = this.condition;
+        
+        meta.causesFlush = switch(this.op) {
+            case CALL, CALLA, RET, JMP, JMPA, JCC
+                    -> true;
+            default -> false;
+        };
+        
+        if(this.destination != null) {
+            switch(this.destination) {
+                case AASMMachineRegister reg: {
+                    meta.destIsRegister = true;
+                    meta.destRegister = reg.reg();
+                    meta.destType = reg.getType();
+                    break;
+                }
+                
+                case AASMMemory mem: {
+                    meta.destIsMemory = true;
+                    meta.destBase = asReg(mem.getBase(), true);
+                    meta.destIndex = asReg(mem.getIndex(), true);
+                    meta.destScale = asInt(mem.getScale(), 1);
+                    meta.destType = mem.getType();
+                    
+                    if(mem.getOffset() instanceof AASMCompileConstant ccon) {
+                        meta.destOffsIsCCon = true;
+                        meta.destOffset = ccon.value();
+                    }
+                    break;
+                }
+                
+                default:
+                    throw new IllegalArgumentException("Unexpected destination type: " + this);
+            }
+        }
+        
+        if(this.source != null) {
+            switch(this.source) {
+                case AASMMachineRegister reg: {
+                    meta.sourceIsRegister = true;
+                    meta.sourceRegister = reg.reg();
+                    meta.sourceType = reg.getType();
+                    break;
+                }
+                
+                case AASMMemory mem: {
+                    meta.sourceIsMemory = true;
+                    meta.sourceBase = asReg(mem.getBase(), true);
+                    meta.sourceIndex = asReg(mem.getIndex(), true);
+                    meta.sourceScale = asInt(mem.getScale(), 1);
+                    meta.sourceType = mem.getType();
+                    
+                    if(mem.getOffset() instanceof AASMCompileConstant ccon) {
+                        meta.sourceOffsIsCCon = true;
+                        meta.sourceOffset = ccon.value();
+                    }
+                    break;
+                }
+                
+                case AASMCompileConstant cc: {
+                    meta.sourceIsCompileConstant = true;
+                    meta.sourceValue = asInt(cc, 0);
+                    meta.sourceType = cc.getType();
+                    break;
+                }
+                
+                case AASMLinkConstant lc: {
+                    meta.sourceIsLinkConstant = true;
+                    meta.sourceType = lc.getType();
+                    break;
+                }
+                
+                default:
+                    throw new IllegalArgumentException("Unexpected destination type: " + this);
+            }
+        }
+        
+        return meta;
+    }
+    
+    /**
+     * Returns part as a Register
+     * @param part
+     * @return
+     */
+    private static Register asReg(AASMPart part, boolean allowCC0) {
+        if(part == null) {
+            return Register.NONE;
+        }
+        
+        return switch(part) {
+            case AASMMachineRegister reg    -> reg.reg();
+            case AASMCompileConstant ccon   -> {
+                if(allowCC0 && ccon.value() == 0) {
+                    yield Register.NONE;
+                } else {
+                    throw new IllegalArgumentException("Unexpected part as register: " + part);
+                }
+            }
+            default                         -> throw new IllegalArgumentException("Unexpected part as register: " + part);
+        };
+    }
+    
+    /**
+     * Returns part as an integer
+     * @param part
+     * @param def Default on-null value
+     * @return
+     */
+    private static int asInt(AASMPart part, int def) {
+        if(part == null) {
+            return def;
+        }
+        
+        return switch(part) {
+            case AASMCompileConstant cc -> cc.value();
+            default                     -> throw new IllegalArgumentException("Unexpected part as integer: " + part);
+        };
     }
     
 }

@@ -42,6 +42,9 @@ public class RegisterAllocator {
     
     private static Logger LOG = Logger.getLogger(RegisterAllocator.class.getName());
     
+    /**
+     * Data structures used throughout register allocation
+     */
     private static class RAData {
         // Data structures as described in George & Appel A.1
         // A.1.1 Nodes
@@ -63,6 +66,41 @@ public class RegisterAllocator {
     }
     
     /**
+     * Helper class for recording whether IJKL are used
+     */
+    private static class IJKLInfo {
+        boolean usesI = false;
+        boolean usesJ = false;
+        boolean usesK = false;
+        boolean usesL = false;
+        
+        /**
+         * Include use of register r
+         * @param r
+         */
+        void include(Register r) {
+            switch(r) {
+                case I: this.usesI = true; break;
+                case J: this.usesJ = true; break;
+                case K: this.usesK = true; break;
+                case L: this.usesL = true; break;
+                
+                case JI:
+                    this.usesJ = true;
+                    this.usesI = true;
+                    break;
+                
+                case LK:
+                    this.usesL = true;
+                    this.usesK = true;
+                    break;
+                
+                default:
+            }
+        }
+    }
+    
+    /**
      * Allocates registers given abstract assembly
      * @param abstractCode
      * @param sourceFunction
@@ -71,7 +109,7 @@ public class RegisterAllocator {
      * @return
      * @throws CompilationException
      */
-    public static List<AASMPart> allocateRegisters(List<List<AASMPart>> abstractCode, IRFunction sourceFunction, boolean showRAIGUncolored, boolean showRAIGColored) throws CompilationException {
+    public static AllocationResult allocateRegisters(List<List<AASMPart>> abstractCode, IRFunction sourceFunction, boolean showRAIGUncolored, boolean showRAIGColored) throws CompilationException {
         
         LOG.finer("Performing register allocation for " + sourceFunction.getID());
         
@@ -247,13 +285,16 @@ public class RegisterAllocator {
         
         List<AASMPart> allocatedCode = new ArrayList<>();
         
+        int stackAllocationSize = stackMapping.size() == 0 ? 0 : Collections.max(stackMapping.values());
+        IJKLInfo ijkl = new IJKLInfo();
+        
         for(List<AASMPart> group : currentCode) {
             for(AASMPart part : group) {
                 switch(part) {
                     case AASMInstruction inst: {
                         // Instruction. Convert source and dest
-                        AASMPart source = realizePart(inst.getSource(), registerMapping, stackMapping),
-                                 dest = realizePart(inst.getDestination(), registerMapping, stackMapping);
+                        AASMPart source = realizePart(inst.getSource(), ijkl, registerMapping, stackMapping),
+                                 dest = realizePart(inst.getDestination(), ijkl, registerMapping, stackMapping);
                         
                         allocatedCode.add(new AASMInstruction(
                             inst.getOp(),
@@ -293,7 +334,7 @@ public class RegisterAllocator {
             }
         }
         
-        return allocatedCode;
+        return new AllocationResult(allocatedCode, stackAllocationSize, ijkl.usesI, ijkl.usesJ, ijkl.usesK, ijkl.usesL);
     }
     
     /**
@@ -542,6 +583,11 @@ public class RegisterAllocator {
     private static void assignColors(RAData data) {
         LOG.finest("Assigning colors");
         
+        // Avoid using IJKL if they haven't been used already
+        Set<Register> undesirable = new HashSet<>(
+            Set.of(Register.JI, Register.LK, Register.I, Register.J, Register.K, Register.L)
+        );
+        
         // Color the graph best we can
         while(!data.selectStack.isEmpty()) {
             // Pop a node
@@ -572,11 +618,19 @@ public class RegisterAllocator {
                 
                 // When choosing a color, avoid IJKL
                 Set<Register> desirable = new HashSet<>(okColors);
-                desirable.removeAll(MachineRegisters.undesirable);
+                desirable.removeAll(undesirable);
                 
                 if(desirable.isEmpty()) {
                     // sadge
-                    node.setColor(get(okColors));
+                    Register color = get(okColors);
+                    node.setColor(color);
+                    
+                    // Used register is no longer undesirable
+                    undesirable.remove(color);
+                    try {
+                        undesirable.remove(MachineRegisters.upperHalf(color));
+                        undesirable.remove(MachineRegisters.lowerHalf(color));
+                    } catch(IllegalArgumentException e) {}
                 } else {
                     node.setColor(get(desirable));
                 }
@@ -1132,11 +1186,12 @@ public class RegisterAllocator {
     /**
      * Converts an AASMPart from abstract to concrete form
      * @param part
+     * @param ijkl
      * @param registerMapping
      * @param stackMapping
      * @return
      */
-    private static AASMPart realizePart(AASMPart part, Map<IRIdentifier, Register> registerMapping, Map<IRIdentifier, Integer> stackMapping) {
+    private static AASMPart realizePart(AASMPart part, IJKLInfo ijkl, Map<IRIdentifier, Register> registerMapping, Map<IRIdentifier, Integer> stackMapping) {
         if(part == null) {
             return null;
         }
@@ -1150,16 +1205,18 @@ public class RegisterAllocator {
                     reg = MachineRegisters.half(reg, areg.upper());
                 }
                 
+                ijkl.include(reg);
+                
                 return new AASMMachineRegister(reg);
             }
             
             case AASMMemory mem: {
                 // Memory. Convert subcomponents
                 return new AASMMemory(
-                    realizePart(mem.getBase(), registerMapping, stackMapping),
-                    realizePart(mem.getIndex(), registerMapping, stackMapping),
-                    realizePart(mem.getScale(), registerMapping, stackMapping),
-                    realizePart(mem.getOffset(), registerMapping, stackMapping),
+                    realizePart(mem.getBase(), ijkl, registerMapping, stackMapping),
+                    realizePart(mem.getIndex(), ijkl, registerMapping, stackMapping),
+                    realizePart(mem.getScale(), ijkl, registerMapping, stackMapping),
+                    realizePart(mem.getOffset(), ijkl, registerMapping, stackMapping),
                     mem.getType()
                 );
             }

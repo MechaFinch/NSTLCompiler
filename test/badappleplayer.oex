@@ -1,0 +1,5 @@
+#entry badappleplayer.main
+out\util.obj
+out\gutil.obj
+out\badappleplayer.obj
+out\badapple.obj

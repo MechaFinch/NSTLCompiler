@@ -131,6 +131,7 @@ public class IntraBlockScheduler {
         for(ISelDAGTile tile : globalLongest.keySet()) {
             // Tile is ready if nothing needs to be scheduled before it
             if(tile.inputNodes().size() == 0 && tile.chainNode() == null) {
+                //LOG.finest("Initial tile: " + tile.rootNode().getDescription());
                 readyQueue.add(tile);
             }
         }

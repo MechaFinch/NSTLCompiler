@@ -228,8 +228,8 @@ public class SAPCompiler implements NSTCompiler {
                             headerCode.addAll(headerNode.getChildren());
                         }
                     } catch(NoSuchFileException e) {
-                        LOG.severe("Could not find header");
-                        throw new CompilationException();
+                        LOG.warning("Could not find header");
+                        //throw new CompilationException();
                     }
                     break;
                     

@@ -64,6 +64,10 @@ public class ISelDAGTerminatorNode extends ISelDAGNode {
             arg.addConsumer(this);
         }
         
+        if(arguments.size() > 1) {
+            setChain(arguments.get(1));
+        }
+        
         this.inputNodes.addAll(arguments);
     }
     

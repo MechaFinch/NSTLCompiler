@@ -8,14 +8,24 @@ function main of none begin
 end function
 
 function test1 of u16 a, u16 b returns u16 begin
-	variable x is u16 gets a;
-	variable y is u16 gets b;
-	
-	while x < y do
-		variable z is u16 gets x;
-		x gets y;
-		y gets z;
+	call fa with 1, 2;
+	call fb with 3;
+	call fc with none;
+end function
+
+function fa of u8 a, u8 b returns u8 begin
+	while a < b do
+		b gets b - 1;
+		a gets a + 3;
 	end while
 	
-	return x;
+	return a + b;
+end function
+
+function fb of u8 a returns none begin
+
+end function
+
+function fc of none returns none begin
+
 end function

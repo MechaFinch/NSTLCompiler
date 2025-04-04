@@ -162,7 +162,9 @@ public class RAIGNode {
         }
         
         // Ensure it goes both ways
-        other.addInterference(this);
+        if(!other.precolored) {
+            other.addInterference(this);
+        }
     }
     
     /**

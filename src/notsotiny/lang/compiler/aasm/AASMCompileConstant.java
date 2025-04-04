@@ -14,6 +14,27 @@ public record AASMCompileConstant(int value, IRType type) implements AASMConstan
         this(value, IRType.NONE);
     }
     
+    /**
+     * @return long equal to this as an unsigned value
+     */
+    public long signedLongValue() {
+        return (long) this.type.trim(this.value);
+    }
+    
+    /**
+     * @return long equal to this as a signed value
+     */
+    public long unsignedLongValue() {
+        return ((long) (this.value & this.type.getMask())) & 0x00000000FFFFFFFFl;
+    }
+    
+    /**
+     * @return value as a signed integer
+     */
+    public int signedValue() {
+        return this.type.trim(this.value);
+    }
+    
     @Override
     public IRType getType() { return this.type; }
     

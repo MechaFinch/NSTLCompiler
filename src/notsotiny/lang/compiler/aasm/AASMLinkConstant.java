@@ -14,6 +14,18 @@ public record AASMLinkConstant(IRIdentifier id) implements AASMConstant {
             throw new IllegalArgumentException("Link-time constants cannot be locals");
         }
     }
+    
+    /**
+     * @return Name appropriate for AssemblyComponents
+     */
+    public String acName(String functionName) { 
+        String s = this.id.getName();
+        
+        return switch(this.id.getIDClass()) {
+            case IRIdentifierClass.BLOCK  -> functionName + "." + s;
+            default -> s;
+        };
+    }
 
     @Override
     public IRType getType() { return IRType.I32; }
@@ -22,5 +34,4 @@ public record AASMLinkConstant(IRIdentifier id) implements AASMConstant {
     public String toString() {
         return this.id.toString();
     }
-    
 }

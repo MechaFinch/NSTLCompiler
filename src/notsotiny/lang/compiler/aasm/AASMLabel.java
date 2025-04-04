@@ -9,6 +9,17 @@ package notsotiny.lang.compiler.aasm;
  */
 public record AASMLabel(String name) implements AASMPart {
     
+    /**
+     * @return Name appropriate for AssemblyComponents
+     */
+    public String acName(String functionName) {
+        if(this.name.startsWith("$")) {
+            return functionName + "." + this.name.substring(1);
+        } else {
+            return this.name;
+        }
+    }
+    
     @Override
     public String toString() {
         return this.name + ":";

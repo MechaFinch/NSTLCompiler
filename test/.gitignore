@@ -1,5 +1,10 @@
 
+*.lst
+*.dat
+
 out/*
 uir/*
 iir/*
 oir/*
+aasm/*
+asm/*

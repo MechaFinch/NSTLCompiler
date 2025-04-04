@@ -125,7 +125,13 @@ public class ISelDAGBuilder {
                     if(node.getOp() == ISelDAGProducerOperation.CALLR) {
                         // Calls produce a chain of PUSHs
                         chainNode.setChain(node);
-                        chainNode = node.getInputNodes().get(node.getInputNodes().size() - 1);
+                        
+                        if(node.getInputNodes().size() > 1) {
+                            // chain to last push if it exists
+                            chainNode = node.getInputNodes().get(node.getInputNodes().size() - 1);
+                        } else {
+                            chainNode = node;
+                        }
                     } else if(sideEffects) {
                         chainNode.setChain(node);
                         chainNode = node;
@@ -165,7 +171,13 @@ public class ISelDAGBuilder {
                 if(node.getOp() == ISelDAGTerminatorOperation.CALLN) {
                     // Calls produce a chain of PUSHs
                     chainNode.setChain(node);
-                    chainNode = node.getInputNodes().get(node.getInputNodes().size() - 1);
+                    
+                    if(node.getInputNodes().size() > 1) {
+                        // chain to last push if it exists
+                        chainNode = node.getInputNodes().get(node.getInputNodes().size() - 1);
+                    } else {
+                        chainNode = node;
+                    }
                 } else {
                     chainNode.setChain(node);
                     chainNode = node;

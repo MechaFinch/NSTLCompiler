@@ -16,9 +16,14 @@ import java.util.logging.Logger;
 
 import notsotiny.asm.Assembler.AssemblyObject;
 import notsotiny.asm.components.Component;
+import notsotiny.asm.components.InitializedData;
+import notsotiny.asm.resolution.ResolvableConstant;
+import notsotiny.asm.resolution.ResolvableValue;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.aasm.AASMPart;
 import notsotiny.lang.compiler.aasm.AASMPrinter;
+import notsotiny.lang.compiler.aasm.AASMTranslator;
+import notsotiny.lang.compiler.codegen.alloc.AllocationResult;
 import notsotiny.lang.compiler.codegen.alloc.RegisterAllocator;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGBuilder;
@@ -32,11 +37,14 @@ import notsotiny.lang.compiler.codegen.pattern.ISelPatternMatcher;
 import notsotiny.lang.compiler.codegen.pretransform.ISelPretransformConditionalArguments;
 import notsotiny.lang.compiler.codegen.pretransform.ISelPretransformer;
 import notsotiny.lang.ir.parts.IRBasicBlock;
+import notsotiny.lang.ir.parts.IRConstant;
 import notsotiny.lang.ir.parts.IRDefinition;
 import notsotiny.lang.ir.parts.IRFunction;
+import notsotiny.lang.ir.parts.IRGlobal;
 import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRModule;
 import notsotiny.lang.ir.parts.IRType;
+import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.ir.util.IRPrinter;
 import notsotiny.lang.ir.util.IRUtil;
 import notsotiny.lang.util.Pair;
@@ -142,14 +150,14 @@ public class CodeGenV1 implements CodeGenerator {
             }
             
             // Perform register allocation
-            List<AASMPart> allocatedCode = RegisterAllocator.allocateRegisters(scheduledCode, function, showRAIGUncolored, showRAIGColored);
+            AllocationResult allocRes = RegisterAllocator.allocateRegisters(scheduledCode, function, showRAIGUncolored, showRAIGColored);
             
             // Perform peephole optimizations
             // Mainly cleaning up RA output
-            List<AASMPart> optimizedCode = PeepholeOptimizer.optimize(allocatedCode, function);
+            List<AASMPart> optimizedCode = PeepholeOptimizer.optimize(allocRes.allocatedCode(), function);
             
             // Convert to assembly components
-            // TODO
+            AASMTranslator.translate(new AllocationResult(optimizedCode, allocRes.stackAllocationSize(), allocRes.i(), allocRes.j(), allocRes.k(), allocRes.l()), assemblyComponents, assemblyLabelIndexMap, function);
         }
         
         // Output abstract assembly to file if needed
@@ -167,7 +175,60 @@ public class CodeGenV1 implements CodeGenerator {
             } catch(IOException e) {}
         }
         
-        // TODO: convert globals to assembly components
+        // Convert globals to assembly components
+        for(IRGlobal g : module.getGlobals().values()) {
+            assemblyLabelIndexMap.put(g.getID().getName(), assemblyComponents.size());
+            
+            // Are we dealing with a single type or multiple
+            boolean hasSingleType = true;
+            IRValue firstValue = g.getContents().get(0);
+            IRType firstType = (firstValue instanceof IRConstant c ? c.getType() : IRType.I32);
+            
+            for(IRValue v : g.getContents()) {
+                if(v instanceof IRConstant c) {
+                    if(c.getType() != firstType) {
+                        hasSingleType = false;
+                        break;
+                    }
+                } else {
+                    if(firstType != IRType.I32) {
+                        hasSingleType = false;
+                        break;
+                    }
+                }
+            }
+            
+            if(hasSingleType) {
+                // Single type. Collect into 1 InitializedData
+                List<ResolvableValue> values = new ArrayList<>();
+                
+                for(IRValue v : g.getContents()) {
+                    if(v instanceof IRConstant c) {
+                        values.add(new ResolvableConstant(c.getValue()));
+                    } else {
+                        values.add(new ResolvableConstant(((IRIdentifier) v).getName()));
+                    }
+                }
+                
+                assemblyComponents.add(new InitializedData(values, firstType.getSize()));
+            } else {
+                // Multiple types. One InitializedData per item
+                for(IRValue v : g.getContents()) {
+                    ResolvableValue rv;
+                    IRType type;
+                    
+                    if(v instanceof IRConstant c) {
+                        rv = new ResolvableConstant(c.getValue());
+                        type = c.getType();
+                    } else {
+                        rv = new ResolvableConstant(((IRIdentifier) v).getName());
+                        type = IRType.I32;
+                    }
+                    
+                    assemblyComponents.add(new InitializedData(List.of(rv), type.getSize()));
+                }
+            }
+        }
         
         // Done!
         AssemblyObject ao = new AssemblyObject(assemblyComponents, assemblyLabelIndexMap, module.getName(), libraryFilesMap, new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>());

@@ -3,6 +3,11 @@ library _util;
 library _gutil from "simvideo/gutil";
 library _badapple;
 
+--
+-- shitty:	1,088,884,000 instructions
+-- ir:		  682,773,000 instructions
+--
+
 -- Copy a custom block
 function ccopy of u8 pointer data, u8 pointer dest begin
 	variable s is u16 gets (data index 0) as u16;
@@ -89,7 +94,7 @@ function main of none begin
 		dp gets (call frame with dp, to _badapple.customRegionTable);
 		call _util.unbuffer_screen with none;
 		
-		dp gets dp + 1;
+		--dp gets dp + 1;
 		
 		-- RTC set to 1/30 s period
 		call _util.halt with none;

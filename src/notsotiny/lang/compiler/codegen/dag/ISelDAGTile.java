@@ -32,8 +32,6 @@ public record ISelDAGTile(ISelDAGNode rootNode, Set<ISelDAGNode> coveredNodes, S
         }
         
         // coveredNodes must be modifiable
-        boolean rootIsCovered = coveredNodes.contains(rootNode);
-        
         try {
             coveredNodes.remove(null);
         } catch(UnsupportedOperationException e) {
@@ -41,6 +39,14 @@ public record ISelDAGTile(ISelDAGNode rootNode, Set<ISelDAGNode> coveredNodes, S
         }
     }
     
+    /**
+     * inferred chain constructor
+     * @param rootNode
+     * @param coveredNodes
+     * @param inputNodes
+     * @param aasm
+     * @param sourceMatch
+     */
     public ISelDAGTile(ISelDAGNode rootNode, Set<ISelDAGNode> coveredNodes, Set<ISelDAGNode> inputNodes, List<AASMPart> aasm, ISelMatchData sourceMatch) {
         this(rootNode, coveredNodes, inputNodes, null, aasm, null);
     }

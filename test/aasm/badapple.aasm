@@ -22,7 +22,7 @@ $fordone%5:
 -	PUSH I8 0
 -	CALL @gutil.set_color
 	ADD SP, NONE 5
--	MOV %48, [@badapple.colorBlack]
+-	MOV %48, [@badappledata.colorBlack]
 -	PUSH I32 0
 -	PUSH %48
 -	CALL @gutil.set_color
@@ -31,13 +31,13 @@ $fordone%5:
 -	PUSH I8 -1
 -	CALL @gutil.set_color
 	ADD SP, NONE 5
--	MOV %55, [@badapple.colorWhite]
+-	MOV %55, [@badappledata.colorWhite]
 -	PUSH I32 -1
 -	PUSH %55
 -	CALL @gutil.set_color
 	ADD SP, NONE 5
 -	MOV %f%60, I16 0
--	MOV %dp%67, @badapple.f0
+-	MOV %dp%67, @badappledata.f0
 -	JMP $forcond%8
 -	LIVE [%dp%67, %f%60] []
 
@@ -59,12 +59,13 @@ $whiletrue%14:
 $fortrue%9:
 	LIVE [%dp%67, %f%60] []
 -	CALL @util.buffer_screen
--	PUSH @badapple.customRegionTable
+-	PUSH @badappledata.customRegionTable
 -	MOV %dp%67%115, %dp%67
 -	PUSH %dp%67%115
 -	CALL @frame
 	ADD SP, NONE 8
 	MOV %dp%63, D:A
+-	CALL @util.unbuffer_screen
 -	MOV %f%60%120, %f%60
 -	CALL @util.halt
 -	MOV %f%73, %f%60%120
@@ -72,7 +73,6 @@ $fortrue%9:
 -	LEA %dp%69, [%dp%63 + NONE 0*NONE 1 + I32 1]
 -	MOV %f%60, %f%73
 -	MOV %dp%67, %dp%69
--	CALL @util.unbuffer_screen
 -	JMP $forcond%8
 -	LIVE [%dp%67, %f%60] []
 
@@ -132,15 +132,14 @@ $whiledone%3:
 $whiletrue%2:
 	LIVE [%fp%31, %datp%36] []
 -	MOV %datp%36%148, %datp%36
--	MOV %const%151, I8 -4
 -	MOV %first%34, [%datp%36%148]
--	MOV %v%37, %const%151
-	AND %v%37, [%datp%36%148]
+-	MOV %const%150, I8 0
+-	MOV %v%37, %first%34
+	AND %v%37, I8 -4
 -	MOV %t%40, %first%34
 	AND %t%40, I8 3
--	MOV %const%150, I8 0
--	MOV %t%40, %t%40
 -	MOV %v%37, %v%37
+-	MOV %t%40, %t%40
 -	CMP %t%40, %const%150
 	JE $iftrue%4
 	JMP $elseif%5
@@ -157,8 +156,8 @@ $elseif%5:
 
 $elseif%7:
 	LIVE [%fp%31, %v%37, %datp%36, %t%40] []
--	MOV %const%170, I8 3
 -	MOV %t%40%169, %t%40
+-	MOV %const%170, I8 3
 -	CMP %t%40%169, %const%170
 	JE $elseif%7%true%143
 	JMP $elseif%9
@@ -166,8 +165,8 @@ $elseif%7:
 
 $elseif%9:
 	LIVE [%fp%31, %v%37, %datp%36] []
--	MOV %v%37%178, %v%37
 -	MOV %const%179, I8 -4
+-	MOV %v%37%178, %v%37
 -	CMP %v%37%178, %const%179
 	JE $elseiftrue%10
 	JMP $else%11
@@ -220,14 +219,14 @@ $elseiftrue%10:
 	ADD SP, NONE 8
 -	MOVZ %112<low>, [%datp%36%181 + NONE 0*NONE 1 + I32 1]
 	MOVZ %112, %112<low>
--	MOV %fp%110, %fp%31%180
-	ADD %fp%110<low>, %112<low>
-	ADC %fp%110<high>, %112<high>
 -	MOV %datp%114, %datp%102
 	ADD %datp%114<low>, %112<low>
 	ADC %datp%114<high>, %112<high>
--	MOV %fp%64, %fp%110
+-	MOV %fp%110, %fp%31%180
+	ADD %fp%110<low>, %112<low>
+	ADC %fp%110<high>, %112<high>
 -	MOV %datp%62, %datp%114
+-	MOV %fp%64, %fp%110
 -	JMP $endif%12
 -	LIVE [%fp%64, %datp%62] []
 
@@ -251,17 +250,17 @@ $forcond%15:
 
 $forcond%15%false%144:
 	LIVE [%fp%92, %datp%36] []
--	MOV %datp%36%200, %datp%36
 -	MOV %fp%92%199, %fp%92
--	MOV %datp%62, %datp%36%200
+-	MOV %datp%36%200, %datp%36
 -	MOV %fp%64, %fp%92%199
+-	MOV %datp%62, %datp%36%200
 -	JMP $endif%12
 -	LIVE [%fp%64, %datp%62] []
 
 $fortrue%16:
 	LIVE [%v%37, %i%87, %fp%92, %datp%36] []
--	MOV %const%177, I32 -1
 -	MOV %fp%92%175, %fp%92
+-	MOV %const%177, I32 -1
 -	MOV %i%87%173, %i%87
 -	MOV [%fp%92%175], %const%177
 -	MOV %i%97, %i%87%173
@@ -343,8 +342,8 @@ $entry:
 
 $forcond%2:
 	LIVE [%i%13, %s%6] []
--	MOV %s%6%34, %s%6
 -	MOV %i%13%33, %i%13
+-	MOV %s%6%34, %s%6
 -	CMP %i%13%33, %s%6%34
 	JBE $fortrue%3
 	JMP $fordone%5
@@ -360,9 +359,9 @@ $fortrue%3:
 -	MOV %data, [BP + NONE 8]
 -	MOV %i%13%35, %i%13
 -	MOV %23, [%data + %i%13%35*NONE 1 + NONE 0]
+-	MOV %dest, [BP + NONE 12]
 -	MOV %19, %i%13%35
 	SUB %19, I16 1
--	MOV %dest, [BP + NONE 12]
 -	MOV [%dest + %19*NONE 1 + NONE 0], %23
 -	MOV %i%29, %i%13%35
 	ADD %i%29, I16 1
