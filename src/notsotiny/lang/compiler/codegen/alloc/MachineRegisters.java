@@ -1,6 +1,8 @@
 package notsotiny.lang.compiler.codegen.alloc;
 
 import java.util.Collection;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -31,35 +33,37 @@ public class MachineRegisters {
         // Populate alias sets
         registerAliasSets = new HashMap<>();
         
-        registerAliasSets.put(Register.DA, Set.of(Register.DA, Register.AB, Register.CD, Register.A, Register.D, Register.AH, Register.AL, Register.DH, Register.DL));
-        registerAliasSets.put(Register.AB, Set.of(Register.AB, Register.DA, Register.BC, Register.A, Register.B, Register.AH, Register.AL, Register.BH, Register.BL));
-        registerAliasSets.put(Register.BC, Set.of(Register.BC, Register.AB, Register.CD, Register.B, Register.C, Register.BH, Register.BL, Register.CH, Register.CL));
-        registerAliasSets.put(Register.CD, Set.of(Register.CD, Register.BC, Register.DA, Register.C, Register.D, Register.CH, Register.CL, Register.DH, Register.DL));
-        registerAliasSets.put(Register.JI, Set.of(Register.JI, Register.I, Register.J));
-        registerAliasSets.put(Register.LK, Set.of(Register.LK, Register.L, Register.K));
+        registerAliasSets.put(Register.DA, EnumSet.of(Register.DA, Register.AB, Register.CD, Register.A, Register.D, Register.AH, Register.AL, Register.DH, Register.DL));
+        registerAliasSets.put(Register.AB, EnumSet.of(Register.AB, Register.DA, Register.BC, Register.A, Register.B, Register.AH, Register.AL, Register.BH, Register.BL));
+        registerAliasSets.put(Register.BC, EnumSet.of(Register.BC, Register.AB, Register.CD, Register.B, Register.C, Register.BH, Register.BL, Register.CH, Register.CL));
+        registerAliasSets.put(Register.CD, EnumSet.of(Register.CD, Register.BC, Register.DA, Register.C, Register.D, Register.CH, Register.CL, Register.DH, Register.DL));
+        registerAliasSets.put(Register.JI, EnumSet.of(Register.JI, Register.I, Register.J));
+        registerAliasSets.put(Register.LK, EnumSet.of(Register.LK, Register.L, Register.K));
+        registerAliasSets.put(Register.BP, EnumSet.of(Register.BP));
+        registerAliasSets.put(Register.SP, EnumSet.of(Register.SP));
         
-        registerAliasSets.put(Register.A, Set.of(Register.DA, Register.AB, Register.A, Register.AH, Register.AL));
-        registerAliasSets.put(Register.B, Set.of(Register.AB, Register.BC, Register.B, Register.BH, Register.BL));
-        registerAliasSets.put(Register.C, Set.of(Register.BC, Register.CD, Register.C, Register.CH, Register.CL));
-        registerAliasSets.put(Register.D, Set.of(Register.CD, Register.DA, Register.D, Register.DH, Register.DL));
-        registerAliasSets.put(Register.I, Set.of(Register.JI, Register.I));
-        registerAliasSets.put(Register.J, Set.of(Register.JI, Register.J));
-        registerAliasSets.put(Register.K, Set.of(Register.LK, Register.K));
-        registerAliasSets.put(Register.L, Set.of(Register.LK, Register.L));
+        registerAliasSets.put(Register.A, EnumSet.of(Register.DA, Register.AB, Register.A, Register.AH, Register.AL));
+        registerAliasSets.put(Register.B, EnumSet.of(Register.AB, Register.BC, Register.B, Register.BH, Register.BL));
+        registerAliasSets.put(Register.C, EnumSet.of(Register.BC, Register.CD, Register.C, Register.CH, Register.CL));
+        registerAliasSets.put(Register.D, EnumSet.of(Register.CD, Register.DA, Register.D, Register.DH, Register.DL));
+        registerAliasSets.put(Register.I, EnumSet.of(Register.JI, Register.I));
+        registerAliasSets.put(Register.J, EnumSet.of(Register.JI, Register.J));
+        registerAliasSets.put(Register.K, EnumSet.of(Register.LK, Register.K));
+        registerAliasSets.put(Register.L, EnumSet.of(Register.LK, Register.L));
         
-        registerAliasSets.put(Register.AH, Set.of(Register.DA, Register.AB, Register.A, Register.AH));
-        registerAliasSets.put(Register.AL, Set.of(Register.DA, Register.AB, Register.A, Register.AL));
-        registerAliasSets.put(Register.BH, Set.of(Register.AB, Register.BC, Register.B, Register.BH));
-        registerAliasSets.put(Register.BL, Set.of(Register.AB, Register.BC, Register.B, Register.BL));
-        registerAliasSets.put(Register.CH, Set.of(Register.BC, Register.CD, Register.C, Register.CH));
-        registerAliasSets.put(Register.CL, Set.of(Register.BC, Register.CD, Register.C, Register.CL));
-        registerAliasSets.put(Register.DH, Set.of(Register.CD, Register.DA, Register.D, Register.DH));
-        registerAliasSets.put(Register.DL, Set.of(Register.CD, Register.DA, Register.D, Register.DL));
+        registerAliasSets.put(Register.AH, EnumSet.of(Register.DA, Register.AB, Register.A, Register.AH));
+        registerAliasSets.put(Register.AL, EnumSet.of(Register.DA, Register.AB, Register.A, Register.AL));
+        registerAliasSets.put(Register.BH, EnumSet.of(Register.AB, Register.BC, Register.B, Register.BH));
+        registerAliasSets.put(Register.BL, EnumSet.of(Register.AB, Register.BC, Register.B, Register.BL));
+        registerAliasSets.put(Register.CH, EnumSet.of(Register.BC, Register.CD, Register.C, Register.CH));
+        registerAliasSets.put(Register.CL, EnumSet.of(Register.BC, Register.CD, Register.C, Register.CL));
+        registerAliasSets.put(Register.DH, EnumSet.of(Register.CD, Register.DA, Register.D, Register.DH));
+        registerAliasSets.put(Register.DL, EnumSet.of(Register.CD, Register.DA, Register.D, Register.DL));
         
         classAliasSets = new HashMap<>();
         
         for(RARegisterClass rClass : RARegisterClass.values()) {
-            Set<Register> aliases = new HashSet<>();
+            Set<Register> aliases = EnumSet.noneOf(Register.class);
             
             for(Register r : rClass.registers()) {
                 aliases.addAll(registerAliasSets.get(r));
@@ -71,16 +75,16 @@ public class MachineRegisters {
         // Populate class tree
         vertexMap = new HashMap<>();
         
-        RAVertex vertLarge = new RAVertex(Set.of(RARegisterClass.I32, RARegisterClass.I16), null);
+        RAVertex vertLarge = new RAVertex(EnumSet.of(RARegisterClass.I32, RARegisterClass.I16), null);
         vertexMap.put(RARegisterClass.I32, vertLarge);
         vertexMap.put(RARegisterClass.I16, vertLarge);
         
-        RAVertex vertSmall = new RAVertex(Set.of(RARegisterClass.I16_HALF, RARegisterClass.I8), vertLarge);
+        RAVertex vertSmall = new RAVertex(EnumSet.of(RARegisterClass.I16_HALF, RARegisterClass.I8), vertLarge);
         vertexMap.put(RARegisterClass.I16_HALF, vertSmall);
         vertexMap.put(RARegisterClass.I8, vertSmall);
         
         // Populate bound map
-        boundMap = new HashMap<>();
+        boundMap = new EnumMap<>(RARegisterClass.class);
         
         for(RARegisterClass rClass : vertexMap.keySet()) {
             Map<RAVertex, Integer> submap = new HashMap<>();
@@ -88,7 +92,7 @@ public class MachineRegisters {
             for(RAVertex v : vertexMap.values()) {
                 // Given that classes in the same vertex are alias-equivalent,
                 // bound(N, CC) = size(intersection of N and any C in CC)
-                Set<Register> vAlias = new HashSet<>(classAliasSets.get(v.classes().iterator().next()));
+                Set<Register> vAlias = EnumSet.copyOf(classAliasSets.get(v.classes().iterator().next()));
                 vAlias.retainAll(rClass.registers());
                 
                 submap.put(v, vAlias.size());
@@ -98,17 +102,17 @@ public class MachineRegisters {
         }
         
         // Populate worst1 map
-        worstMap = new HashMap<>();
+        worstMap = new EnumMap<>(RARegisterClass.class);
         
         for(RARegisterClass nClass : vertexMap.keySet()) {
-            Map<RARegisterClass, Integer> submap = new HashMap<>();
+            Map<RARegisterClass, Integer> submap = new EnumMap<>(RARegisterClass.class);
             
             for(RARegisterClass cClass : vertexMap.keySet()) {
                 // worst1(N, C) = given register S in C max size(intersection of N and alias(S))
                 int worst = 0;
                 
                 for(Register s : cClass.registers()) {
-                    Set<Register> sAlias = new HashSet<>(registerAliasSets.get(s));
+                    Set<Register> sAlias = EnumSet.copyOf(registerAliasSets.get(s));
                     sAlias.retainAll(nClass.registers());
                     
                     int disp = sAlias.size();

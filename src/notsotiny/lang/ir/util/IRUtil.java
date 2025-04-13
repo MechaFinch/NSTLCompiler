@@ -581,7 +581,11 @@ public class IRUtil {
         int xIndex = dfsIndexMap.get(from);
         int yIndex = dfsIndexMap.get(to);
         
-        return yIndex <= xIndex && xIndex <= dfsAncestryMap.get(yIndex);
+        boolean backedge = yIndex <= xIndex && xIndex <= dfsAncestryMap.get(yIndex);
+        
+        //LOG.info(from + " (" + xIndex + ") -> " + to + " (" + yIndex + ", " + dfsAncestryMap.get(yIndex) + "): " + backedge);
+        
+        return backedge;
     }
     
     /**
@@ -685,7 +689,7 @@ public class IRUtil {
         }
         
         // Record last descendant's preorder number
-        preorderAncestryMap.put(preorderIndex, preorderList.size());
+        preorderAncestryMap.put(preorderIndex, preorderList.size() - 1);
     }
     
     /**

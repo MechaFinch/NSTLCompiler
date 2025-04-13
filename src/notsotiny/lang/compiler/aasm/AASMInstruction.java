@@ -195,6 +195,9 @@ public class AASMInstruction implements AASMPart {
             }
         }
         
+        meta.sourceIsBPSlot = meta.sourceIsMemory && meta.sourceBase == Register.BP && meta.sourceIndex == Register.NONE && meta.sourceOffsIsCCon;
+        meta.destIsBPSlot = meta.destIsMemory && meta.destBase == Register.BP && meta.destIndex == Register.NONE && meta.destOffsIsCCon;
+        
         return meta;
     }
     

@@ -250,8 +250,6 @@ public class ISelPatternMatcher {
                                 throw new IllegalArgumentException("Invalid SELECT: " + pn.getDescription());
                             }
                             
-                            // TODO: comparisons to constants
-                            
                             if(leftNode.getProducedType() == IRType.I32) {
                                 String labelName = pn.getProducedName().getName() + "_resolved";
                                 
@@ -341,6 +339,50 @@ public class ISelPatternMatcher {
                                         new AASMLabel(labelName)
                                     );
                                 }
+                            } else if(rightNode.getOperation() == ISelDAGProducerOperation.VALUE) {
+                                // Right-side-constant comparison
+                                aasm = List.of(
+                                    new AASMInstruction(
+                                        AASMOperation.CMP,
+                                        new AASMAbstractRegister(leftNode.getProducedName(), compareType),
+                                        new AASMCompileConstant(((IRConstant) rightNode.getProducedValue()).getValue(), compareType)
+                                    ),
+                                    new AASMInstruction(
+                                        AASMOperation.MOV,
+                                        new AASMAbstractRegister(pn.getProducedName(), valueType),
+                                        new AASMAbstractRegister(falseNode.getProducedName(), valueType)
+                                    ),
+                                    new AASMInstruction(
+                                        AASMOperation.CMOV,
+                                        new AASMAbstractRegister(pn.getProducedName(), valueType),
+                                        new AASMAbstractRegister(trueNode.getProducedName(), valueType),
+                                        cond
+                                    )
+                                );
+                                
+                                matchingTiles.add(new ISelDAGTile(node, Set.of(node, rightNode), Set.of(leftNode, trueNode, falseNode), aasm));
+                            } else if(leftNode.getOperation() == ISelDAGProducerOperation.VALUE) {
+                                // Left-side-constant comparison
+                                aasm = List.of(
+                                    new AASMInstruction(
+                                        AASMOperation.CMP,
+                                        new AASMAbstractRegister(rightNode.getProducedName(), compareType),
+                                        new AASMCompileConstant(((IRConstant) leftNode.getProducedValue()).getValue(), compareType)
+                                    ),
+                                    new AASMInstruction(
+                                        AASMOperation.MOV,
+                                        new AASMAbstractRegister(pn.getProducedName(), valueType),
+                                        new AASMAbstractRegister(falseNode.getProducedName(), valueType)
+                                    ),
+                                    new AASMInstruction(
+                                        AASMOperation.CMOV,
+                                        new AASMAbstractRegister(pn.getProducedName(), valueType),
+                                        new AASMAbstractRegister(trueNode.getProducedName(), valueType),
+                                        cond.swapped()
+                                    )
+                                );
+                                
+                                matchingTiles.add(new ISelDAGTile(node, Set.of(node, leftNode), Set.of(rightNode, trueNode, falseNode), aasm));
                             } else {
                                 // Normal comparison
                                 // CMP, MOV, CMOV
@@ -589,6 +631,28 @@ public class ISelPatternMatcher {
                                         )
                                     );
                                 }
+                            } else if(rightNode.getOperation() == ISelDAGProducerOperation.VALUE) {
+                                // Right-side-constant
+                                // left-constant comparisons could also be done but are
+                                // uncommon and would weaken some assumptions about true/false paths
+                                aasm = List.of(
+                                    new AASMInstruction(
+                                        AASMOperation.CMP,
+                                        new AASMAbstractRegister(leftNode.getProducedName(), compareType),
+                                        new AASMCompileConstant(((IRConstant) rightNode.getProducedValue()).getValue(), compareType)
+                                    ),
+                                    new AASMInstruction(
+                                        AASMOperation.JCC,
+                                        new AASMLinkConstant(tn.getTrueTargetBlock()),
+                                        cond
+                                    ),
+                                    new AASMInstruction(
+                                        AASMOperation.JMP,
+                                        new AASMLinkConstant(tn.getFalseTargetBlock())
+                                    )
+                                );
+                                
+                                matchingTiles.add(new ISelDAGTile(node, Set.of(node, rightNode), Set.of(leftNode), aasm));
                             } else {
                                 // Normal type. Compare and branch
                                 aasm = List.of(
@@ -1324,6 +1388,10 @@ public class ISelPatternMatcher {
                     } else {
                         // 0 remaining identifiers = references the pattern itself
                         List<AASMPart> referencedAASM = subpatternResults.get(firstKey).aasm();
+                        
+                        if(half) {
+                            throw new CompilationException("Can't take halves of subpatterns");
+                        }
                         
                         if(referencedAASM.size() == 1) {
                             return referencedAASM.get(0);

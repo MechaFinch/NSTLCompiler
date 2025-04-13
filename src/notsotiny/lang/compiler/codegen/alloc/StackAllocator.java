@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.Set;
 
@@ -35,7 +36,6 @@ public class StackAllocator {
         SAInterferenceGraph graph = new SAInterferenceGraph();
         
         LOG.finest("Allocating stack slots for " + sourceFunction.getID());
-        // TODO: untested
         
         // Build interference graph
         // Create a node for each slot
@@ -110,6 +110,19 @@ public class StackAllocator {
         int maxOffset = 0;
         
         for(SAIGNode node : graph.getAllNodes()) {
+            if(LOG.isLoggable(Level.FINEST)) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("" + node.getIdentifier());
+                sb.append(" interferes with ");
+                
+                for(SAIGNode other : node.getInterferingNodes()) {
+                    sb.append(other.getIdentifier());
+                    sb.append(" ");
+                }
+                
+                LOG.finest(sb.toString());
+            }
+            
             // Get set of occupied addresses
             Set<Integer> occupied = new HashSet<>();
             
@@ -118,11 +131,13 @@ public class StackAllocator {
                 
                 if(offs != -1) {
                     // other is allocated
-                    for(int i = (offs - other.getSize()) + 1; i <= offs; i++) {
+                    for(int i = (offs - other.getSize()); i < offs; i++) {
                         occupied.add(i);
                     }
                 }
             }
+            
+            LOG.finest("Occupied: " + occupied);
             
             // Find first unoccupied slot
             int size = node.getSize();

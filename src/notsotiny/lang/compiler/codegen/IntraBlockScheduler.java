@@ -190,13 +190,24 @@ public class IntraBlockScheduler {
     private static int getEdgeWeight(ISelDAGTile tile, boolean isChain) {
         int weight = 10;
         
-        // Assign calls more weight to encourage otherwise equal assignments to happen after the call
         ISelDAGOperation rootOp = tile.rootNode().getOp();
         
-        if(rootOp == ISelDAGTerminatorOperation.CALLN || rootOp == ISelDAGProducerOperation.CALLR) {
-            weight += 5;
+        switch(rootOp) {
+            case ISelDAGProducerOperation.VALUE:
+                // please put immediates where they're used
+                return 1;
+            
+            case ISelDAGProducerOperation.IN:
+                // Live ins should be renamings
+                return 50;
+            
+            case ISelDAGTerminatorOperation.CALLN,
+                 ISelDAGProducerOperation.CALLR:
+                weight += 5;
+                break;
+            
+            default:
         }
-        
         // Assign chains some weight to encourage pushing values immediately
         if(isChain) {
             weight += 1;

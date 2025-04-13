@@ -138,7 +138,7 @@ public class RAIGRenderer {
         
         // Add moves
         for(RAMove move : node.getMoves()) {
-            if(move.source() == node) {
+            if(move.source().getAlias() == node) {
                 RAIGNode dest = move.destination().getAlias();
                 addToGraph(dest, g, inGraph);
                 

@@ -1,5 +1,6 @@
 package notsotiny.lang.compiler.codegen.alloc;
 
+import java.util.EnumSet;
 import java.util.Set;
 
 import notsotiny.asm.Register;
@@ -11,15 +12,15 @@ import notsotiny.lang.ir.parts.IRType;
  */
 public enum RARegisterClass {
     // Basic classes
-    I8          (IRType.I8, Set.of(Register.AH, Register.AL, Register.BH, Register.BL,
+    I8          (IRType.I8, EnumSet.of(Register.AH, Register.AL, Register.BH, Register.BL,
                             Register.CH, Register.CL, Register.DH, Register.DL)),
-    I16         (IRType.I16, Set.of(Register.A, Register.B, Register.C, Register.D,
+    I16         (IRType.I16, EnumSet.of(Register.A, Register.B, Register.C, Register.D,
                              Register.I, Register.J, Register.K, Register.L)),
-    I32         (IRType.I32, Set.of(Register.DA, Register.AB, Register.BC, Register.CD,
-                            Register.JI, Register.LK)),
+    I32         (IRType.I32, EnumSet.of(Register.DA, Register.AB, Register.BC, Register.CD,
+                             Register.JI, Register.LK)),
     
     // Halvable classes
-    I16_HALF    (IRType.I16, Set.of(Register.A, Register.B, Register.C, Register.D)),
+    I16_HALF    (IRType.I16, EnumSet.of(Register.A, Register.B, Register.C, Register.D)),
     // Because BP and SP are not allocatable, I32_HALF = I32
     
     // I32_QUARTER would be D:A, A:B, B:C, C:D

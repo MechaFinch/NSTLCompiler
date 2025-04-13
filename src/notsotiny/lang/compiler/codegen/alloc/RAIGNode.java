@@ -1,5 +1,6 @@
 package notsotiny.lang.compiler.codegen.alloc;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -52,7 +53,8 @@ public class RAIGNode {
     // The node this aliases to via coalescing
     private RAIGNode alias;
     
-    private int rawSpillCost;
+    private boolean isSpill;
+    private float rawSpillCost;
     
     /**
      * Create a node
@@ -60,18 +62,20 @@ public class RAIGNode {
      * @param rClass
      * @param rSet
      */
-    public RAIGNode(IRIdentifier id, RARegisterClass rClass, RASet rSet) {
+    public RAIGNode(IRIdentifier id, RARegisterClass rClass, RASet rSet, boolean isSpill) {
         this.identifier = id;
         this.rClass = rClass;
         this.rSet = rSet;
+        this.isSpill = isSpill;
         
         this.squeeze = 0;
-        this.excluded = new HashSet<>();
+        this.excluded = EnumSet.noneOf(Register.class);
         this.availableColors = rClass.registers().size();
         this.precolored = false;
         this.color = Register.NONE;
         this.interferingNodes = new HashSet<>();
         this.moves = new HashSet<>();
+        this.rawSpillCost = 0;
         
         this.rawSqueeze = new HashMap<>();
         
@@ -88,7 +92,7 @@ public class RAIGNode {
      * @param color
      */
     public RAIGNode(IRIdentifier id, RARegisterClass rClass, RASet rSet, Register color) {
-        this(id, rClass, rSet);
+        this(id, rClass, rSet, false);
         
         this.precolored = true;
         this.availableColors = 1;
@@ -184,6 +188,14 @@ public class RAIGNode {
     }
     
     /**
+     * Merge an exclusion set into this one
+     * @param otherExclusionSet
+     */
+    public void addExclusions(Set<Register> otherExclusionSet) {
+        addExclusion(otherExclusionSet);
+    }
+    
+    /**
      * Adds a set of exclusions to this node
      * @param registers
      */
@@ -199,7 +211,7 @@ public class RAIGNode {
      * @return
      */
     public Set<Register> getAllowedColors() {
-        Set<Register> available = new HashSet<>(this.rClass.registers());
+        Set<Register> available = EnumSet.copyOf(this.rClass.registers());
         available.removeAll(excluded);
         return available;
     }
@@ -246,7 +258,7 @@ public class RAIGNode {
      * @param cost
      * @return
      */
-    public void addRawSpillCost(int cost) {
+    public void addRawSpillCost(float cost) {
         this.rawSpillCost += cost;
     }
     
@@ -267,8 +279,10 @@ public class RAIGNode {
     /**
      * @return The heuristic cost of spilling this node
      */
-    public int getSpillCost() {
-        return (this.rawSpillCost * 10) / (this.interferingNodes.size() + 1);
+    public float getSpillCost() {
+        return ((this.rawSpillCost * 10) +
+                (this.isSpill ? 1000 : 0)) /
+               (this.interferingNodes.size() + 1);
     }
     
     public IRIdentifier getIdentifier() { return this.identifier; }
@@ -281,7 +295,8 @@ public class RAIGNode {
     public Register getColoring() { return this.color; }
     public Set<RAIGNode> getInterferingNodes() { return this.interferingNodes; }
     public Set<RAMove> getMoves() { return this.moves; }
-    public int getRawSpillCost() { return this.rawSpillCost; }
+    public float getRawSpillCost() { return this.rawSpillCost; }
+    public boolean isSpillLoad() { return this.isSpill; }
     
     public void setSet(RASet set) { this.rSet = set; }
     public void setAlias(RAIGNode node) { this.alias = node; }

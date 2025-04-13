@@ -3,7 +3,9 @@ package notsotiny.lang.compiler.codegen;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -17,6 +19,7 @@ import notsotiny.lang.compiler.aasm.AASMMachineRegister;
 import notsotiny.lang.compiler.aasm.AASMMemory;
 import notsotiny.lang.compiler.aasm.AASMOperation;
 import notsotiny.lang.compiler.aasm.AASMPart;
+import notsotiny.lang.compiler.codegen.alloc.MachineRegisters;
 import notsotiny.lang.ir.parts.IRCondition;
 import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRType;
@@ -28,7 +31,7 @@ public class PeepholeOptimizer {
     
     private static Logger LOG = Logger.getLogger(PeepholeOptimizer.class.getName());
     
-    private static final int PEEP_SIZE = 3;
+    private static final int PEEP_SIZE = 8;
     
     /**
      * Performs peephole optimizations.
@@ -146,21 +149,29 @@ public class PeepholeOptimizer {
     private static boolean optimizeStep(ArrayList<AASMInstruction> peepInst, ArrayList<AASMInstructionMeta> peepMeta) {
         boolean optimized = true;
         boolean optimizedAny = false;
+        int maxLoops = 32;
         
         // Although we optimize iteratively globally, doing it locally can catch things without iterating over the entire function again
-        while(optimized && peepInst.size() >= 3) {
+        
+        for(int i = 0; optimized && i < maxLoops; i++) {
+            optimized = optimizeDynamic(peepInst, peepMeta);
+            optimizedAny |= optimized;
+        }
+        
+        optimized = true;
+        for(int i = 0; optimized && i < maxLoops && peepInst.size() >= 3; i++) {
             optimized = optimizeThree(peepInst, peepMeta);
             optimizedAny |= optimized;
         }
         
         optimized = true;
-        while(optimized && peepInst.size() >= 2) {
+        for(int i = 0; optimized && i < maxLoops && peepInst.size() >= 2; i++) {
             optimized = optimizeTwo(peepInst, peepMeta);
             optimizedAny |= optimized;
         }
         
         optimized = true;
-        while(optimized && peepInst.size() >= 1) {
+        for(int i = 0; optimized && i < maxLoops && peepInst.size() >= 1; i++) {
             optimized = optimizeOne(peepInst, peepMeta);
             optimizedAny |= optimized;
         }
@@ -179,15 +190,13 @@ public class PeepholeOptimizer {
         
         //LOG.finest("O1: " + inst);
         
-        if(meta.op == AASMOperation.MOV) { 
-            // MOV x, x is a no-op
-            if(meta.sourceIsRegister && meta.destIsRegister &&
-               meta.sourceRegister == meta.destRegister) {
-                //LOG.finest("Eliminated no-op move " + inst);
-                peepInst.remove(0);
-                peepMeta.remove(0);
-                return true;
-            }
+        if(meta.sourceIsRegister && meta.destIsRegister &&
+           meta.sourceRegister == meta.destRegister &&
+           (meta.op == AASMOperation.MOV || meta.op == AASMOperation.XCHG)) {
+            // MOV/XCHG x, x is a no-op
+            peepInst.remove(0);
+            peepMeta.remove(0);
+            return true;
         }
         
         // TODO
@@ -213,43 +222,43 @@ public class PeepholeOptimizer {
             // MOV ?, ?
             // MOV ?, ?
             
-            if(m0.destIsMemory && m1.sourceIsMemory) {
-                // MOV [?], ?
-                // MOV ?, [?]
-                
-                // MOV [BP - x], y
-                // MOV z, [BP - x]
-                // Is equivalent to
-                // MOV [BP - x], y
-                // MOV z, y
-                // Specifically BP rather than general memory access as the stack
-                // is assumed to not be in a side-effecting memory region
-                if(m0.destBase == Register.BP && m1.sourceBase == Register.BP &&
-                   m0.destIndex == Register.NONE && m1.sourceIndex == Register.NONE &&
-                   m0.destOffsIsCCon && m1.sourceOffsIsCCon &&
-                   m0.destOffset == m1.sourceOffset) {
-                    AASMInstruction new1 = new AASMInstruction(
-                        i1.getOp(),
-                        i1.getDestination(),
-                        i0.getSource(),
-                        i1.getCondition()
-                    );
-                    
-                    peepInst.set(1, new1);
-                    peepMeta.set(1, new1.getMeta());
-                    return true;
-                }
-            } else if(m0.sourceIsRegister && m0.destIsRegister &&
-                      m1.sourceIsRegister && m1.destIsRegister) {
+            if(m0.sourceIsRegister && m0.destIsRegister &&
+               m1.sourceIsRegister && m1.destIsRegister) {
                 // MOV R, R
                 // MOV R, R
                 
-                // MOV A, B
-                // MOV B, A
-                // is equivalent to
-                // MOV A, B
-                if(m0.destRegister == m1.sourceRegister &&
-                   m1.destRegister == m0.sourceRegister) {
+                if(m0.destRegister == m1.sourceRegister) {
+                    if(m0.sourceRegister == m1.destRegister) {
+                        // MOV A, B
+                        // MOV B, A
+                        // is equivalent to
+                        // MOV A, B
+                        peepInst.remove(1);
+                        peepMeta.remove(1);
+                        return true;
+                    } else {
+                        // MOV A, B
+                        // MOV C, A
+                        // is equivalent to
+                        // MOV A, B
+                        // MOV C, B
+                        AASMInstruction new1 = new AASMInstruction(
+                            i1.getOp(),
+                            i1.getDestination(),
+                            i0.getSource(),
+                            i1.getCondition()
+                        );
+                        
+                        peepInst.set(1, new1);
+                        peepMeta.set(1, new1.getMeta());
+                        return true;
+                    }
+                } else if(m0.sourceRegister == m1.sourceRegister &&
+                          m0.destRegister == m1.destRegister) {
+                    // MOV A, B
+                    // MOV A, B
+                    // is equivalent to
+                    // MOV A, B
                     peepInst.remove(1);
                     peepMeta.remove(1);
                     return true;
@@ -264,9 +273,13 @@ public class PeepholeOptimizer {
                     boolean i8 = m0.sourceType == IRType.I8; 
                     
                     // Merge constants
+                    int shift = i8 ? 8 : 16;
+                    int mask = i8 ? 0xFF : 0xFFFF;
+                    IRType type = i8 ? IRType.I16 : IRType.I32;
+                    
                     AASMCompileConstant newConst = new AASMCompileConstant(
-                        (m0.sourceValue << (i8 ? 8 : 16)) | m1.sourceValue,
-                        i8 ? IRType.I16 : IRType.I32
+                        ((m0.sourceValue & mask) << shift) | (m1.sourceValue & mask),
+                        type
                     );
                     
                     // Substitute instruction
@@ -338,8 +351,141 @@ public class PeepholeOptimizer {
         AASMInstructionMeta m1 = peepMeta.get(1);
         AASMInstructionMeta m2 = peepMeta.get(2);
         
-        // TODO
+        //LOG.info(i0 + " " + i1 + " " + i2);
+        
+        if(m0.op == AASMOperation.MOV && m1.op == AASMOperation.MOV && m2.op == AASMOperation.MOV) {
+            if(!m0.sourceEqualsDestOf(m0) && m0.sourceEqualsDestOf(m1) &&
+               m1.sourceEqualsDestOf(m2) && m2.sourceEqualsDestOf(m0)) {
+                // MOV A, B
+                // MOV B, C
+                // MOV C, A
+                // is equivalent to
+                // MOV A, B
+                // XCHG B, C
+                // for A != B
+                AASMInstruction new1 = new AASMInstruction(
+                    AASMOperation.XCHG,
+                    i1.getDestination(),
+                    i1.getSource(),
+                    i1.getCondition()
+                );
+                peepInst.set(1, new1);
+                peepMeta.set(1, new1.getMeta());
+                peepInst.remove(2);
+                peepMeta.remove(2);
+                return true;
+            }
+            
+            if(!m0.sourceEqualsDestOf(m0) && !m1.sourceEqualsDestOf(m0) && m2.sourceEqualsDestOf(m0) &&
+               (m0.sourceEqualsDestOf(m1) || (m0.sourceIsRegister && m1.destIsRegister && MachineRegisters.aliasSet(m0.sourceRegister).contains(m1.destRegister))) &&
+               (m0.sourceIsRegister || (m1.sourceIsRegister && m2.destIsRegister))) {
+                // MOV A, B
+                // MOV alias(B), C
+                // MOV D, A
+                // is equivalent to
+                // MOV A, B
+                // MOV D, B
+                // MOV B, C
+                // for (A != B and A != C)
+                // If B is memory, D and C must be registers
+                AASMInstruction new1 = new AASMInstruction(
+                    AASMOperation.MOV,
+                    i2.getDestination(),
+                    i0.getSource(),
+                    IRCondition.NONE
+                );
+                
+                peepInst.set(1, new1);
+                peepMeta.set(1, new1.getMeta());
+                peepInst.set(2, i1);
+                peepMeta.set(2, m1);
+                return true;
+            }
+        }
         
         return false;
+    }
+    
+    /**
+     * Dynamically sized optimizations
+     * @param peepInst
+     * @param peepMeta
+     * @return
+     */
+    private static boolean optimizeDynamic(ArrayList<AASMInstruction> peepInst, ArrayList<AASMInstructionMeta> peepMeta) {
+        boolean optimized = false;
+        
+        /*
+         * MOV [BP - x1], y1
+         * MOV [BP - x2], y2
+         * ...
+         * MOV [BP - xn], yn
+         * MOV z1, [BP - x1]
+         * MOV z2, [BP - x2]
+         * ...
+         * MOV zn, [BP - xn]
+         * is equivalent to
+         * MOV [BP - x1], y1
+         * MOV [BP - x2], y2
+         * ...
+         * MOV [BP - xn], yn
+         * MOV z1, y1
+         * MOV z2, y2
+         * ...
+         * MOV zn, yn
+         */
+        
+        // Collect run of MOV [BP - x], y
+        int i = 0;
+        Map<Integer, Register> offsMap = new HashMap<>();
+        Map<Register, Integer> regMap = new HashMap<>();
+        while(i < peepInst.size()) {
+            AASMInstructionMeta meta = peepMeta.get(i);
+            if(meta.op == AASMOperation.MOV && meta.destIsBPSlot) {
+                // Instruction is MOV [BP - x], y
+                offsMap.put(meta.destOffset, meta.sourceRegister);
+                regMap.put(meta.sourceRegister, meta.destOffset);
+                i++;
+            } else {
+                break;
+            }
+        }
+        
+        // Modify run of MOV z, [BP - x]
+        while(i < peepInst.size() && !offsMap.isEmpty()) {
+            AASMInstructionMeta meta = peepMeta.get(i);
+            if(meta.op != AASMOperation.XCHG && meta.sourceIsBPSlot &&
+               offsMap.containsKey(meta.sourceOffset)) {
+                // Instruction is ... z, [BP - x]
+                AASMInstruction oldInst = peepInst.get(i);
+                AASMInstruction newInst = new AASMInstruction(
+                    oldInst.getOp(),
+                    oldInst.getDestination(),
+                    new AASMMachineRegister(offsMap.get(meta.sourceOffset)),
+                    oldInst.getCondition()
+                );
+                    
+                peepInst.set(i, newInst);
+                peepMeta.set(i, newInst.getMeta());
+                optimized = true;
+                i++;
+            } else if(meta.op != AASMOperation.XCHG && meta.destIsRegister) {
+                // Instruction isn't ... z, [BP - x] but may not affect things
+                for(Register r : MachineRegisters.aliasSet(meta.destRegister)) {
+                    // Remove affected y's
+                    if(regMap.containsKey(r)) {
+                        //LOG.info("" + r);
+                        regMap.remove(offsMap.remove(regMap.remove(r)));
+                    }
+                }
+                
+                i++;
+            } else {
+                // Instruction isn't MOV z, [BP - x] and likely affects things
+                break;
+            }
+        }
+        
+        return optimized;
     }
 }

@@ -54,6 +54,9 @@ public class CodeGenV1 implements CodeGenerator {
     
     private static Logger LOG = Logger.getLogger(CodeGenV1.class.getName());
     
+    // TODO: tie to optimization level?
+    private static final int ALLOCATION_ITERATIONS = 1; // EnumSet iterators are deterministic, could change get() method if desired
+    
     private boolean showISelDAG = false;
     private boolean showRAIGUncolored = false;
     private boolean showRAIGColored = false;
@@ -110,7 +113,7 @@ public class CodeGenV1 implements CodeGenerator {
             // New BBs are also added to the liveness sets
             List<IRBasicBlock> sourceBBs = new ArrayList<>(function.getBasicBlockList());
             for(IRBasicBlock irBB : sourceBBs) {
-                //LOG.info(livenessSets.get(irBB.getID()) + "");
+                //LOG.info(irBB.getID() + " liveness: " + livenessSets.get(irBB.getID()) + "");
                 
                 // Ensure we have no unnecessary NONEs
                 IRUtil.inferNoneTypes(irBB, typeMap);
@@ -149,15 +152,29 @@ public class CodeGenV1 implements CodeGenerator {
                 abstractResults.put(function.getID(), scheduledCode);
             }
             
-            // Perform register allocation
-            AllocationResult allocRes = RegisterAllocator.allocateRegisters(scheduledCode, function, showRAIGUncolored, showRAIGColored);
+            // Do several register allocation attempts to ensure the best is achieved
+            int bestInstructions = Integer.MAX_VALUE;
+            List<AASMPart> bestCode = null;
+            AllocationResult bestResult = null;
+            int iters = (this.showRAIGColored || this.showRAIGUncolored) ? 1 : ALLOCATION_ITERATIONS;
             
-            // Perform peephole optimizations
-            // Mainly cleaning up RA output
-            List<AASMPart> optimizedCode = PeepholeOptimizer.optimize(allocRes.allocatedCode(), function);
+            for(int i = 0; i < ALLOCATION_ITERATIONS; i++) {
+                // Perform register allocation
+                AllocationResult allocRes = RegisterAllocator.allocateRegisters(scheduledCode, function, showRAIGUncolored, showRAIGColored);
+                
+                // Perform peephole optimizations
+                // Mainly cleaning up RA output
+                List<AASMPart> optimizedCode = PeepholeOptimizer.optimize(allocRes.allocatedCode(), function);
+                
+                if(optimizedCode.size() < bestInstructions) {
+                    bestCode = optimizedCode;
+                    bestResult = allocRes;
+                    bestInstructions = optimizedCode.size();
+                }
+            }
             
             // Convert to assembly components
-            AASMTranslator.translate(new AllocationResult(optimizedCode, allocRes.stackAllocationSize(), allocRes.i(), allocRes.j(), allocRes.k(), allocRes.l()), assemblyComponents, assemblyLabelIndexMap, function);
+            AASMTranslator.translate(new AllocationResult(bestCode, bestResult.stackAllocationSize(), bestResult.i(), bestResult.j(), bestResult.k(), bestResult.l()), assemblyComponents, assemblyLabelIndexMap, function);
         }
         
         // Output abstract assembly to file if needed

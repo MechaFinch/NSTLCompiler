@@ -170,6 +170,17 @@ public class AASMTranslator {
                             assemblyComponents.addAll(epilogue);
                             break;
                         
+                        case CMOV:
+                            // CMOVCC needs its condition as an EI8
+                            assemblyComponents.add(new Instruction(
+                                Opcode.CMOVCC_RIM,
+                                translateArg(inst.getDestination(), true, false, sourceFunction),
+                                translateArg(inst.getSource(), true, false, sourceFunction),
+                                meta.condition.toJCCOpcode().getOp(),
+                                false
+                            ));
+                            break;
+                        
                         case ADD:
                             // ADD SP, x is its own opcode
                             if(meta.destIsRegister && meta.destRegister == Register.SP) {
@@ -332,20 +343,7 @@ public class AASMTranslator {
             case PUSH   -> (meta.sourceType == IRType.I32) ? Opcode.PUSHW_RIM : Opcode.PUSH_RIM;
             case POP    -> (meta.sourceType == IRType.I32) ? Opcode.POPW_RIM : Opcode.POP_RIM;
             case RET    -> Opcode.RET;
-            
-            case JCC    -> switch(meta.condition) {
-                case E  -> Opcode.JZ_RIM;
-                case NE -> Opcode.JNZ_RIM;
-                case A  -> Opcode.JA_RIM;
-                case AE -> Opcode.JNC_RIM;
-                case B  -> Opcode.JC_RIM;
-                case BE -> Opcode.JBE_RIM;
-                case G  -> Opcode.JG_RIM;
-                case GE -> Opcode.JGE_RIM;
-                case L  -> Opcode.JL_RIM;
-                case LE -> Opcode.JLE_RIM;
-                default -> Opcode.JMP_RIM;
-            };
+            case JCC    -> meta.condition.toJCCOpcode();
             
             default -> Opcode.valueOf(meta.op + "_RIM");
         };

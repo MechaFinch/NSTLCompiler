@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -117,6 +118,7 @@ public class RegisterAllocator {
         Map<IRIdentifier, RARegisterClass> registerClassMap = new HashMap<>();  // Register class of each local
         Set<IRIdentifier> preexistingStackSlots = new HashSet<>();              // STACK instruction slots
         Map<IRIdentifier, Integer> stackSlotSizes = new HashMap<>();            // Size of each stack slot
+        Set<IRIdentifier> spillLoads = new HashSet<>();                         // IDs loaded to by spilled nodes
         
         for(List<AASMPart> group : abstractCode) {
             for(AASMPart part : group) {
@@ -142,7 +144,7 @@ public class RegisterAllocator {
             RAData data = new RAData();
             
             // Build interference graph
-            graph = buildInterferenceGraph(currentCode, registerClassMap, data);
+            graph = buildInterferenceGraph(currentCode, registerClassMap, spillLoads, data);
             
             if(showRAIGUncolored) {
                 RAIGRenderer.renderRAIG(graph, sourceFunction.getID() + " " + iteration);
@@ -256,7 +258,7 @@ public class RegisterAllocator {
             }
             
             // Something spilled. Not done.
-            currentCode = rewriteProgram(currentCode, data.spilledNodes, registerClassMap, stackSlotSizes, sourceFunction);
+            currentCode = rewriteProgram(currentCode, data.spilledNodes, registerClassMap, stackSlotSizes, spillLoads, sourceFunction);
             iteration++;
         }
         
@@ -346,7 +348,7 @@ public class RegisterAllocator {
      * @param sourceFunction
      * @return
      */
-    private static List<List<AASMPart>> rewriteProgram(List<List<AASMPart>> program, Set<RAIGNode> spilledNodes, Map<IRIdentifier, RARegisterClass> registerClassMap, Map<IRIdentifier, Integer> stackSlotSizes, IRFunction sourceFunction) {
+    private static List<List<AASMPart>> rewriteProgram(List<List<AASMPart>> program, Set<RAIGNode> spilledNodes, Map<IRIdentifier, RARegisterClass> registerClassMap, Map<IRIdentifier, Integer> stackSlotSizes, Set<IRIdentifier> spillLoads, IRFunction sourceFunction) {
         LOG.finest("Rewriting with spills");
         
         // Create stack slots for spilled node
@@ -373,6 +375,7 @@ public class RegisterAllocator {
                 // Create new ID
                 IRIdentifier loadID = new IRIdentifier(id.getName() + "%" + sourceFunction.getFUID(), IRIdentifierClass.LOCAL);
                 loadedBeforeGroup.put(id, loadID);
+                spillLoads.add(loadID);
                 
                 // Get rClass/type info
                 RARegisterClass rClass = registerClassMap.get(id);
@@ -540,7 +543,7 @@ public class RegisterAllocator {
             case AASMInstruction inst: {
                 // Instruction, operands can have spilled
                 // Register source may be substitutable with memory access
-                if(!(inst.getSource() instanceof AASMAbstractRegister areg && !(areg.half() && areg.upper()) && inst.getDestination() instanceof AASMRegister)) {
+                if(!(inst.getSource() instanceof AASMAbstractRegister areg && !(areg.half() && areg.upper()) && (inst.getDestination() instanceof AASMRegister || inst.getDestination() == null))) {
                     // Source isn't a register, or source is an upper half (not representable from stackslot atm), or destination doesn't allow memory source
                     findSpilledInPart(inst.getSource(), spilledUsed, spilledDefd, spilledIDs);
                 }
@@ -584,9 +587,7 @@ public class RegisterAllocator {
         LOG.finest("Assigning colors");
         
         // Avoid using IJKL if they haven't been used already
-        Set<Register> undesirable = new HashSet<>(
-            Set.of(Register.JI, Register.LK, Register.I, Register.J, Register.K, Register.L)
-        );
+        Set<Register> undesirable = EnumSet.of(Register.JI, Register.LK, Register.I, Register.J, Register.K, Register.L);
         
         // Color the graph best we can
         while(!data.selectStack.isEmpty()) {
@@ -617,13 +618,12 @@ public class RegisterAllocator {
                 data.coloredNodes.add(node);
                 
                 // When choosing a color, avoid IJKL
-                Set<Register> desirable = new HashSet<>(okColors);
+                Set<Register> desirable = EnumSet.copyOf(okColors);
                 desirable.removeAll(undesirable);
                 
                 if(desirable.isEmpty()) {
                     // sadge
-                    Register color = get(okColors);
-                    node.setColor(color);
+                    Register color = colorFrom(node, okColors);
                     
                     // Used register is no longer undesirable
                     undesirable.remove(color);
@@ -632,7 +632,7 @@ public class RegisterAllocator {
                         undesirable.remove(MachineRegisters.lowerHalf(color));
                     } catch(IllegalArgumentException e) {}
                 } else {
-                    node.setColor(get(desirable));
+                    colorFrom(node, desirable);
                 }
                 
                 LOG.finest(node.getIdentifier() + " = " + node.getColoring());
@@ -646,16 +646,49 @@ public class RegisterAllocator {
     }
     
     /**
+     * Color a node from the given set of colors
+     * @param node
+     * @param colors
+     * @return Color used
+     */
+    private static Register colorFrom(RAIGNode node, Set<Register> colors) {
+        // Biased coloring
+        // Something's up with the coalescing criteria
+        // It either misses things biased coloring catches, or causes extra spills
+        
+        Set<Register> biased = EnumSet.noneOf(Register.class);
+        
+        for(RAMove move : node.getMoves()) {
+            RAIGNode src = move.source().getAlias();
+            RAIGNode dst = move.destination().getAlias();
+            
+            if(colors.contains(src.getColoring())) {
+                biased.add(src.getColoring());
+            }
+            
+            if(colors.contains(dst.getColoring())) {
+                biased.add(dst.getColoring());
+            }
+        }
+        
+        Register color = (biased.size() > 0) ? get(biased) : get(colors);
+        
+        //Register color = get(colors);
+        node.setColor(color);
+        return color;
+    }
+    
+    /**
      * Selects a node heuristically to spill-simplify
      * @param data
      */
     private static void selectSpill(RAData data) {
         // Find the node in the spill list with the lowest cost
         RAIGNode node = null;
-        int cost = Integer.MAX_VALUE;
+        float cost = Integer.MAX_VALUE;
         
         for(RAIGNode candidate : data.spillWorklist) {
-            int candCost = candidate.getSpillCost();
+            float candCost = candidate.getSpillCost();
             
             if(candCost < cost) {
                 node = candidate;
@@ -772,9 +805,17 @@ public class RegisterAllocator {
             return;
         }
         
+        // Absent precoloring, the node with the smaller class must be retained
+        if(!retain.isPrecolored() && retain.getRegisterClass().size() > merge.getRegisterClass().size()) {
+            RAIGNode t = retain;
+            retain = merge;
+            merge = t;
+        }
+        
+        Set<RAIGNode> mergeAdj = adjacent(merge, data);
         if(retain.isPrecolored()) {
             // When precolored, use the OK heuristic
-            for(RAIGNode adj : adjacent(merge, data)) {
+            for(RAIGNode adj : mergeAdj) {
                 if(!(adj.getSqueeze() < adj.numAvailable() ||
                      adj.isPrecolored() ||
                      adj.getInterferingNodes().contains(retain))) {
@@ -785,30 +826,30 @@ public class RegisterAllocator {
                 }
             }
         } else {
-            // Absent precoloring, the node with the smaller class must be retained
-            if(retain.getRegisterClass().size() > merge.getRegisterClass().size()) {
-                RAIGNode t = retain;
-                retain = merge;
-                merge = t;
-            }
-            
             // Conservative coalescing heuristic
-            int k = 0;
-            Set<RAIGNode> allNeighbors = new HashSet<>(retain.getInterferingNodes());
-            allNeighbors.addAll(merge.getInterferingNodes());
+            Set<RAIGNode> retainAdj = adjacent(retain, data);
+            Set<RAIGNode> allNeighbors = new HashSet<>(retainAdj);
+            allNeighbors.addAll(mergeAdj);
             
-            for(RAIGNode neighbor : allNeighbors) {
-                if(neighbor.getSqueeze() >= neighbor.numAvailable()) {
-                    k += 1;
-                    
-                    if(k >= retain.numAvailable()) {
-                        // Conversative failed
-                        //LOG.finest("Conservative failed");
-                        data.activeMoves.add(move);
-                        return;
+            //if(!allNeighbors.equals(retainAdj)) {
+                Set<Register> coalescedAllowed = EnumSet.copyOf(retain.getAllowedColors());
+                coalescedAllowed.retainAll(merge.getAllowedColors());
+                int available = coalescedAllowed.size();
+                
+                int k = 0;
+                for(RAIGNode neighbor : allNeighbors) {
+                    if(neighbor.getSqueeze() >= neighbor.numAvailable()) {
+                        k += 1;
+                        
+                        if(k >= available) {
+                            // Conversative failed
+                            //LOG.finest("Conservative failed");
+                            data.activeMoves.add(move);
+                            return;
+                        }
                     }
                 }
-            }
+            //}
         }
         
         LOG.finest("Coalesced " + merge.getIdentifier() + " into " + retain.getIdentifier());
@@ -827,7 +868,7 @@ public class RegisterAllocator {
         // Merge merge into retain
         merge.setAlias(retain);
         retain.addMoves(merge.getMoves());
-        // Note - merge exclusions if that becomes relevant
+        retain.addExclusions(merge.getExcludedColors());
         
         for(RAIGNode adj : adjacent(merge, data)) {
             retain.addInterference(adj);
@@ -1030,14 +1071,14 @@ public class RegisterAllocator {
      * @param data
      * @return
      */
-    private static RAInterferenceGraph buildInterferenceGraph(List<List<AASMPart>> code, Map<IRIdentifier, RARegisterClass> registerClassMap, RAData data) {
+    private static RAInterferenceGraph buildInterferenceGraph(List<List<AASMPart>> code, Map<IRIdentifier, RARegisterClass> registerClassMap, Set<IRIdentifier> spillLoads, RAData data) {
         LOG.finest("Building interference graph");
         
         RAInterferenceGraph graph = new RAInterferenceGraph();
         
         // Initialize graph with a node for each local
         for(Entry<IRIdentifier, RARegisterClass> entry : registerClassMap.entrySet()) {
-            RAIGNode node = new RAIGNode(entry.getKey(), entry.getValue(), RASet.INITIAL);
+            RAIGNode node = new RAIGNode(entry.getKey(), entry.getValue(), RASet.INITIAL, spillLoads.contains(entry.getKey()));
             graph.addNode(node);
             data.initial.add(node);
         }
