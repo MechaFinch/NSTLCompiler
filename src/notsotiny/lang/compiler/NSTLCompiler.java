@@ -3,6 +3,7 @@ package notsotiny.lang.compiler;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Logger;
 
@@ -46,57 +48,75 @@ public class NSTLCompiler {
     private static Logger LOG = Logger.getLogger(NSTLCompiler.class.getName());
     
     public static void main(String[] args) throws IOException, InitializationException {
-        // handle arguments
-        if(args.length < 1) {
-            System.out.println("Usage: NSTLCompiler [options] <input file>");
-            System.out.println("Flags:");
-            System.out.println("\t-d\t\t\tEnable debug-friendly object files. If enabled, references are verbose and files much larger.");
-            System.out.println("\t-x <exec file>\t\tExec File. Specifies the .oex file to output. Default <input file>.oex");
-            System.out.println("\t-e <entry function>\tEntry. Specifies an entry function. Default main");
-            System.out.println("\t-o <output directory>\tOutput. Specifies the location of output object files. Default <working directory>\\out");
-            System.out.println("\t-c <compiler name>\tCompiler. Specifies which compiler variant to use. Options: shit, ir. Default: ir");
-            System.out.println("\t-cfg <type>\t\tShow function CFGs. Type = ast, uir, oir");
-            System.out.println("\t-dag <type>\t\tShow basic block DAGs. Type = isel");
-            System.out.println("\t-irfu <output directory>\tUnoptimized IR Output. Specifies where to output unoptimized IR and enables unoptimized IR file output");
-            System.out.println("\t-irfi <output directory>\tIntermediate IR Output. Specifies where to output intermediate IR during optimization and enables intermediate IR file output");
-            System.out.println("\t-irfo <output directory>\tOptimized IR Output. Specifies where to output optimzied IR and enables optimized IR file output");
-            System.out.println("\t-asmfa <output directory>\tAbstract Assembly Output. Specifies where to output abstract assembly and enbles abstract assembly file output");
-            System.out.println("\t-asmfo <output directory>\tFinal Assembly Output. Specifies where to output assembly and enables assembly file output");
-            System.out.println("\t-raig <type>\t\tShow register allocation interference graphs. Type = uncolored, colored");
-            return; 
+        // Properties
+        Properties properties = new Properties();
+        
+        // Load .properties configuration
+        // stdlib location
+        try(FileInputStream fis = new FileInputStream("lib.properties")) {
+            properties.load(fis);
+        } catch(IOException e) {
+            LOG.severe("Could not read standard library properties file. Specify standard library location with 'stdlib' in \"lib.properties\".");
+            return;
         }
         
-        int flagCount = 0;
-        boolean debug = false,
-                showASTCFG = false,
-                showUIRCFG = false,
-                showIIRCFG = false,
-                showOIRCFG = false,
-                hasExecFile = false,
-                hasOutputDir = false,
-                hasUIROutputDir = false,
-                hasIIROutputDir = false,
-                hasOIROutputDir = false,
-                hasAASMOutputDir = false,
-                hasFASMOutputDir = false,
-                showISelDAG = false,
-                showRAIGUncolored = false,
-                showRAIGColored = false;
+        // compiler properties (default arguments)
+        try(FileInputStream fis = new FileInputStream("compiler.properties")) {
+            properties.load(fis);
+        } catch(IOException e) {
+            LOG.warning("Could not read configuration file \"compiler.properties\".");
+            return;
+        }
         
-        String inputFileArg = "",
+        // Configuration
+        int flagCount = 0;
+        boolean debug = booleanProperty(properties, "debug", false),
+                showASTCFG = booleanProperty(properties, "showASTCFG", false),
+                showUIRCFG = booleanProperty(properties, "showUIRCFG", false),
+                showIIRCFG = booleanProperty(properties, "showIIRCFG", false),
+                showOIRCFG = booleanProperty(properties, "showOIRCFG", false),
+                hasExecFile = false,
+                hasOutputDir = false,// properties.getProperty("outputPath", "").equals(""),
+                hasUIROutputDir = !properties.getProperty("uirPath", "").equals(""),
+                hasIIROutputDir = !properties.getProperty("iirPath", "").equals(""),
+                hasOIROutputDir = !properties.getProperty("oirPath", "").equals(""),
+                hasAASMOutputDir = !properties.getProperty("aasmPath", "").equals(""),
+                hasFASMOutputDir = !properties.getProperty("asmPath", "").equals(""),
+                showISelDAG = booleanProperty(properties, "showISelDAG", false),
+                showRAIGUncolored = booleanProperty(properties, "showRAIDUncolored", false),
+                showRAIGColored = booleanProperty(properties, "showRAIGColored", false);
+        
+        String standardArg = properties.getProperty("stdlib", ""),
+               inputFileArg = "",
                execFileArg = "",
-               outputArg = "",
-               uirOutputArg = "",
-               iirOutputArg = "",
-               oirOutputArg = "",
-               aasmOutputArg = "",
-               fasmOutputArg = "",
-               compilerName = "ir",
-               entry = "main";
+               outputArg = properties.getProperty("outputPath", ""),
+               uirOutputArg = properties.getProperty("uirPath", ""),
+               iirOutputArg = properties.getProperty("iirPath", ""),
+               oirOutputArg = properties.getProperty("oirPath", ""),
+               aasmOutputArg = properties.getProperty("aasmPath", ""),
+               fasmOutputArg = properties.getProperty("asmPath", ""),
+               compilerName = properties.getProperty("compilerName", "ir"),
+               entry = properties.getProperty("entry", "main");
+        
+        if(standardArg.equals("")) {
+            LOG.severe("Could not find standard library path. Specify standard library location with 'stdlib' in \"lib.properties\".");
+            return;
+        }
+        
+        // Process arguments
+        if(args.length < 1) {
+            printUsage();
+            return; 
+        }
         
         out:
         while(true) {
             switch(args[flagCount]) {
+                case "-h":
+                    flagCount++;
+                    printUsage();
+                    break;
+                
                 case "-d":
                     flagCount++;
                     debug = true;
@@ -200,8 +220,9 @@ public class NSTLCompiler {
              oirOutDir = hasOIROutputDir ? Paths.get(oirOutputArg) : null,
              aasmOutDir = hasAASMOutputDir ? Paths.get(aasmOutputArg) : null,
              fasmOutDir = hasFASMOutputDir ? Paths.get(fasmOutputArg) : null,
-             standardDir = Paths.get("C:\\Users\\wetca\\data\\silly  code\\architecture\\NotSoTiny\\programming\\standard library");
+             standardDir = Paths.get(standardArg);
         
+        // Find necessary files
         if(hasExecFile) {
             execFile = Paths.get(execFileArg);
         } else {
@@ -510,5 +531,37 @@ public class NSTLCompiler {
         } else {
             log.finest("null");
         }
+    }
+    
+    /**
+     * Returns a property as a boolean
+     * @param properties
+     * @param key
+     * @param def
+     * @return
+     */
+    private static boolean booleanProperty(Properties properties, String key, boolean def) {
+        return Boolean.parseBoolean(properties.getProperty(key, "" + def));
+    }
+    
+    /**
+     * Prints a usage message
+     */
+    private static void printUsage() {
+        System.out.println("Usage: NSTLCompiler [options] <input file>");
+        System.out.println("Flags:");
+        System.out.println("\t-d\t\t\tEnable debug-friendly object files. If enabled, references are verbose and files much larger.");
+        System.out.println("\t-x <exec file>\t\tExec File. Specifies the .oex file to output. Default <input file>.oex");
+        System.out.println("\t-e <entry function>\tEntry. Specifies an entry function. Default main");
+        System.out.println("\t-o <output directory>\tOutput. Specifies the location of output object files. Default <working directory>\\out");
+        System.out.println("\t-c <compiler name>\tCompiler. Specifies which compiler variant to use. Options: shit, ir. Default: ir");
+        System.out.println("\t-cfg <type>\t\tShow function CFGs. Type = ast, uir, oir");
+        System.out.println("\t-dag <type>\t\tShow basic block DAGs. Type = isel");
+        System.out.println("\t-irfu <output directory>\tUnoptimized IR Output. Specifies where to output unoptimized IR and enables unoptimized IR file output");
+        System.out.println("\t-irfi <output directory>\tIntermediate IR Output. Specifies where to output intermediate IR during optimization and enables intermediate IR file output");
+        System.out.println("\t-irfo <output directory>\tOptimized IR Output. Specifies where to output optimzied IR and enables optimized IR file output");
+        System.out.println("\t-asmfa <output directory>\tAbstract Assembly Output. Specifies where to output abstract assembly and enbles abstract assembly file output");
+        System.out.println("\t-asmfo <output directory>\tFinal Assembly Output. Specifies where to output assembly and enables assembly file output");
+        System.out.println("\t-raig <type>\t\tShow register allocation interference graphs. Type = uncolored, colored");
     }
 }

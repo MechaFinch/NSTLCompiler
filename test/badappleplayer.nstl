@@ -4,8 +4,11 @@ library _gutil from "simvideo/gutil";
 library _badapple;
 
 --
--- shitty:	1,088,884,000 instructions
--- ir:		  595,928,000 instructions
+-- Compiler		Instructions
+-- shitty		1,088,884,000
+-- ir			  595,928,000
+-- asm no unroll  414,463,000
+-- asm unroll	  186,884,000
 --
 
 -- Copy a custom block
