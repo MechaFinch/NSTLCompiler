@@ -1,0 +1,24 @@
+
+-- benchmark
+-- Runs some processing intensive programs
+--
+-- Performance History
+--	1,042,397,939
+--
+
+library _badappleplayer;
+library _mandel;
+
+external function _badappleplayer.main of none;
+external function _mandel.mandel of none;
+
+variable hcf is ptr gets -1;
+
+function main of none begin
+	-- run benchmarks
+	call _mandel.mandel with none;
+	call _badappleplayer.main with none;
+	
+	-- halt and catch fire
+	call hcf with none;
+end function

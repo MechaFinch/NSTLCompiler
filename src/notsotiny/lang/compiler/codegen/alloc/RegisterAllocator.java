@@ -1144,27 +1144,34 @@ public class RegisterAllocator {
                         
                         addUses(inst.getSource(), used);
                         
-                        // BP is not relevant
+                        // BP/SP are not relevant
                         used.remove(MachineRegisters.ID_BP);
                         used.remove(MachineRegisters.ID_SP);
                         
                         // ID-ID Moves have some special handling
                         if(inst.getOp() == AASMOperation.MOV && inst.getSource() instanceof AASMRegister srcReg && inst.getDestination() instanceof AASMRegister dstReg) {
-                            IRIdentifier src = srcReg.id();
-                            IRIdentifier dst = dstReg.id();
-                            RAIGNode srcNode = graph.getNode(src);
-                            RAIGNode dstNode = graph.getNode(dst);
-                            
-                            //LOG.info(src + " -> " + dst + "\t\t" + srcNode + " -> " + dstNode);
-                            
-                            // Remove use from live set
-                            currentlyLive.remove(src);
-                            
-                            // Associate move with each node
-                            RAMove move = new RAMove(dstNode, srcNode);
-                            
-                            // And add it to the move worklist
-                            data.worklistMoves.add(move);
+                            // Halves are not their wholes
+                            if((srcReg instanceof AASMAbstractRegister absSrc && absSrc.half()) ||
+                               (dstReg instanceof AASMAbstractRegister absDst && absDst.half())) {
+                                // so don't count them as such
+                            } else {
+                                // actual moves
+                                IRIdentifier src = srcReg.id();
+                                IRIdentifier dst = dstReg.id();
+                                RAIGNode srcNode = graph.getNode(src);
+                                RAIGNode dstNode = graph.getNode(dst);
+                                
+                                //LOG.info(src + " -> " + dst + "\t\t" + srcNode + " -> " + dstNode);
+                                
+                                // Remove use from live set
+                                currentlyLive.remove(src);
+                                
+                                // Associate move with each node
+                                RAMove move = new RAMove(dstNode, srcNode);
+                                
+                                // And add it to the move worklist
+                                data.worklistMoves.add(move);
+                            }
                         }
                         
                         // normal use/def handling

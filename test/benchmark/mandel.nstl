@@ -1,0 +1,216 @@
+
+-- benchmarking mandelbrot
+
+library _util;
+library _shapes from "simvideo/shapes";
+library _gutil from "simvideo/gutil";
+
+-- returns a * b for 8.24 fixed point
+function mul824 of i32 a, i32 b returns i32 begin
+	variable negative is u8 gets 0;
+	
+	-- use absolute value
+	if a < 0 then
+		a gets 0 - a;
+		negative gets not negative;
+	end if
+	
+	if b < 0 then
+		b gets 0 - b;
+		negative gets not negative;
+	end if
+	
+	-- long multiply
+	variable a_low is u16 gets a as u16;
+	variable a_high is u16 gets (a >> 16) as u16;
+	variable b_low is u16 gets b as u16;
+	variable b_high is u16 gets (b >> 16) as u16;
+	
+	variable aloblo is u32 gets (a_low as u32) * (b_low as u32);
+	variable alobhi is u32 gets (a_low as u32) * (b_high as u32);
+	variable ahiblo is u32 gets (a_high as u32) * (b_low as u32);
+	variable ahibhi is u32 gets (a_high as u32) * (b_high as u32);
+	
+	variable res_low_a is u32 gets aloblo + (alobhi << 16);
+	variable res_high is u32 gets ahibhi;
+	
+	if res_low_a < aloblo then
+		res_high gets res_high + 1;
+	end if
+	
+	variable res_low is u32 gets res_low_a + (ahiblo << 16);
+	
+	if res_low < res_low_a then
+		res_high gets res_high + 1;
+	end if
+	
+	res_high gets res_high + (alobhi >> 16) + (ahiblo >> 16);
+	
+	-- memory swizz (shift right 24)
+	variable swizz_zone is u8 array size 8;
+	variable swizz_a is u32 pointer gets (to swizz_zone) as ptr;
+	variable swizz_b is i32 pointer gets (swizz_a as ptr) + 3;
+	
+	swizz_a index 0 gets res_low;
+	swizz_a index 1 gets res_high;
+	
+	variable result is i32 gets at swizz_b;
+	
+	-- correct sign
+	if negative then
+		return 0 - result;
+	else
+		return result;
+	end if
+end function
+
+-- returns a / b
+function divi32 of i32 a, i32 b returns i32 begin
+	if a = 0 then
+		return 0;
+	end if
+	
+	if b = 0 then
+		return 0;
+	end if
+
+	variable negative is u8 gets 0;
+	
+	-- use absolute value
+	if a < 0 then
+		a gets 0 - a;
+		negative gets not negative;
+	end if
+	
+	if b < 0 then
+		b gets 0 - b;
+		negative gets not negative;
+	end if
+	
+	-- long division
+	variable quotient is u32 gets 0;
+	variable remainder is u32 gets 0;
+	variable divisor is u32 gets b;
+	variable dividend is u32 gets a;
+	variable bits is u16 gets 32;
+	
+	-- fast start
+	while (((dividend >> 16) as u16) and 0x8000) = 0 do
+		dividend gets dividend << 1;
+		bits gets bits - 1;
+	end while
+	
+	-- division
+	while bits > 0 do
+		-- shift dividend into remainder
+		variable dividend_msb is u16 gets ((dividend >> 16) as u16) >> 15;
+		dividend gets dividend << 1;
+		remainder gets (remainder << 1) or (dividend_msb as u32);
+		
+		-- can we subtract remainder - divisor
+		quotient gets quotient << 1;
+		
+		if divisor <= remainder then
+			-- can subtract, shift 1 into quotient
+			quotient gets quotient or 1;
+			remainder gets remainder - divisor;
+		else
+			-- can't subtract, shift 0 into quotient
+		end if
+	
+		bits gets bits - 1;
+	end while
+	
+	-- correct sign
+	if negative then
+		return 0 - quotient;
+	else
+		return quotient;
+	end if
+end function
+
+define DEPTH is 96;
+define ITERS is 1;
+
+define area_size is 240;
+
+define center_x		is 0xffd6b291;
+define center_y		is 0x01093d95;
+define region_size	is 0x000b851f;
+
+define INTER_STEP is 2;
+define INTER_SHIFT is 1;
+
+function mandel of none begin
+	variable gwuh is i32 gets (call mul824 with 0x01_020408, 0x10_204080); -- 0x10_40C203
+
+	-- palette
+	for p is u8 gets 0; p < DEPTH; p gets p + 1 do
+		variable p2 is u8 gets p * (256 / DEPTH);
+		call _gutil.set_color_bytes with p, p2, p2, p2;
+		--call _shapes.fill_rect with p as i16, p as i16, 1, 1, p;
+	end for
+	
+	--variable pixel_increment is i32 gets (call divi32 with region_size, area_size);
+	
+	variable z_x_start is i32;
+	variable z_y_start is i32 gets center_y + (region_size >> 1);
+	
+	-- Iterate over interlacing
+	for inter_y is u8 gets 0; inter_y < INTER_STEP; inter_y gets inter_y + 1 do
+		z_x_start gets center_x - (region_size >> 1);
+	
+		for inter_x is u8 gets 0; inter_x < INTER_STEP; inter_x gets inter_x + 1 do
+			variable z_x is i32;
+			variable z_y is i32 gets z_y_start;
+			
+			-- Iterate over pixels
+			for py is i16 gets inter_y as i16; py < area_size; py gets py + INTER_STEP do
+				z_x gets z_x_start;
+				
+				for px is i16 gets inter_x as i16; px < area_size; px gets px + INTER_STEP do
+					-- compute
+					variable x is i32 gets 0;
+					variable y is i32 gets 0;
+					variable i is u8 gets 0;
+					
+					-- iterate until max depth reached or escaped
+					until i = (DEPTH - 1) do
+						variable xsqu is i32 gets (call mul824 with x, x);
+						variable ysqu is i32 gets (call mul824 with y, y);
+						
+						if (xsqu + ysqu) as u32 > 0x04_000000 then
+							break;
+						end if
+						
+						y gets ((call mul824 with x, y) << 1) + z_y;
+						x gets (xsqu - ysqu) + z_x;
+						i gets i + 1;
+					end until
+				
+					-- plot
+					variable pixel_width is i16 gets pixel_size_table index (((inter_y << 2) + (inter_x << 1)) as u16 + 0);
+					variable pixel_height is i16 gets pixel_size_table index (((inter_y << 2) + (inter_x << 1)) as u16 + 1);
+					call _shapes.fill_rect with px, py, pixel_width, pixel_height, i;
+					
+					-- increment
+					z_x gets z_x + ((call divi32 with region_size, area_size) << INTER_SHIFT);
+				end for
+				
+				z_y gets z_y - ((call divi32 with region_size, area_size) << INTER_SHIFT);
+			end for
+			
+			-- interlacing
+			z_x_start gets z_x_start + (call divi32 with region_size, area_size);
+		end for
+		
+		z_y_start gets z_y_start - (call divi32 with region_size, area_size);
+	end for
+end function
+
+variable pixel_size_table is i16 array size 8 gets i16 array of
+	1, 1,
+	1, 1,
+	1, 1,
+	1, 1
+end array;

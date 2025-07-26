@@ -1394,6 +1394,13 @@ public class ISelPatternMatcher {
                         }
                         
                         if(referencedAASM.size() == 1) {
+                            AASMPart refPart = referencedAASM.get(0);
+                            
+                            // Convert the type if applicable
+                            if(refPart instanceof AASMMemory refMem && typed) {
+                                return new AASMMemory(refMem.getBase(), refMem.getIndex(), refMem.getScale(), refMem.getOffset(), type);
+                            }
+                            
                             return referencedAASM.get(0);
                         } else {
                             // Multiple parts in referenced subpattern

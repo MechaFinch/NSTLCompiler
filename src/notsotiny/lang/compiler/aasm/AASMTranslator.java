@@ -345,6 +345,9 @@ public class AASMTranslator {
             case RET    -> Opcode.RET;
             case JCC    -> meta.condition.toJCCOpcode();
             
+            case CALLA  -> Opcode.CALLA_RIM32;
+            case JMPA   -> Opcode.JMPA_RIM32;
+            
             default -> Opcode.valueOf(meta.op + "_RIM");
         };
     }

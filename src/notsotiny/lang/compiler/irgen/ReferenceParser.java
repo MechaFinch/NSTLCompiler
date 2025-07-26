@@ -206,6 +206,11 @@ public class ReferenceParser {
                         LOG.finest("Found function " + targetName);
                         ASTUtil.ensureTypesMatch(expectedType, RawType.PTR, false, subrefNode, ALOG, "from TO target");
                         return new Pair<>(new IRIdentifier(targetName, IRIdentifierClass.GLOBAL), RawType.PTR);
+                    } else if(sourceModule.getGlobalConstantMap().containsKey(targetName) && sourceModule.getGlobalConstantMap().get(targetName) instanceof StringType st) {
+                        // Not variable or function, but global constant. Strings can be pointed to
+                        LOG.finest("Found global string " + targetName);
+                        ASTUtil.ensureTypesMatch(expectedType, new PointerType(RawType.U8), false, subrefNode, ALOG, "from TO target");
+                        return new Pair<>(new IRIdentifier(targetName, IRIdentifierClass.GLOBAL), new PointerType(RawType.U8));
                     } else if(targetName.contains(".")) {
                         // Refernces something from an import
                         LOG.finest("Found library reference " + targetName);
@@ -512,6 +517,9 @@ public class ReferenceParser {
                     containedType = pt.getPointedType();
                     size = 0;
                 }
+            } else if(sourceType instanceof StringType st) {
+                containedType = RawType.U8;
+                size = st.getSize();
             } else {
                 // Can't determine type
                 ALOG.severe(sourceNode, "Indexed access requires an array, array pointer, or other typed pointer. Got " + sourceType);

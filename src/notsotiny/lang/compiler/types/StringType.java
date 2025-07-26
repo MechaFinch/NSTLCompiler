@@ -27,6 +27,7 @@ public class StringType implements NSTLType, TypedValue {
         escapes.put("\\b", "\b");
         escapes.put("\\f", "\f");
         escapes.put("\\\\", "\\");
+        escapes.put("\\e", "\u001b");
     }
     
     public StringType(String constantString) {

@@ -1,0 +1,106 @@
+
+library _util;
+library _gutil from "simvideo/gutil";
+library _badapple;
+
+--
+-- Benchmarking edition (no waiting for RTC)
+--
+
+-- Copy a custom block
+function ccopy of u8 pointer data, u8 pointer dest begin
+	variable s is u16 gets (data index 0) as u16;
+	
+	for i is u16 gets 1; i <= s; i gets i + 1 do
+		dest index (i - 1) gets data index i;
+	end for
+end function
+
+-- Render a frame
+function frame of u8 pointer data, u32 pointer ctable returns u8 pointer begin
+	variable datp is u32 gets data;
+	variable fp is u32 gets 0xF0020000;
+	variable max is u32 gets fp + (320 * 240);
+	
+	while fp < max do
+		variable first is u8 gets (u8 at datp);
+		variable v is u8 gets first and 0xFC;	-- value
+		variable t is u8 gets first and 0x03;	-- tag
+		
+		if t = 0 then
+			-- Skip
+			datp gets datp + 1;
+			variable second is u8 gets (u8 at datp);
+			fp gets fp + (((v as u16) or ((second as u16) << 8)) as u32);
+		elseif t = 2 then
+			-- Black
+			for i is u16 gets 0; i < (v as u16); i gets i + 4 do
+				(u32 at fp) gets 0;
+				fp gets fp + 4;
+			end for
+		elseif t = 3 then
+			-- White
+			for i is u16 gets 0; i < (v as u16); i gets i + 4 do
+				(u32 at fp) gets 0xFFFFFFFF;
+				fp gets fp + 4;
+			end for
+		elseif v = 0xFC then
+			-- Local custom
+			datp gets datp + 1;
+			call ccopy with datp, fp;
+			variable s is u8 gets (u8 at datp);
+			fp gets fp + (s as u32);
+			datp gets datp + (s as u32);
+		else
+			-- Global custom
+			variable p is u32 gets ctable + (v as u32);
+			variable d is u32 gets u32 at p;
+			call ccopy with d, fp;
+			fp gets fp + ((u8 at d) as u32);
+		end if
+		
+		datp gets datp + 1;
+	end while
+	
+	return datp;
+end function
+
+variable x is u32 gets 0xE1;
+
+function main of none begin
+	-- make the RTC vector point to an IRET
+	variable p is u32 gets 12 * 4;
+	(u32 at p) gets to x;
+	
+	-- Setup colors
+	for i is u16 gets 0; i < 0xFF; i gets i + 1 do
+		variable c is u32 gets ((i as u32) << 16) or (((i << 8) or i) as u32);
+		call _gutil.set_color with i as u8, c;
+	end for
+	
+	variable cwp is u32 gets to _badapple.colorWhite;
+	variable cbp is u32 gets to _badapple.colorBlack;
+	
+	call _gutil.set_color with 0x00, 0x00000000;	-- black
+	call _gutil.set_color with (u8 at cbp), 0x00000000;
+	call _gutil.set_color with 0xFF, 0xFFFFFFFF;	-- white
+	call _gutil.set_color with (u8 at cwp), 0xFFFFFFFF;
+	
+	variable dp is u32 gets to _badapple.f0;
+	
+	for f is u16 gets 0; f < 6571; f gets f + 1 do
+		call _util.buffer_screen with none;
+		dp gets (call frame with dp, to _badapple.customRegionTable);
+		call _util.unbuffer_screen with none;
+		
+		--dp gets dp + 1;
+		
+		-- RTC set to 1/30 s period
+		--call _util.halt with none;
+	end for
+	
+	-- end nicely
+	--while true do
+	--	call _util.halt with none;
+	--end while
+end function

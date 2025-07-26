@@ -281,7 +281,7 @@ public class RAIGNode {
      */
     public float getSpillCost() {
         return ((this.rawSpillCost * 10) +
-                (this.isSpill ? 1000 : 0)) /
+                (this.isSpill ? 10000 : 0)) /
                (this.interferingNodes.size() + 1);
     }
     

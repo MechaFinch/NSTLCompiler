@@ -26,15 +26,21 @@ prod_shl_sp:
 
 prod_shr_sp:
 	(I32 SHR (I32 LOCAL <x>) (ANY CONSTANT 1))	-> "MOV <out>, <x>; SHR <out><high>, 1; RCR <out><low>, 1" |
-	(I32 SHR (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOVZ <out><low>, <x><high>" ;
+	(I32 SHR (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOVZ <out>, <x><high>" ;
 
 prod_sar_sp:
 	(I32 SAR (I32 LOCAL <x>) (ANY CONSTANT 1))	-> "MOV <out>, <x>; SAR <out><high>, 1; RCR <out><low>, 1" |
-	(I32 SAR (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOVS <out><low>, <x><high>" ;
+	(I32 SAR (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOVS <out>, <x><high>" ;
 
 prod_rotate_sp:
 	(I32 ROL (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOV <out>, <x>; XCHG <out><high>, <out><low>" |
 	(I32 ROR (I32 LOCAL <x>) (ANY CONSTANT 16))	-> "MOV <out>, <x>; XCHG <out><high>, <out><low>" ;
+
+prod_trunc_sp:
+	(I8 TRUNC (I16 SHR (I16 LOCAL <x>) (ANY CONSTANT 8)))	-> "MOV <out>, <x><high>" |
+	(I8 TRUNC (I16 SAR (I16 LOCAL <x>) (ANY CONSTANT 8)))	-> "MOV <out>, <x><high>" |
+	(I16 TRUNC (I32 SHR (I32 LOCAL <x>) (ANY CONSTANT 16)))	-> "MOV <out>, <x><high>" |
+	(I16 TRUNC (I32 SAR (I32 LOCAL <x>) (ANY CONSTANT 16)))	-> "MOV <out>, <x><high>" ;
 
 
 

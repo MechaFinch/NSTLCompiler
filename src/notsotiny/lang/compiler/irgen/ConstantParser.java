@@ -50,11 +50,34 @@ public class ConstantParser {
         
         // Defer to specific functions for possible expressions
         switch(node.getSymbol().getID()) {
-            case NstlgrammarParser.ID.VARIABLE_REFERENCE,
-                 NstlgrammarParser.ID.VARIABLE_SUBREFERENCE:
+            case NstlgrammarParser.ID.VARIABLE_SUBREFERENCE:
                 // Things that show up in variable_expression
-                ALOG.log(nonConstantSeverity, node, "Node " + node + " is not a constant");
+                ALOG.log(nonConstantSeverity, node, "Node " + ASTUtil.detailed(node) + " is not a constant");
                 throw new CompilationException();
+            
+            case NstlgrammarParser.ID.VARIABLE_REFERENCE: {
+                // TO <string> is a constant
+                List<ASTNode> children = node.getChildren();
+                if(children.size() == 2 &&
+                   children.get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_TO) {                    
+                    // TO subref
+                    List<ASTNode> subrefChildren = children.get(1).getChildren();
+                    
+                    if(subrefChildren.size() == 1 && subrefChildren.get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_NAME) {
+                        // TO name
+                        String name = ASTUtil.getName(subrefChildren.get(0));
+                        
+                        if(module.constantExists(name, context) && module.getConstantValue(name, context) instanceof StringType st) {
+                            // TO <string>
+                            tv = new TypedRaw(new ResolvableConstant(name), RawType.PTR);
+                            break;
+                        }
+                    }
+                }
+                
+                ALOG.log(nonConstantSeverity, node, "Node " + ASTUtil.detailed(node) + " is not a constant");
+                throw new CompilationException();
+            }
             
             case NstlgrammarLexer.ID.TERMINAL_OP_SUBTRACT:
                 // Subtract can either be 1 or 2 argument

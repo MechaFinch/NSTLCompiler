@@ -1,0 +1,8 @@
+#entry benchmark.main
+out\benchmark.obj
+out\util.obj
+out\gutil.obj
+out\badappleplayer.obj
+out\mandel.obj
+out\badapple.obj
+out\shapes.obj

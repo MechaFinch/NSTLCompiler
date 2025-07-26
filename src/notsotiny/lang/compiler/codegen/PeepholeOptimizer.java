@@ -263,6 +263,45 @@ public class PeepholeOptimizer {
                     peepMeta.remove(1);
                     return true;
                 }
+            } else if(m0.sourceIsBPSlot && m1.destIsBPSlot) {
+                // MOV R, Stack
+                // MOV Stack, R
+                
+                if(m0.sourceEqualsDestOf(m1) && m1.sourceEqualsDestOf(m0)) {
+                    // MOV A, [B]
+                    // MOV [B], A
+                    // is equivalent to
+                    // MOV A, [B]
+                    peepInst.remove(1);
+                    peepMeta.remove(1);
+                    return true;
+                }
+            } else if(m0.sourceIsBPSlot && m1.sourceIsBPSlot) {
+                // MOV R, Stack
+                // MOV R, Stack
+                
+                if(m0.destRegister == m1.destRegister) {
+                    // MOV A, [B]
+                    // MOV A, [C]
+                    // is equivalent to
+                    // MOV A, [C]
+                    peepInst.remove(0);
+                    peepMeta.remove(0);
+                    return true;
+                }
+            } else if(m0.destIsBPSlot && m1.destIsBPSlot) {
+                // MOV Stack, R
+                // MOV Stack, R
+                
+                if(m0.destEqualsDestOf(m1)) {
+                    // MOV [A], B
+                    // MOV [A], C
+                    // is equivalent to
+                    // MOV [A], C
+                    peepInst.remove(0);
+                    peepMeta.remove(0);
+                    return true;
+                }
             }
         } else if(m0.op == AASMOperation.PUSH && m1.op == AASMOperation.PUSH) {
             // Some pairs of pushes can be combined into single instructions

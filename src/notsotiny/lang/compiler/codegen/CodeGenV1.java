@@ -55,7 +55,7 @@ public class CodeGenV1 implements CodeGenerator {
     private static Logger LOG = Logger.getLogger(CodeGenV1.class.getName());
     
     // TODO: tie to optimization level?
-    private static final int ALLOCATION_ITERATIONS = 1; // EnumSet iterators are deterministic, could change get() method if desired
+    private static final int ALLOCATION_ITERATIONS = 4;
     
     private boolean showISelDAG = false;
     private boolean showRAIGUncolored = false;
@@ -158,7 +158,7 @@ public class CodeGenV1 implements CodeGenerator {
             AllocationResult bestResult = null;
             int iters = (this.showRAIGColored || this.showRAIGUncolored) ? 1 : ALLOCATION_ITERATIONS;
             
-            for(int i = 0; i < ALLOCATION_ITERATIONS; i++) {
+            for(int i = 0; i < iters; i++) {
                 // Perform register allocation
                 AllocationResult allocRes = RegisterAllocator.allocateRegisters(scheduledCode, function, showRAIGUncolored, showRAIGColored);
                 

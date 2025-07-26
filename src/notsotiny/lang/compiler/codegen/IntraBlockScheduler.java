@@ -198,8 +198,12 @@ public class IntraBlockScheduler {
                 return 1;
             
             case ISelDAGProducerOperation.IN:
-                // Live ins should be renamings
-                return 50;
+                // Live ins should happen on first use
+                return 1;
+            
+            case ISelDAGProducerOperation.PUSH:
+                // please push when you have the value 
+                return 100;
             
             case ISelDAGTerminatorOperation.CALLN,
                  ISelDAGProducerOperation.CALLR:
@@ -208,9 +212,9 @@ public class IntraBlockScheduler {
             
             default:
         }
-        // Assign chains some weight to encourage pushing values immediately
+        // Assign chains some weight
         if(isChain) {
-            weight += 1;
+            weight += 10;
         }
         
         return weight;

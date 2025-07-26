@@ -253,6 +253,12 @@ public class IRGenV1 implements IRGenerator {
                 break;
             }
             
+            case StringType st: {
+                // Strings
+                dest.addAll(new IRGlobal(null, IRType.I8, st.getValue(), true).getContents());
+                break;
+            }
+            
             case TypedArray ta: {
                 // Arrays
                 for(int i = 0; i < ta.getArrayType().getLength(); i++) {
