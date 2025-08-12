@@ -679,7 +679,7 @@ public class SAPCompiler implements NSTCompiler {
         
         // create prologue
         // BP
-        allInstructions.add(new Instruction(Opcode.PUSH_BP, true));
+        allInstructions.add(new Instruction(Opcode.PUSHW_BP, true));
         allInstructions.add(new Instruction(
             Opcode.MOVW_RIM,
             new ResolvableLocationDescriptor(LocationType.REGISTER, Register.BP),
@@ -692,7 +692,7 @@ public class SAPCompiler implements NSTCompiler {
             // fits in I8 = just add
             if(stackAllocationSize < 0x80) {
                 allInstructions.add(new Instruction(
-                    Opcode.SUB_SP_I8,
+                    Opcode.SUBW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(stackAllocationSize)),
                     false, true
                 ));
@@ -761,7 +761,7 @@ public class SAPCompiler implements NSTCompiler {
             // fits in I8 = just add
             if(stackAllocationSize < 0x80) {
                 allInstructions.add(new Instruction(
-                    Opcode.ADD_SP_I8,
+                    Opcode.ADDW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(stackAllocationSize)),
                     false, true
                 ));
@@ -777,7 +777,7 @@ public class SAPCompiler implements NSTCompiler {
         }
         
         // BP
-        allInstructions.add(new Instruction(Opcode.POP_BP, true));
+        allInstructions.add(new Instruction(Opcode.POPW_BP, true));
         allInstructions.add(new Instruction(Opcode.RET, true));
         
         contextStack.popContext();
@@ -3541,7 +3541,7 @@ public class SAPCompiler implements NSTCompiler {
                 
                 // clean up stack
                 localCode.add(new Instruction(
-                    Opcode.ADD_SP_I8,
+                    Opcode.ADDW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(targetType.getSize())),
                     false, false
                 ));
@@ -4381,7 +4381,7 @@ public class SAPCompiler implements NSTCompiler {
                         ));
                         
                         localCode.add(new Instruction(
-                            Opcode.ADD_SP_I8,
+                            Opcode.ADDW_SP_I8,
                             new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(4)),
                             false, false
                         ));
@@ -4421,7 +4421,7 @@ public class SAPCompiler implements NSTCompiler {
                             } else if(target.equals("%stack")) {
                                 // we can push constants straight to the stack
                                 localCode.add(new Instruction(
-                                    Opcode.PUSHW_I32,
+                                    Opcode.PUSHW_RIM,
                                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                                     false, true
                                 ));
@@ -4499,7 +4499,7 @@ public class SAPCompiler implements NSTCompiler {
                     } else if(target.equals("%stack")) {
                         // we can push constants straight to the stack
                         localCode.add(new Instruction(
-                            Opcode.PUSHW_I32,
+                            Opcode.PUSHW_RIM,
                             new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                             false, true
                         ));
@@ -4535,7 +4535,7 @@ public class SAPCompiler implements NSTCompiler {
                     } else if(target.equals("%stack")) {
                         // we can push constants straight to the stack
                         localCode.add(new Instruction(
-                            Opcode.PUSHW_I32,
+                            Opcode.PUSHW_RIM,
                             new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(name)),
                             false, true
                         ));
@@ -4677,7 +4677,7 @@ public class SAPCompiler implements NSTCompiler {
             ));
             
             localCode.add(new Instruction(
-                Opcode.ADD_SP_I8,
+                Opcode.ADDW_SP_I8,
                 new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(2)),
                 false, false
             ));
@@ -4741,7 +4741,7 @@ public class SAPCompiler implements NSTCompiler {
             ));
             
             localCode.add(new Instruction(
-                Opcode.ADD_SP_I8,
+                Opcode.ADDW_SP_I8,
                 new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(4)),
                 false, false
             ));
@@ -5048,7 +5048,7 @@ public class SAPCompiler implements NSTCompiler {
             // ADD_SP_I8 or LEA
             if(totalArgumentsSize < 0x80) {
                 localCode.add(new Instruction(
-                    Opcode.ADD_SP_I8,
+                    Opcode.ADDW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(totalArgumentsSize)),
                     false, true
                 ));
@@ -5170,7 +5170,7 @@ public class SAPCompiler implements NSTCompiler {
                 
                 // clean stack
                 localCode.add(new Instruction(
-                    Opcode.ADD_SP_I8,
+                    Opcode.ADDW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(2)),
                     false, true
                 ));
@@ -5323,7 +5323,7 @@ public class SAPCompiler implements NSTCompiler {
                     val = cs.getConstantValue().toLong();
                     
                     localCode.add(new Instruction(
-                        Opcode.PUSHW_I32,
+                        Opcode.PUSHW_RIM,
                         new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 4, new ResolvableConstant(val)),
                         false, true
                     ));

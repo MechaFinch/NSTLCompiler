@@ -33,32 +33,32 @@ public class MachineRegisters {
         // Populate alias sets
         registerAliasSets = new HashMap<>();
         
-        registerAliasSets.put(Register.DA, EnumSet.of(Register.DA, Register.AB, Register.CD, Register.A, Register.D, Register.AH, Register.AL, Register.DH, Register.DL));
-        registerAliasSets.put(Register.AB, EnumSet.of(Register.AB, Register.DA, Register.BC, Register.A, Register.B, Register.AH, Register.AL, Register.BH, Register.BL));
-        registerAliasSets.put(Register.BC, EnumSet.of(Register.BC, Register.AB, Register.CD, Register.B, Register.C, Register.BH, Register.BL, Register.CH, Register.CL));
-        registerAliasSets.put(Register.CD, EnumSet.of(Register.CD, Register.BC, Register.DA, Register.C, Register.D, Register.CH, Register.CL, Register.DH, Register.DL));
+        registerAliasSets.put(Register.DA, EnumSet.of(Register.DA, Register.A, Register.D, Register.AH, Register.AL, Register.DH, Register.DL));
+        registerAliasSets.put(Register.BC, EnumSet.of(Register.BC, Register.B, Register.C, Register.BH, Register.BL, Register.CH, Register.CL));
         registerAliasSets.put(Register.JI, EnumSet.of(Register.JI, Register.I, Register.J));
         registerAliasSets.put(Register.LK, EnumSet.of(Register.LK, Register.L, Register.K));
+        registerAliasSets.put(Register.XP, EnumSet.of(Register.XP));
+        registerAliasSets.put(Register.YP, EnumSet.of(Register.YP));
         registerAliasSets.put(Register.BP, EnumSet.of(Register.BP));
         registerAliasSets.put(Register.SP, EnumSet.of(Register.SP));
         
-        registerAliasSets.put(Register.A, EnumSet.of(Register.DA, Register.AB, Register.A, Register.AH, Register.AL));
-        registerAliasSets.put(Register.B, EnumSet.of(Register.AB, Register.BC, Register.B, Register.BH, Register.BL));
-        registerAliasSets.put(Register.C, EnumSet.of(Register.BC, Register.CD, Register.C, Register.CH, Register.CL));
-        registerAliasSets.put(Register.D, EnumSet.of(Register.CD, Register.DA, Register.D, Register.DH, Register.DL));
+        registerAliasSets.put(Register.A, EnumSet.of(Register.DA, Register.A, Register.AH, Register.AL));
+        registerAliasSets.put(Register.B, EnumSet.of(Register.BC, Register.B, Register.BH, Register.BL));
+        registerAliasSets.put(Register.C, EnumSet.of(Register.BC, Register.C, Register.CH, Register.CL));
+        registerAliasSets.put(Register.D, EnumSet.of(Register.DA, Register.D, Register.DH, Register.DL));
         registerAliasSets.put(Register.I, EnumSet.of(Register.JI, Register.I));
         registerAliasSets.put(Register.J, EnumSet.of(Register.JI, Register.J));
         registerAliasSets.put(Register.K, EnumSet.of(Register.LK, Register.K));
         registerAliasSets.put(Register.L, EnumSet.of(Register.LK, Register.L));
         
-        registerAliasSets.put(Register.AH, EnumSet.of(Register.DA, Register.AB, Register.A, Register.AH));
-        registerAliasSets.put(Register.AL, EnumSet.of(Register.DA, Register.AB, Register.A, Register.AL));
-        registerAliasSets.put(Register.BH, EnumSet.of(Register.AB, Register.BC, Register.B, Register.BH));
-        registerAliasSets.put(Register.BL, EnumSet.of(Register.AB, Register.BC, Register.B, Register.BL));
-        registerAliasSets.put(Register.CH, EnumSet.of(Register.BC, Register.CD, Register.C, Register.CH));
-        registerAliasSets.put(Register.CL, EnumSet.of(Register.BC, Register.CD, Register.C, Register.CL));
-        registerAliasSets.put(Register.DH, EnumSet.of(Register.CD, Register.DA, Register.D, Register.DH));
-        registerAliasSets.put(Register.DL, EnumSet.of(Register.CD, Register.DA, Register.D, Register.DL));
+        registerAliasSets.put(Register.AH, EnumSet.of(Register.DA, Register.A, Register.AH));
+        registerAliasSets.put(Register.AL, EnumSet.of(Register.DA, Register.A, Register.AL));
+        registerAliasSets.put(Register.BH, EnumSet.of(Register.BC, Register.B, Register.BH));
+        registerAliasSets.put(Register.BL, EnumSet.of(Register.BC, Register.B, Register.BL));
+        registerAliasSets.put(Register.CH, EnumSet.of(Register.BC, Register.C, Register.CH));
+        registerAliasSets.put(Register.CL, EnumSet.of(Register.BC, Register.C, Register.CL));
+        registerAliasSets.put(Register.DH, EnumSet.of(Register.DA, Register.D, Register.DH));
+        registerAliasSets.put(Register.DL, EnumSet.of(Register.DA, Register.D, Register.DL));
         
         classAliasSets = new HashMap<>();
         
@@ -75,11 +75,20 @@ public class MachineRegisters {
         // Populate class tree
         vertexMap = new HashMap<>();
         
-        RAVertex vertLarge = new RAVertex(EnumSet.of(RARegisterClass.I32, RARegisterClass.I16), null);
-        vertexMap.put(RARegisterClass.I32, vertLarge);
-        vertexMap.put(RARegisterClass.I16, vertLarge);
+        // Classes: I32, I32_HALF, I16, I16_HALF, I8
+        // I16_HALF ~ I8
+        // I32_HALF ~ I16
+        // I16_HALF/I8 [ I32_HALF/I16
+        // I32_HALF/I16 [ I32
         
-        RAVertex vertSmall = new RAVertex(EnumSet.of(RARegisterClass.I16_HALF, RARegisterClass.I8), vertLarge);
+        RAVertex vertLarge = new RAVertex(EnumSet.of(RARegisterClass.I32), null);
+        vertexMap.put(RARegisterClass.I32, vertLarge);
+        
+        RAVertex vertMedium = new RAVertex(EnumSet.of(RARegisterClass.I32_HALF, RARegisterClass.I16), vertLarge);
+        vertexMap.put(RARegisterClass.I32_HALF, vertMedium);
+        vertexMap.put(RARegisterClass.I16, vertMedium);
+        
+        RAVertex vertSmall = new RAVertex(EnumSet.of(RARegisterClass.I16_HALF, RARegisterClass.I8), vertMedium);
         vertexMap.put(RARegisterClass.I16_HALF, vertSmall);
         vertexMap.put(RARegisterClass.I8, vertSmall);
         
@@ -202,9 +211,7 @@ public class MachineRegisters {
     public static Register upperHalf(Register r) {
         return switch(r) {
             case DA -> Register.D;
-            case AB -> Register.A;
             case BC -> Register.B;
-            case CD -> Register.C;
             case JI -> Register.J;
             case LK -> Register.L;
             case A  -> Register.AH;
@@ -223,9 +230,7 @@ public class MachineRegisters {
     public static Register lowerHalf(Register r) {
         return switch(r) {
             case DA -> Register.A;
-            case AB -> Register.B;
             case BC -> Register.C;
-            case CD -> Register.D;
             case JI -> Register.I;
             case LK -> Register.K;
             case A  -> Register.AL;

@@ -54,12 +54,12 @@ prod_load:
 prod_add:
 	(I8 ADD (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
 	(I16 ADD (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" |
-	(I32 ADD (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; ADD <out><low>, <y><low>; ADC <out><high>, <y><high>" ;
+	(I32 ADD (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" ;
 
 prod_sub:
 	(I8 SUB (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
 	(I16 SUB (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
-	(I32 SUB (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; SUB <out><low>, <y><low>; SBB <out><high>, <y><high>" ;
+	(I32 SUB (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" ;
 
 prod_mulu:
 	(I8 MULU (I8 LOCAL <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; MUL <out>, <y>" |

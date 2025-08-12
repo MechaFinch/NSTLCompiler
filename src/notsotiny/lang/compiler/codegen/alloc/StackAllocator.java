@@ -176,7 +176,7 @@ public class StackAllocator {
             int size = slotSizes.get(preSlot);
             int offset = globalOffset + size;
             
-            LOG.finest("Allocated " + preSlot + " to [BP - " + offset + "]");
+            LOG.finest("Allocated " + preSlot + " (" + size + ") to [BP - " + offset + "]");
             
             allocationMap.put(preSlot, globalOffset + size);
             globalOffset += size;

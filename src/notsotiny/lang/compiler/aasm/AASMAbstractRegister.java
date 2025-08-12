@@ -45,7 +45,7 @@ public record AASMAbstractRegister(IRIdentifier id, IRType type, boolean half, b
     public RARegisterClass getRegisterClass() {
         return switch(this.type) {
             case I8     -> this.half ? RARegisterClass.I16_HALF : RARegisterClass.I8;
-            case I16    -> this.half ? RARegisterClass.I32 : RARegisterClass.I16;
+            case I16    -> this.half ? RARegisterClass.I32_HALF : RARegisterClass.I16;
             case I32    -> RARegisterClass.I32;
             default     -> throw new IllegalArgumentException("Unexpected value: " + this.type);
         };

@@ -3,6 +3,7 @@ package notsotiny.lang.compiler.aasm;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 import notsotiny.asm.Register;
 import notsotiny.asm.components.Component;
@@ -34,7 +35,7 @@ public class AASMTranslator {
         
         // Base pointer
         assemblyComponents.add(new Instruction(
-            Opcode.PUSH_BP,
+            Opcode.PUSHW_BP,
             true
         ));
         assemblyComponents.add(new Instruction(
@@ -49,7 +50,7 @@ public class AASMTranslator {
             if(allocRes.stackAllocationSize() < 0x80) {
                 // Fits in I8 -> SUB
                 assemblyComponents.add(new Instruction(
-                    Opcode.SUB_SP_I8,
+                    Opcode.SUBW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(allocRes.stackAllocationSize())),
                     false, true
                 ));
@@ -64,71 +65,72 @@ public class AASMTranslator {
             }
         }
         
-        // Push IJKL if needed
-        if(allocRes.i() && allocRes.j()) {
-            assemblyComponents.add(new Instruction(
-                Opcode.PUSHW_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
-                false, true
-            ));
+        // Push callee-saved registers  if needed
+        Set<Register> toSave = allocRes.usedCalleeSavedRegisters(); 
+        if(toSave.contains(Register.JI)) {
+            assemblyComponents.add(new Instruction(Opcode.PUSHW_JI, true));
         } else {
-            if(allocRes.i()) {
+            if(toSave.contains(Register.I)) {
                 assemblyComponents.add(new Instruction(Opcode.PUSH_I, true));
             }
             
-            if(allocRes.j()) {
+            if(toSave.contains(Register.J)) {
                 assemblyComponents.add(new Instruction(Opcode.PUSH_J, true));
             }
         }
         
-        if(allocRes.k() && allocRes.l()) {
-            assemblyComponents.add(new Instruction(
-                Opcode.PUSHW_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.LK),
-                false, true
-            ));
+        if(toSave.contains(Register.LK)) {
+            assemblyComponents.add(new Instruction(Opcode.PUSHW_LK, true));
         } else {
-            if(allocRes.k()) {
+            if(toSave.contains(Register.K)) {
                 assemblyComponents.add(new Instruction(Opcode.PUSH_K, true));
             }
             
-            if(allocRes.l()) {
+            if(toSave.contains(Register.L)) {
                 assemblyComponents.add(new Instruction(Opcode.PUSH_L, true));
             }
+        }
+        
+        if(toSave.contains(Register.XP)) {
+            assemblyComponents.add(new Instruction(Opcode.PUSHW_XP, true));
+        }
+        
+        if(toSave.contains(Register.YP)) {
+            assemblyComponents.add(new Instruction(Opcode.PUSHW_YP, true));
         }
         
         // Create epilogue, which replaces RET
         List<Component> epilogue = new ArrayList<>();
         
-        // Pop IJKL if needed
-        if(allocRes.k() && allocRes.l()) {
-            epilogue.add(new Instruction(
-                Opcode.POPW_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.LK),
-                true, true
-            ));
+        // Pop callee-saved registers if needed
+        if(toSave.contains(Register.YP)) {
+            epilogue.add(new Instruction(Opcode.POPW_YP, true));
+        }
+        
+        if(toSave.contains(Register.XP)) {
+            epilogue.add(new Instruction(Opcode.POPW_XP, true));
+        }
+        
+        if(toSave.contains(Register.LK)) {
+            epilogue.add(new Instruction(Opcode.POPW_LK, true));
         } else {
-            if(allocRes.l()) {
+            if(toSave.contains(Register.L)) {
                 epilogue.add(new Instruction(Opcode.POP_L, true));
             }
             
-            if(allocRes.k()) {
+            if(toSave.contains(Register.K)) {
                 epilogue.add(new Instruction(Opcode.POP_K, true));
             }
         }
         
-        if(allocRes.i() && allocRes.j()) {
-            epilogue.add(new Instruction(
-                Opcode.POPW_RIM,
-                new ResolvableLocationDescriptor(LocationType.REGISTER, Register.JI),
-                true, true
-            ));
+        if(toSave.contains(Register.JI)) {
+            epilogue.add(new Instruction(Opcode.POPW_JI, true));
         } else {
-            if(allocRes.j()) {
+            if(toSave.contains(Register.J)) {
                 epilogue.add(new Instruction(Opcode.POP_J, true));
             }
             
-            if(allocRes.i()) {
+            if(toSave.contains(Register.I)) {
                 epilogue.add(new Instruction(Opcode.POP_I, true));
             }
         }
@@ -138,7 +140,7 @@ public class AASMTranslator {
             if(allocRes.stackAllocationSize() < 0x80) {
                 // Fits in I8 -> ADD
                 epilogue.add(new Instruction(
-                    Opcode.ADD_SP_I8,
+                    Opcode.ADDW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(allocRes.stackAllocationSize())),
                     false, true
                 ));
@@ -154,7 +156,7 @@ public class AASMTranslator {
         }
         
         // Base pointer
-        epilogue.add(new Instruction(Opcode.POP_BP, true));
+        epilogue.add(new Instruction(Opcode.POPW_BP, true));
         epilogue.add(new Instruction(Opcode.RET, true));
         
         // Translate each part
@@ -185,7 +187,7 @@ public class AASMTranslator {
                             // ADD SP, x is its own opcode
                             if(meta.destIsRegister && meta.destRegister == Register.SP) {
                                 assemblyComponents.add(new Instruction(
-                                    Opcode.ADD_SP_I8,
+                                    Opcode.ADDW_SP_I8,
                                     translateArg(inst.getSource(), true, false, sourceFunction),
                                     false, false
                                 ));
@@ -342,6 +344,8 @@ public class AASMTranslator {
             case XCHG   -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.XCHGW_RIM : Opcode.XCHG_RIM;
             case PUSH   -> (meta.sourceType == IRType.I32) ? Opcode.PUSHW_RIM : Opcode.PUSH_RIM;
             case POP    -> (meta.sourceType == IRType.I32) ? Opcode.POPW_RIM : Opcode.POP_RIM;
+            case ADD    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.ADDW_RIM : Opcode.ADD_RIM;
+            case SUB    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.SUBW_RIM : Opcode.SUB_RIM;
             case RET    -> Opcode.RET;
             case JCC    -> meta.condition.toJCCOpcode();
             

@@ -1,0 +1,13 @@
+
+library _os from "fakeos/os";
+
+function main of none begin
+	call _os.init with 0x10000, 0x10000;
+	
+	constant str is string gets "Hello, World!\n";
+	call _os.write_file with 1, sizeof str, to str;
+	
+	while true do
+		call _os.defer with none;
+	end while
+end function

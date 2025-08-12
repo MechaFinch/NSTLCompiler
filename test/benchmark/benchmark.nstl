@@ -3,7 +3,8 @@
 -- Runs some processing intensive programs
 --
 -- Performance History
---	1,042,397,939
+--	1,042,397,939	original
+--    954,578,645	ISA update
 --
 
 library _badappleplayer;
@@ -14,7 +15,12 @@ external function _mandel.mandel of none;
 
 variable hcf is ptr gets -1;
 
+variable iret is u8 gets 0xD7;
+variable nmi is u32 pointer gets 4;
+
 function main of none begin
+	at nmi gets to iret;
+
 	-- run benchmarks
 	call _mandel.mandel with none;
 	call _badappleplayer.main with none;

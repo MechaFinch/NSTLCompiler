@@ -69,31 +69,34 @@ public class RegisterAllocator {
     /**
      * Helper class for recording whether IJKL are used
      */
-    private static class IJKLInfo {
-        boolean usesI = false;
-        boolean usesJ = false;
-        boolean usesK = false;
-        boolean usesL = false;
+    private static class CalleeSaveInfo {
+        
+        static final Set<Register> calleeSavedRegisters = EnumSet.of(Register.JI, Register.LK, Register.XP, Register.YP, Register.I, Register.J, Register.K, Register.L);
+        
+        Set<Register> used = new HashSet<>();
         
         /**
          * Include use of register r
          * @param r
          */
         void include(Register r) {
+            used.add(r);
+            
             switch(r) {
-                case I: this.usesI = true; break;
-                case J: this.usesJ = true; break;
-                case K: this.usesK = true; break;
-                case L: this.usesL = true; break;
-                
-                case JI:
-                    this.usesJ = true;
-                    this.usesI = true;
+                case I:
+                    if(used.contains(Register.J)) used.add(Register.JI);
                     break;
                 
-                case LK:
-                    this.usesL = true;
-                    this.usesK = true;
+                case J:
+                    if(used.contains(Register.I)) used.add(Register.JI);
+                    break;
+                
+                case K:
+                    if(used.contains(Register.L)) used.add(Register.LK);
+                    break;
+                
+                case L:
+                    if(used.contains(Register.K)) used.add(Register.LK);
                     break;
                 
                 default:
@@ -288,15 +291,15 @@ public class RegisterAllocator {
         List<AASMPart> allocatedCode = new ArrayList<>();
         
         int stackAllocationSize = stackMapping.size() == 0 ? 0 : Collections.max(stackMapping.values());
-        IJKLInfo ijkl = new IJKLInfo();
+        CalleeSaveInfo calleeSaved = new CalleeSaveInfo();
         
         for(List<AASMPart> group : currentCode) {
             for(AASMPart part : group) {
                 switch(part) {
                     case AASMInstruction inst: {
                         // Instruction. Convert source and dest
-                        AASMPart source = realizePart(inst.getSource(), ijkl, registerMapping, stackMapping),
-                                 dest = realizePart(inst.getDestination(), ijkl, registerMapping, stackMapping);
+                        AASMPart source = realizePart(inst.getSource(), calleeSaved, registerMapping, stackMapping),
+                                 dest = realizePart(inst.getDestination(), calleeSaved, registerMapping, stackMapping);
                         
                         allocatedCode.add(new AASMInstruction(
                             inst.getOp(),
@@ -336,7 +339,7 @@ public class RegisterAllocator {
             }
         }
         
-        return new AllocationResult(allocatedCode, stackAllocationSize, ijkl.usesI, ijkl.usesJ, ijkl.usesK, ijkl.usesL);
+        return new AllocationResult(allocatedCode, stackAllocationSize, calleeSaved.used);
     }
     
     /**
@@ -586,8 +589,8 @@ public class RegisterAllocator {
     private static void assignColors(RAData data) {
         LOG.finest("Assigning colors");
         
-        // Avoid using IJKL if they haven't been used already
-        Set<Register> undesirable = EnumSet.of(Register.JI, Register.LK, Register.I, Register.J, Register.K, Register.L);
+        // Avoid using Calle if they haven't been used already
+        Set<Register> undesirable = EnumSet.copyOf(CalleeSaveInfo.calleeSavedRegisters);
         
         // Color the graph best we can
         while(!data.selectStack.isEmpty()) {
@@ -617,7 +620,7 @@ public class RegisterAllocator {
                 node.setSet(RASet.COLORED);
                 data.coloredNodes.add(node);
                 
-                // When choosing a color, avoid IJKL
+                // When choosing a color, avoid callee-saved registers that haven't been used
                 Set<Register> desirable = EnumSet.copyOf(okColors);
                 desirable.removeAll(undesirable);
                 
@@ -1239,7 +1242,7 @@ public class RegisterAllocator {
      * @param stackMapping
      * @return
      */
-    private static AASMPart realizePart(AASMPart part, IJKLInfo ijkl, Map<IRIdentifier, Register> registerMapping, Map<IRIdentifier, Integer> stackMapping) {
+    private static AASMPart realizePart(AASMPart part, CalleeSaveInfo ijkl, Map<IRIdentifier, Register> registerMapping, Map<IRIdentifier, Integer> stackMapping) {
         if(part == null) {
             return null;
         }
@@ -1357,10 +1360,12 @@ public class RegisterAllocator {
             
             if(knownClass != regClass) {
                 // Classes don't match.
-                if(knownClass == RARegisterClass.I16 && regClass == RARegisterClass.I16_HALF) {
-                    // But we just need to convert from I16 to halvable I16
+                if((knownClass == RARegisterClass.I16 && regClass == RARegisterClass.I16_HALF) ||
+                   (knownClass == RARegisterClass.I32 && regClass == RARegisterClass.I32_HALF)) {
+                    // But we just need to convert to halvable
                     registerClassMap.put(local, regClass);
-                } else if(knownClass == RARegisterClass.I16_HALF && regClass == RARegisterClass.I16) {
+                } else if((knownClass == RARegisterClass.I16_HALF && regClass == RARegisterClass.I16) ||
+                          (knownClass == RARegisterClass.I32_HALF && regClass == RARegisterClass.I32)) {
                     // But it's ok
                 } else {
                     // And it's an error

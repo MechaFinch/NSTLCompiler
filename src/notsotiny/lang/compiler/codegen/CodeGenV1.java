@@ -174,7 +174,7 @@ public class CodeGenV1 implements CodeGenerator {
             }
             
             // Convert to assembly components
-            AASMTranslator.translate(new AllocationResult(bestCode, bestResult.stackAllocationSize(), bestResult.i(), bestResult.j(), bestResult.k(), bestResult.l()), assemblyComponents, assemblyLabelIndexMap, function);
+            AASMTranslator.translate(new AllocationResult(bestCode, bestResult.stackAllocationSize(), bestResult.usedCalleeSavedRegisters()), assemblyComponents, assemblyLabelIndexMap, function);
         }
         
         // Output abstract assembly to file if needed

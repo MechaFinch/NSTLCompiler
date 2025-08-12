@@ -65,7 +65,7 @@ function frame of u8 pointer data, u32 pointer ctable returns u8 pointer begin
 	return datp;
 end function
 
-variable x is u32 gets 0xE1;
+variable x is u32 gets 0xD7;
 
 function main of none begin
 	-- make the RTC vector point to an IRET

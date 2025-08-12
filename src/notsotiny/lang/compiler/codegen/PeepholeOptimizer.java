@@ -339,9 +339,7 @@ public class PeepholeOptimizer {
                 Register reg = Register.NONE;
                 
                 switch(m0.sourceRegister) {
-                    case A: canReplace = (m1.sourceRegister == Register.B); reg = Register.AB; break;
                     case B: canReplace = (m1.sourceRegister == Register.C); reg = Register.BC; break;
-                    case C: canReplace = (m1.sourceRegister == Register.D); reg = Register.CD; break;
                     case D: canReplace = (m1.sourceRegister == Register.A); reg = Register.DA; break;
                     case J: canReplace = (m1.sourceRegister == Register.I); reg = Register.JI; break;
                     case L: canReplace = (m1.sourceRegister == Register.K); reg = Register.LK; break;
@@ -414,32 +412,6 @@ public class PeepholeOptimizer {
                 peepMeta.remove(2);
                 return true;
             }
-            
-            if(!m0.sourceEqualsDestOf(m0) && !m1.sourceEqualsDestOf(m0) && m2.sourceEqualsDestOf(m0) &&
-               (m0.sourceEqualsDestOf(m1) || (m0.sourceIsRegister && m1.destIsRegister && MachineRegisters.aliasSet(m0.sourceRegister).contains(m1.destRegister))) &&
-               (m0.sourceIsRegister || (m1.sourceIsRegister && m2.destIsRegister))) {
-                // MOV A, B
-                // MOV alias(B), C
-                // MOV D, A
-                // is equivalent to
-                // MOV A, B
-                // MOV D, B
-                // MOV B, C
-                // for (A != B and A != C)
-                // If B is memory, D and C must be registers
-                AASMInstruction new1 = new AASMInstruction(
-                    AASMOperation.MOV,
-                    i2.getDestination(),
-                    i0.getSource(),
-                    IRCondition.NONE
-                );
-                
-                peepInst.set(1, new1);
-                peepMeta.set(1, new1.getMeta());
-                peepInst.set(2, i1);
-                peepMeta.set(2, m1);
-                return true;
-            }
         }
         
         return false;
@@ -472,6 +444,7 @@ public class PeepholeOptimizer {
          * MOV z2, y2
          * ...
          * MOV zn, yn
+         * for zn not in {yn-1, yn-2, ...}
          */
         
         // Collect run of MOV [BP - x], y
@@ -497,12 +470,33 @@ public class PeepholeOptimizer {
                offsMap.containsKey(meta.sourceOffset)) {
                 // Instruction is ... z, [BP - x]
                 AASMInstruction oldInst = peepInst.get(i);
+                
+                // If z smaller than y, use lower half of y
+                Register newSource = offsMap.get(meta.sourceOffset),
+                         oldDest = ((AASMMachineRegister) oldInst.getDestination()).reg(); 
+                
+                if(oldDest.size() < newSource.size()) {
+                    newSource = MachineRegisters.lowerHalf(newSource);
+                } else if(oldDest.size() != newSource.size() && !meta.op.allowsHalfRegisterSource()) {
+                    LOG.severe("Attempted to move " + newSource + " to " + oldDest + " from " + oldInst);
+                    throw new IllegalStateException();
+                }
+                
                 AASMInstruction newInst = new AASMInstruction(
                     oldInst.getOp(),
                     oldInst.getDestination(),
-                    new AASMMachineRegister(offsMap.get(meta.sourceOffset)),
+                    new AASMMachineRegister(newSource),
                     oldInst.getCondition()
                 );
+                
+                // remove affected y's
+                if(meta.destIsRegister) {
+                    for(Register r : MachineRegisters.aliasSet(meta.destRegister)) {
+                        if(regMap.containsKey(r)) {
+                            regMap.remove(offsMap.remove(regMap.remove(r)));
+                        }
+                    }
+                }
                     
                 peepInst.set(i, newInst);
                 peepMeta.set(i, newInst.getMeta());

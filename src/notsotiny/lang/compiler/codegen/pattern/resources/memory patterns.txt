@@ -49,7 +49,6 @@ load_any:	(ANY LOAD (<x> mem))	-> "<x>" ;
 # Copy of mem_bio
 # If (<x> mem_bio) -> "LEA <out>, <x>" ; was used, it wouldn't appear in the pattern list for ADD
 prod_lea:
-	(I32 ADD (I32 LOCAL <b>) (ANY CONSTANT <o>))	-> "LEA <out>, [<b> + 0 + <o>]" |
 	(<i> mem_index)									-> "LEA <out>, [0 + <i> + 0]" |
 	(I32 ADD (I32 LOCAL <b>) (<i> mem_index))		-> "LEA <out>, [<b> + <i> + 0]" |
 	(I32 ADD (<i> mem_index) (ANY CONSTANT <o>))	-> "LEA <out>, [0 + <i> + <o>]" |
@@ -114,8 +113,8 @@ prod_add_mems:
 	(I8 ADD (I8 CONSTANT <x>) (<y> load_i8))		-> "MOV <out>, <x>; ADD <out>, <y>" |
 	(I16 ADD (I16 LOCAL <x>) (<y> load_i16))		-> "MOV <out>, <x>; ADD <out>, <y>" |
 	(I16 ADD (I16 CONSTANT <x>) (<y> load_i16))		-> "MOV <out>, <x>; ADD <out>, <y>" |
-	(I32 ADD (<x> load_i32) (I32 LOCAL <y>))		-> "MOV <out>, <x>; ADD <out><low>, <y><low>; ADC <out><high>, <y><high>" |
-	(I32 ADD (<x> load_i32) (I32 CONSTANT <y>))		-> "MOV <out>, <x>; ADD <out><low>, <y><low>; ADC <out><high>, <y><high>" ;
+	(I32 ADD (I32 LOCAL <x>) (<y> load_i32))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I32 ADD (I32 CONSTANT <x>) (<y> load_i32))		-> "MOV <out>, <x>; ADD <out>, <y>" ;
 
 prod_sub_mems:
 	(I8 SUB (I8 LOCAL <x>) (<y> load_i8))			-> "MOV <out>, <x>; SUB <out>, <y>" |
@@ -126,8 +125,10 @@ prod_sub_mems:
 	(I16 SUB (I16 CONSTANT <x>) (<y> load_i16))		-> "MOV <out>, <x>; SUB <out>, <y>" |
 	(I16 SUB (<x> load_i16) (I16 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
 	(I16 SUB (<x> load_i16) (I16 CONSTANT <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
-	(I32 SUB (<x> load_i32) (I32 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out><low>, <y><low>; SBB <out><high>, <y><high>" |
-	(I32 SUB (<x> load_i32) (I32 CONSTANT <y>))		-> "MOV <out>, <x>; SUB <out><low>, <y><low>; SBB <out><high>, <y><high>" ;
+	(I32 SUB (I32 LOCAL <x>) (<y> load_i32))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I32 SUB (I32 CONSTANT <x>) (<y> load_i32))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I32 SUB (<x> load_i32) (I32 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I32 SUB (<x> load_i32) (I32 CONSTANT <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" ;
 
 prod_mulu_mems:
 	(I8 MULU (I8 LOCAL <x>) (<y> load_i8))			-> "MOV <out>, <x>; MUL <out>, <y>" |
@@ -358,6 +359,11 @@ prod_add_memd:
 		(I16 ADD
 			(I16 LOAD (<dst> mem))
 			(I16 LOCAL <x>))
+		(<dst>))	-> "ADD <dst>, <x>" |
+	(STORE
+		(I32 ADD
+			(I32 LOAD (<dst> mem))
+			(I32 LOCAL <x>))
 		(<dst>))	-> "ADD <dst>, <x>" ;
 
 prod_sub_memd:
@@ -370,6 +376,11 @@ prod_sub_memd:
 		(I16 SUB
 			(I16 LOAD (<dst> mem))
 			(I16 LOCAL <x>))
+		(<dst>))	-> "SUB <dst>, <x>" |
+	(STORE
+		(I32 SUB
+			(I32 LOAD (<dst> mem))
+			(I32 LOCAL <x>))
 		(<dst>))	-> "SUB <dst>, <x>" ;
 
 prod_mul_memd:

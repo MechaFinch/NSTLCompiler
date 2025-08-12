@@ -11,8 +11,8 @@ function main of none begin
 
 	call sieve with buf, bufsize;
 	
-	halter index 0 gets 0x01;
-	halter index 1 gets 0xE0;
+	halter index 0 gets 0xDF;
+	halter index 1 gets 0xD7;
 	
 	while true do
 		call (to halter) with none;

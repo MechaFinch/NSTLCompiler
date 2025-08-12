@@ -46,11 +46,11 @@ public class RAIGRenderer {
         registerColorMap.put(Register.K, "#ff1493");
         registerColorMap.put(Register.L, "#ffa07a");
         registerColorMap.put(Register.DA, "#ff0000");
-        registerColorMap.put(Register.AB, "#ff8c00");
         registerColorMap.put(Register.BC, "#ffff00");
-        registerColorMap.put(Register.CD, "#7cfc00");
         registerColorMap.put(Register.JI, "#0000ff");
         registerColorMap.put(Register.LK, "#ff00ff");
+        registerColorMap.put(Register.XP, "#ff8c00");
+        registerColorMap.put(Register.YP, "#7cfc00");
         
     }
     

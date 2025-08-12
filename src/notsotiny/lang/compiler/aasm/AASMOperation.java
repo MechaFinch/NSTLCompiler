@@ -5,64 +5,66 @@ package notsotiny.lang.compiler.aasm;
  * A subset of assembly opcodes
  */
 public enum AASMOperation implements AASMPart {
-    MOV     (false, true),
-    MOVS    (false, true),
-    MOVZ    (false, true),
-    CMOV    (false, true),
-    XCHG    (true, true),
-    LEA     (false, true),
-    PUSH    (false, false),
-    POP     (false, true),
+    MOV     (false, true, false),
+    MOVS    (false, true, true),
+    MOVZ    (false, true, true),
+    CMOV    (false, true, false),
+    XCHG    (true, true, false),
+    LEA     (false, true, true),
+    PUSH    (false, false, true),
+    POP     (false, true, true),
     
-    ADD     (true, true),
-    ADC     (true, true),
-    INC     (true, true),
-    ICC     (true, true),
-    SUB     (true, true),
-    SBB     (true, true),
-    DEC     (true, true),
-    DCC     (true, true),
+    ADD     (true, true, false),
+    ADC     (true, true, false),
+    INC     (true, true, false),
+    ICC     (true, true, false),
+    SUB     (true, true, false),
+    SBB     (true, true, false),
+    DEC     (true, true, false),
+    DCC     (true, true, false),
     
-    MUL     (true, true),
-    MULH    (true, true),
-    MULSH   (true, true),
-    DIV     (true, true),
-    DIVS    (true, true),
-    DIVM    (true, true),
-    DIVMS   (true, true),
+    MUL     (true, true, false),
+    MULH    (true, true, true),
+    MULSH   (true, true, true),
+    DIV     (true, true, false),
+    DIVS    (true, true, false),
+    DIVM    (true, true, true),
+    DIVMS   (true, true, true),
     
-    AND     (true, true),
-    OR      (true, true),
-    XOR     (true, true),
-    NOT     (true, true),
-    NEG     (true, true),
+    AND     (true, true, false),
+    OR      (true, true, false),
+    XOR     (true, true, false),
+    NOT     (true, true, false),
+    NEG     (true, true, false),
     
-    SHL     (true, true),
-    SHR     (true, true),
-    SAR     (true, true),
-    ROL     (true, true),
-    ROR     (true, true),
-    RCL     (true, true),
-    RCR     (true, true),
+    SHL     (true, true, false),
+    SHR     (true, true, false),
+    SAR     (true, true, false),
+    ROL     (true, true, false),
+    ROR     (true, true, false),
+    RCL     (true, true, false),
+    RCR     (true, true, false),
     
-    CALL    (false, false),
-    CALLA   (false, false),
-    RET     (false, false),
+    CALL    (false, false, false),
+    CALLA   (false, false, false),
+    RET     (false, false, false),
     
-    CMP     (true, false),
-    TST     (true, false),
-    JMP     (false, false),
-    JMPA    (false, false),
-    JCC     (false, false),
+    CMP     (true, false, false),
+    TST     (true, false, false),
+    JMP     (false, false, false),
+    JMPA    (false, false, false),
+    JCC     (false, false, false),
     ;
     
-    private boolean usesDestination, definesDestination;
+    private boolean usesDestination, definesDestination, allowsHalfRegisterSource;
     
-    private AASMOperation(boolean usesDestination, boolean definesDestination) {
+    private AASMOperation(boolean usesDestination, boolean definesDestination, boolean allowsHalfRegisterSource) {
         this.usesDestination = usesDestination;
         this.definesDestination = definesDestination;
+        this.allowsHalfRegisterSource = allowsHalfRegisterSource;
     }
     
     public boolean usesDestination() { return this.usesDestination; }
     public boolean definesDestination() { return this.definesDestination; }
+    public boolean allowsHalfRegisterSource() { return this.allowsHalfRegisterSource; }
 }

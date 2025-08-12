@@ -5,6 +5,8 @@ library _util;
 library _shapes from "simvideo/shapes";
 library _gutil from "simvideo/gutil";
 
+variable asdf is u8;
+
 -- returns a * b for 8.24 fixed point
 function mul824 of i32 a, i32 b returns i32 begin
 	variable negative is u8 gets 0;
@@ -142,7 +144,8 @@ define INTER_STEP is 2;
 define INTER_SHIFT is 1;
 
 function mandel of none begin
-	variable gwuh is i32 gets (call mul824 with 0x01_020408, 0x10_204080); -- 0x10_40C203
+	--variable gwuh is i32 gets (call mul824 with 0x01_020408, 0x10_204080); -- 0x10_40C203
+	--call _util.halt with none;
 
 	-- palette
 	for p is u8 gets 0; p < DEPTH; p gets p + 1 do
@@ -209,8 +212,8 @@ function mandel of none begin
 end function
 
 variable pixel_size_table is i16 array size 8 gets i16 array of
-	1, 1,
-	1, 1,
+	2, 2,
+	1, 2,
 	1, 1,
 	1, 1
 end array;

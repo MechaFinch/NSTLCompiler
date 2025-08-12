@@ -83,10 +83,7 @@ public class AllocatedContextMarker implements ContextMarker {
                 return !registerAllocations.containsKey(Register.BL) && registerAvailable(Register.B);
                 
             case C:
-                return !(registerAllocations.containsKey(Register.BC) || registerAllocations.containsKey(Register.C) || registerAllocations.containsKey(Register.CH) || registerAllocations.containsKey(Register.CL));
-                
-            case CD:
-                return registerAvailable(Register.C) && registerAvailable(Register.D); 
+                return !(registerAllocations.containsKey(Register.BC) || registerAllocations.containsKey(Register.C) || registerAllocations.containsKey(Register.CH) || registerAllocations.containsKey(Register.CL)); 
                 
             case CH:
                 return !registerAllocations.containsKey(Register.CH) && registerAvailable(Register.C); 

@@ -50,13 +50,13 @@ prod_trunc_sp:
 
 prod_add_const:
 	(I8 ADD (I8 LOCAL <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
-	(I16 ADD (I16 LOCAL <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" ;
-	# local-constant I32 add is handled by LEA
+	(I16 ADD (I16 LOCAL <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I32 ADD (I32 LOCAL <x>) (I32 CONSTANT <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" ;
 	
 prod_sub_const:
 	(I8 SUB (I8 LOCAL <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
 	(I16 SUB (I16 LOCAL <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
-	(I32 SUB (I32 LOCAL <x>) (I32 CONSTANT <y>))	-> "MOV <out>, <x>; SUB <out><low>, <y><low>; SBB <out><high>, <y><high>" ;
+	(I32 SUB (I32 LOCAL <x>) (I32 CONSTANT <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" ;
 
 prod_muls_const:
 	(I8 MULS (I8 LOCAL <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; MUL <out>, <y>" |
