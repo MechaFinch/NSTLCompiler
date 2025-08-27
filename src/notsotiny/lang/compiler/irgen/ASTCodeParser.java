@@ -8,7 +8,7 @@ import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
 import fr.cenotelie.hime.redist.Symbol;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.irgen.context.ASTContextConstant;
 import notsotiny.lang.compiler.irgen.context.ASTContextTree;
@@ -39,7 +39,9 @@ import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
-import notsotiny.lang.util.Pair;
+import notsotiny.lib.data.Pair;
+import notsotiny.lib.util.ASTLogger;
+import notsotiny.lib.util.ASTUtil;
 
 /**
  * Parses the code that does stuff
@@ -369,7 +371,7 @@ public class ASTCodeParser {
                 retVal = retPair.a;
                 NSTLType getIType = retPair.b;
                 
-                ASTUtil.ensureTypesMatch(retType, getIType, false, retNode, ALOG, "from return statement");
+                ParseUtils.ensureTypesMatch(retType, getIType, false, retNode, ALOG, "from return statement");
             }
         }
         
@@ -489,7 +491,7 @@ public class ASTCodeParser {
                 // Integer
                 if(valueNode != null) {
                     Pair<IRValue, NSTLType> pair = VariableParser.parseIntegerExpression(valueNode, uniqueName, type, irBB, manager, sourceBB.getContext(), sourceFunction.getParentModule(), targetFunction, irModule);
-                    ASTUtil.ensureTypesMatch(type, pair.b, false, valueNode, ALOG, "from constant body");
+                    ParseUtils.ensureTypesMatch(type, pair.b, false, valueNode, ALOG, "from constant body");
                     manager.writeVariable(uniqueName, irBB.getID(), pair.a, type.getIRType());
                 }
             }
@@ -588,7 +590,7 @@ public class ASTCodeParser {
             } else {
                 // Integer
                 Pair<IRValue, NSTLType> valPair = VariableParser.parseIntegerExpression(valNode, "", pointedType, irBB, manager, sourceBB.getContext(), sourceFunction.getParentModule(), targetFunction, irModule);
-                ASTUtil.ensureTypesMatch(pointedType, valPair.b, false, valNode, ALOG, "from variable body");
+                ParseUtils.ensureTypesMatch(pointedType, valPair.b, false, valNode, ALOG, "from variable body");
                 IRValue result = valPair.a;
                 
                 // STORE
@@ -617,7 +619,7 @@ public class ASTCodeParser {
                 } else {
                     // Integer
                     Pair<IRValue, NSTLType> valPair = VariableParser.parseIntegerExpression(valNode, "", pointedType, irBB, manager, sourceBB.getContext(), sourceFunction.getParentModule(), targetFunction, irModule);
-                    ASTUtil.ensureTypesMatch(pointedType, valPair.b, false, valNode, ALOG, "from variable body");
+                    ParseUtils.ensureTypesMatch(pointedType, valPair.b, false, valNode, ALOG, "from variable body");
                     IRValue result = valPair.a;
                     
                     // STORE
@@ -669,7 +671,7 @@ public class ASTCodeParser {
                 } else {
                     // Integer
                     Pair<IRValue, NSTLType> valPair = VariableParser.parseIntegerExpression(valNode, manager.getUniqueLocalID(varUName).getName(), varType, irBB, manager, sourceBB.getContext(), sourceFunction.getParentModule(), targetFunction, irModule);
-                    ASTUtil.ensureTypesMatch(varType, valPair.b, false, valNode, ALOG, "from variable body");
+                    ParseUtils.ensureTypesMatch(varType, valPair.b, false, valNode, ALOG, "from variable body");
                     IRValue val = valPair.a;
                     
                     if(isGlobal) {
@@ -828,7 +830,7 @@ public class ASTCodeParser {
                 Pair<IRValue, NSTLType> memberPair = VariableParser.parseIntegerExpression(valNode, "", memberType, irBB, manager, sourceBB.getContext(), sourceFunction.getParentModule(), targetFunction, irModule);
                 IRValue memberVal = memberPair.a;
                 
-                ASTUtil.ensureTypesMatch(memberType, memberPair.b, false, structNode, ALOG, "from strucrure member");
+                ParseUtils.ensureTypesMatch(memberType, memberPair.b, false, structNode, ALOG, "from strucrure member");
                 
                 IRLinearInstruction storeInst = new IRLinearInstruction(IRLinearOperation.STORE, memberVal, memberPointer, irBB, ASTUtil.getLineNumber(valNode));
                 irBB.addInstruction(storeInst);

@@ -13,8 +13,8 @@ import java.util.logging.Logger;
 import fr.cenotelie.hime.redist.ASTNode;
 import fr.cenotelie.hime.redist.ParseError;
 import fr.cenotelie.hime.redist.ParseResult;
-import notsotiny.asm.Register;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.sim.Register;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.NSTLCompiler;
 import notsotiny.lang.compiler.aasm.AASMCompileConstant;
@@ -27,8 +27,8 @@ import notsotiny.lang.compiler.aasm.AASMPatternIndex;
 import notsotiny.lang.compiler.aasm.AASMPatternReference;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGOperation;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGPatternOperation;
-import notsotiny.lang.compiler.codegen.dag.ISelDAGProducerOperation;
 import notsotiny.lang.ir.parts.IRType;
+import notsotiny.lib.util.ASTUtil;
 
 /**
  * Compiles ISelPatterns
@@ -303,6 +303,9 @@ public class ISelPatternCompiler {
             
             case IselPatternParser.ID.VARIABLE_MEMORY:
                 return compileMemory(argNode);
+            
+            case IselPatternParser.ID.VARIABLE_INDEX:
+                return compileIndex(argNode);
             
             case IselPatternLexer.ID.TERMINAL_IDENTIFIER:
                 return compileIdentifier(argNode);

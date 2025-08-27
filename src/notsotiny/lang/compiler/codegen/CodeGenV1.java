@@ -47,8 +47,8 @@ import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.ir.util.IRPrinter;
 import notsotiny.lang.ir.util.IRUtil;
-import notsotiny.lang.util.Pair;
-import notsotiny.lang.util.StreamPrinter;
+import notsotiny.lib.data.Pair;
+import notsotiny.lib.printing.StreamPrinter;
 
 public class CodeGenV1 implements CodeGenerator {
     

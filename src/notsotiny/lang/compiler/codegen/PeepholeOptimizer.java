@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import notsotiny.asm.Register;
+import notsotiny.sim.Register;
 import notsotiny.lang.compiler.aasm.AASMCompileConstant;
 import notsotiny.lang.compiler.aasm.AASMInstruction;
 import notsotiny.lang.compiler.aasm.AASMInstructionMeta;

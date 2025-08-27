@@ -21,8 +21,8 @@ import notsotiny.lang.ir.parts.IRIdentifierClass;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.ir.util.IRUtil;
-import notsotiny.lang.util.MapUtil;
-import notsotiny.lang.util.Pair;
+import notsotiny.lib.data.Pair;
+import notsotiny.lib.util.MapUtil;
 
 /**
  * Handles functions & data related to SSA construction

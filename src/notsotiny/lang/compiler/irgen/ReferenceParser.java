@@ -5,7 +5,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.irgen.context.ASTContextConstant;
 import notsotiny.lang.compiler.irgen.context.ASTContextEntry;
@@ -34,7 +34,9 @@ import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
-import notsotiny.lang.util.Pair;
+import notsotiny.lib.data.Pair;
+import notsotiny.lib.util.ASTLogger;
+import notsotiny.lib.util.ASTUtil;
 
 /**
  * Parses reference and subreference nodes
@@ -96,7 +98,7 @@ public class ReferenceParser {
                     ASTNode typeNode = children.get(0);
                     NSTLType convertType = TypeParser.parseType(typeNode, sourceModule, context);
                     
-                    ASTUtil.ensureTypesMatch(expectedType, convertType, false, typeNode, ALOG, "from typed AT");
+                    ParseUtils.ensureTypesMatch(expectedType, convertType, false, typeNode, ALOG, "from typed AT");
                     
                     // Infer type if needed
                     if(expectedType.equals(RawType.NONE)) {
@@ -113,7 +115,7 @@ public class ReferenceParser {
                 // Typed or untyped pointer?
                 if(subrefType instanceof PointerType pt) {
                     // Typed. Check the type.
-                    ASTUtil.ensureTypesMatch(expectedType, pt.getPointedType(), false, subrefNode, ALOG, "from reference");
+                    ParseUtils.ensureTypesMatch(expectedType, pt.getPointedType(), false, subrefNode, ALOG, "from reference");
                     
                     // Infer type if needed
                     if(expectedType.equals(RawType.NONE)) {
@@ -174,7 +176,7 @@ public class ReferenceParser {
                             try {
                                 IRValue ptrVal = manager.readVariable(acv.getUniqueName(), irBB.getID());
                                 NSTLType toType = new PointerType(acv.getType());
-                                ASTUtil.ensureTypesMatch(expectedType, toType, false, subrefNode, ALOG, "from TO target");
+                                ParseUtils.ensureTypesMatch(expectedType, toType, false, subrefNode, ALOG, "from TO target");
                                 return new Pair<>(ptrVal, toType);
                             } catch(NullPointerException e) {
                                 ALOG.severe(node, "Variable " + acv.getSourceName() + " is undefined");
@@ -185,7 +187,7 @@ public class ReferenceParser {
                             LOG.finest("Found global variable " + targetName);
                             
                             NSTLType toType = new PointerType(sourceModule.getGlobalVariableMap().get(targetName).getType());
-                            ASTUtil.ensureTypesMatch(expectedType, toType, false, subrefNode, ALOG, "from TO target");
+                            ParseUtils.ensureTypesMatch(expectedType, toType, false, subrefNode, ALOG, "from TO target");
                             return new Pair<>(new IRIdentifier(targetName, IRIdentifierClass.GLOBAL), toType);
                         }
                     } else if(context.constantExists(targetName)) {
@@ -204,17 +206,17 @@ public class ReferenceParser {
                     } else if(sourceModule.getFunctionMap().containsKey(targetName)) {
                         // No variable, but a function does. Return it
                         LOG.finest("Found function " + targetName);
-                        ASTUtil.ensureTypesMatch(expectedType, RawType.PTR, false, subrefNode, ALOG, "from TO target");
+                        ParseUtils.ensureTypesMatch(expectedType, RawType.PTR, false, subrefNode, ALOG, "from TO target");
                         return new Pair<>(new IRIdentifier(targetName, IRIdentifierClass.GLOBAL), RawType.PTR);
                     } else if(sourceModule.getGlobalConstantMap().containsKey(targetName) && sourceModule.getGlobalConstantMap().get(targetName) instanceof StringType st) {
                         // Not variable or function, but global constant. Strings can be pointed to
                         LOG.finest("Found global string " + targetName);
-                        ASTUtil.ensureTypesMatch(expectedType, new PointerType(RawType.U8), false, subrefNode, ALOG, "from TO target");
+                        ParseUtils.ensureTypesMatch(expectedType, new PointerType(RawType.U8), false, subrefNode, ALOG, "from TO target");
                         return new Pair<>(new IRIdentifier(targetName, IRIdentifierClass.GLOBAL), new PointerType(RawType.U8));
                     } else if(targetName.contains(".")) {
                         // Refernces something from an import
                         LOG.finest("Found library reference " + targetName);
-                        ASTUtil.ensureTypesMatch(expectedType, RawType.PTR, false, subrefNode, ALOG, "from TO target");
+                        ParseUtils.ensureTypesMatch(expectedType, RawType.PTR, false, subrefNode, ALOG, "from TO target");
                         return new Pair<>(new IRIdentifier(targetName, IRIdentifierClass.GLOBAL), RawType.PTR);
                     } else {
                         // No variable or function has this name
@@ -249,7 +251,7 @@ public class ReferenceParser {
                 
                 // Check type if possible
                 if(ptrType instanceof PointerType pt) {
-                    ASTUtil.ensureTypesMatch(expectedType, pt.getPointedType(), false, node, ALOG, "from reference");
+                    ParseUtils.ensureTypesMatch(expectedType, pt.getPointedType(), false, node, ALOG, "from reference");
                     
                     if(expectedType.equals(RawType.NONE)) {
                         expectedType = pt.getPointedType();
@@ -302,7 +304,7 @@ public class ReferenceParser {
                     }
                 }
                 
-                ASTUtil.ensureTypesMatch(expectedType, returnType, false, children.get(0), ALOG, "from function call");
+                ParseUtils.ensureTypesMatch(expectedType, returnType, false, children.get(0), ALOG, "from function call");
                 
                 // Get args and construct CALLR instruction
                 IRArgumentMapping argMap = VariableParser.parseFunctionArguments(argNode, irArgs, header, irBB, manager, context, sourceModule, func, irModule);
@@ -343,7 +345,7 @@ public class ReferenceParser {
                 if(ace instanceof ASTContextVariable acv) {
                     // Local variable
                     LOG.finest("Got local variable " + acv);
-                    ASTUtil.ensureTypesMatch(expectedType, acv.getType(), false, node, ALOG, "from local variable " + acv);
+                    ParseUtils.ensureTypesMatch(expectedType, acv.getType(), false, node, ALOG, "from local variable " + acv);
                     
                     try {
                         IRValue irv = manager.readVariable(acv.getUniqueName(), irBB.getID());
@@ -355,7 +357,7 @@ public class ReferenceParser {
                 } else if(ace instanceof ASTContextConstant acc) {
                     // Local constant
                     TypedValue tv = acc.getValue();
-                    ASTUtil.ensureTypesMatch(expectedType, tv.getType(), false, node, ALOG, "from local constant " + acc);
+                    ParseUtils.ensureTypesMatch(expectedType, tv.getType(), false, node, ALOG, "from local constant " + acc);
                     
                     IRValue irv = new IRConstant((int) ((TypedRaw) tv).getResolvedValue(), tv.getType().getIRType());
                     return new Pair<>(irv, tv.getType());
@@ -370,7 +372,7 @@ public class ReferenceParser {
                     TypedValue tv = sourceModule.getGlobalVariableMap().get(refName);
                     NSTLType type = tv.getType();
                     
-                    ASTUtil.ensureTypesMatch(expectedType, type, false, node, ALOG, "from global variable " + refName);
+                    ParseUtils.ensureTypesMatch(expectedType, type, false, node, ALOG, "from global variable " + refName);
                     
                     IRIdentifier globalID = new IRIdentifier(refName, IRIdentifierClass.GLOBAL);
                     IRIdentifier localID = new IRIdentifier(destName, IRIdentifierClass.LOCAL);
@@ -387,7 +389,7 @@ public class ReferenceParser {
                 } else {
                     // Global constant
                     TypedValue tv = sourceModule.getConstantValue(refName);
-                    ASTUtil.ensureTypesMatch(expectedType, tv.getType(), false, node, ALOG, "from local constant " + refName);
+                    ParseUtils.ensureTypesMatch(expectedType, tv.getType(), false, node, ALOG, "from local constant " + refName);
                     
                     IRValue irv = new IRConstant((int) ((TypedRaw) tv).getResolvedValue(), tv.getType().getIRType());
                     return new Pair<>(irv, tv.getType());
@@ -395,7 +397,7 @@ public class ReferenceParser {
             }
         } else if(sourceModule.getFunctionMap().containsKey(refName)) {
             LOG.finest("Found function " + refName);
-            ASTUtil.ensureTypesMatch(expectedType, RawType.PTR, false, node, ALOG, "from TO target");
+            ParseUtils.ensureTypesMatch(expectedType, RawType.PTR, false, node, ALOG, "from TO target");
             return new Pair<>(new IRIdentifier(refName, IRIdentifierClass.GLOBAL), RawType.PTR);
         } else {
             // No.
@@ -478,7 +480,7 @@ public class ReferenceParser {
             }
             
             // Does the member exist?
-            String memberName = ASTUtil.getNameNoLibraries(offsNode, ALOG, "structure member");
+            String memberName = ParseUtils.getNameNoLibraries(offsNode, ALOG, "structure member");
             if(!st.getMemberNames().contains(memberName)) {
                 // Invalid member
                 ALOG.severe(offsNode, "Structure " + st + " does not have member " + memberName);
@@ -487,7 +489,7 @@ public class ReferenceParser {
             
             // Is it the right type?
             NSTLType memberType = st.getMemberType(memberName);
-            ASTUtil.ensureTypesMatch(expectedContainedType, memberType, false, sourceNode, ALOG, "from structure access");
+            ParseUtils.ensureTypesMatch(expectedContainedType, memberType, false, sourceNode, ALOG, "from structure access");
             
             // Emit addition if needed
             int offset = st.getMemberOffset(memberName);
@@ -527,7 +529,7 @@ public class ReferenceParser {
             }
             
             // Is it the right type?
-            ASTUtil.ensureTypesMatch(expectedContainedType, containedType, false, sourceNode, ALOG, "from indexed access");
+            ParseUtils.ensureTypesMatch(expectedContainedType, containedType, false, sourceNode, ALOG, "from indexed access");
             
             // Get the index
             Pair<IRValue, NSTLType> indexPair = VariableParser.parseIntegerExpression(offsNode, "", RawType.NONE, irBB, manager, context, sourceModule, func, irModule);

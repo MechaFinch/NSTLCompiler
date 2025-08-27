@@ -16,7 +16,7 @@ import notsotiny.lang.ir.parts.IRLinearInstruction;
 import notsotiny.lang.ir.parts.IRModule;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
-import notsotiny.lang.util.Printer;
+import notsotiny.lib.printing.Printer;
 
 /**
  * Prints IR in a readable format

@@ -38,9 +38,9 @@ import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.ir.util.IRCFGRenderer;
 import notsotiny.lang.ir.util.IRPrinter;
-import notsotiny.lang.util.LogPrinter;
-import notsotiny.lang.util.Printer;
-import notsotiny.lang.util.StreamPrinter;
+import notsotiny.lib.printing.LogPrinter;
+import notsotiny.lib.printing.StreamPrinter;
+import notsotiny.lib.util.ASTLogger;
 
 /**
  * IR Generator

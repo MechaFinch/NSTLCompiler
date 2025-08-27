@@ -3,7 +3,7 @@ package notsotiny.lang.compiler.context;
 import java.util.HashMap;
 import java.util.Map;
 
-import notsotiny.asm.Register;
+import notsotiny.sim.Register;
 
 /**
  * Marks and describes a context in the context stack

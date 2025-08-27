@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import notsotiny.asm.Register;
+import notsotiny.sim.Register;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.aasm.AASMAbstractRegister;
 import notsotiny.lang.compiler.aasm.AASMCompileConstant;
@@ -47,8 +47,7 @@ import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRIdentifierClass;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
-import notsotiny.lang.util.MapUtil;
-import notsotiny.lang.util.Pair;
+import notsotiny.lib.util.MapUtil;
 
 /**
  * Performs pattern matching on ISelDAGs
@@ -250,96 +249,7 @@ public class ISelPatternMatcher {
                                 throw new IllegalArgumentException("Invalid SELECT: " + pn.getDescription());
                             }
                             
-                            if(leftNode.getProducedType() == IRType.I32) {
-                                String labelName = pn.getProducedName().getName() + "_resolved";
-                                
-                                // Wide comparison
-                                if(cond == IRCondition.E || cond == IRCondition.NE) {
-                                    // Compare upper, JCC if not equal, compare lower, label for JCC, MOV, CMOV
-                                    aasm = List.of(
-                                        new AASMInstruction( // compare upper
-                                            AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, true),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, true)
-                                        ),
-                                        new AASMInstruction( // if upper NE, comparing lower is unnecessary
-                                            AASMOperation.JCC,
-                                            new AASMLabel(labelName),
-                                            IRCondition.NE
-                                        ),
-                                        new AASMInstruction( // compare lower
-                                            AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, false),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, false)
-                                        ),
-                                        new AASMLabel(labelName),
-                                        new AASMInstruction( // perform cmov
-                                            AASMOperation.MOV,
-                                            new AASMAbstractRegister(pn.getProducedName(), valueType),
-                                            new AASMAbstractRegister(falseNode.getProducedName(), valueType)
-                                        ),
-                                        new AASMInstruction(
-                                            AASMOperation.CMOV,
-                                            new AASMAbstractRegister(pn.getProducedName(), valueType),
-                                            new AASMAbstractRegister(trueNode.getProducedName(), valueType),
-                                            cond
-                                        )
-                                    );
-                                } else {
-                                    // Compare upper, MOV, CMOV & JCC, comapre lower, CMOV, label for JCC
-                                    IRCondition upperTrue = switch(cond) {
-                                        case A, AE  -> IRCondition.A;
-                                        case B, BE  -> IRCondition.B;
-                                        case G, GE  -> IRCondition.G;
-                                        case L, LE  -> IRCondition.L;
-                                        default     -> IRCondition.NONE;
-                                    };
-                                    
-                                    IRCondition lowerTrue = switch(cond) {
-                                        case A, G   -> IRCondition.A;
-                                        case AE, GE -> IRCondition.AE;
-                                        case B, L   -> IRCondition.B;
-                                        case BE, LE -> IRCondition.BE;
-                                        default     -> IRCondition.NONE;
-                                    };
-                                    
-                                    aasm = List.of(
-                                        new AASMInstruction( // compare upper
-                                            AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, true),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, true)
-                                        ),
-                                        new AASMInstruction( // move false
-                                            AASMOperation.MOV,
-                                            new AASMAbstractRegister(pn.getProducedName(), valueType),
-                                            new AASMAbstractRegister(falseNode.getProducedName(), valueType)
-                                        ),
-                                        new AASMInstruction( // if condition met, mov and branch
-                                            AASMOperation.CMOV,
-                                            new AASMAbstractRegister(pn.getProducedName(), valueType),
-                                            new AASMAbstractRegister(trueNode.getProducedName(), valueType),
-                                            upperTrue
-                                        ),
-                                        new AASMInstruction( // If upper aren't equal, the cmov is complete
-                                            AASMOperation.JCC,
-                                            new AASMLabel(labelName),
-                                            IRCondition.NE
-                                        ),
-                                        new AASMInstruction( // compare lower
-                                            AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, false),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, false)
-                                        ),
-                                        new AASMInstruction( // cmov according to lower
-                                            AASMOperation.CMOV,
-                                            new AASMAbstractRegister(pn.getProducedName(), valueType),
-                                            new AASMAbstractRegister(trueNode.getProducedName(), valueType),
-                                            lowerTrue
-                                        ),
-                                        new AASMLabel(labelName)
-                                    );
-                                }
-                            } else if(rightNode.getOperation() == ISelDAGProducerOperation.VALUE) {
+                            if(rightNode.getOperation() == ISelDAGProducerOperation.VALUE) {
                                 // Right-side-constant comparison
                                 aasm = List.of(
                                     new AASMInstruction(
@@ -541,97 +451,7 @@ public class ISelPatternMatcher {
                                 throw new IllegalArgumentException("Invalid JCC in block " + dag.getBasicBlock().getID() + " of function " + dag.getBasicBlock().getFunction().getID() + " in module " + dag.getBasicBlock().getModule().getName());
                             }
                             
-                            if(compareType == IRType.I32) {
-                                // Wide type. Compare upper, branch, compare lower, branch
-                                if(cond == IRCondition.E || cond == IRCondition.NE) {
-                                    // Equality comparisons have 1 upper branch
-                                    IRIdentifier neTarget = (cond == IRCondition.E) ? tn.getFalseTargetBlock() : tn.getTrueTargetBlock();
-                                    
-                                    aasm = List.of(
-                                        new AASMInstruction( // compare upper
-                                            AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, true),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, true)
-                                        ),
-                                        new AASMInstruction( // branch if resolved
-                                            AASMOperation.JCC,
-                                            new AASMLinkConstant(neTarget),
-                                            IRCondition.NE
-                                        ),
-                                        new AASMInstruction( // compare lower
-                                            AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, false),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, false)
-                                        ),
-                                        new AASMInstruction( // branch
-                                            AASMOperation.JCC,
-                                            new AASMLinkConstant(tn.getTrueTargetBlock()),
-                                            cond
-                                        ),
-                                        new AASMInstruction(
-                                            AASMOperation.JMP,
-                                            new AASMLinkConstant(tn.getFalseTargetBlock())
-                                        )
-                                    );
-                                } else {
-                                    // Other comparisons have 2 upper branches
-                                    IRCondition upperTrue = switch(cond) {
-                                        case A, AE  -> IRCondition.A;
-                                        case B, BE  -> IRCondition.B;
-                                        case G, GE  -> IRCondition.G;
-                                        case L, LE  -> IRCondition.L;
-                                        default     -> IRCondition.NONE;
-                                    };
-                                    
-                                    IRCondition upperFalse = switch(cond) {
-                                        case A, AE  -> IRCondition.B;
-                                        case B, BE  -> IRCondition.A;
-                                        case G, GE  -> IRCondition.L;
-                                        case L, LE  -> IRCondition.G;
-                                        default     -> IRCondition.NONE;
-                                    };
-                                    
-                                    IRCondition lowerTrue = switch(cond) {
-                                        case A, G   -> IRCondition.A;
-                                        case AE, GE -> IRCondition.AE;
-                                        case B, L   -> IRCondition.B;
-                                        case BE, LE -> IRCondition.BE;
-                                        default     -> IRCondition.NONE;
-                                    };
-                                    
-                                    aasm = List.of(
-                                        new AASMInstruction( // compare upper
-                                            AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, true),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, true)
-                                        ),
-                                        new AASMInstruction( // branch if resolved
-                                            AASMOperation.JCC,
-                                            new AASMLinkConstant(tn.getTrueTargetBlock()),
-                                            upperTrue
-                                        ),
-                                        new AASMInstruction(
-                                            AASMOperation.JCC,
-                                            new AASMLinkConstant(tn.getFalseTargetBlock()),
-                                            upperFalse
-                                        ),
-                                        new AASMInstruction( // compare lower
-                                            AASMOperation.CMP,
-                                            new AASMAbstractRegister(leftNode.getProducedName(), IRType.I32, true, false),
-                                            new AASMAbstractRegister(rightNode.getProducedName(), IRType.I32, true, false)
-                                        ),
-                                        new AASMInstruction( // branch
-                                            AASMOperation.JCC,
-                                            new AASMLinkConstant(tn.getTrueTargetBlock()),
-                                            lowerTrue
-                                        ),
-                                        new AASMInstruction(
-                                            AASMOperation.JMP,
-                                            new AASMLinkConstant(tn.getFalseTargetBlock())
-                                        )
-                                    );
-                                }
-                            } else if(rightNode.getOperation() == ISelDAGProducerOperation.VALUE) {
+                            if(rightNode.getOperation() == ISelDAGProducerOperation.VALUE) {
                                 // Right-side-constant
                                 // left-constant comparisons could also be done but are
                                 // uncommon and would weaken some assumptions about true/false paths
@@ -1188,7 +1008,11 @@ public class ISelPatternMatcher {
         List<ISelDAGTile> conversions = new ArrayList<>();
         
         for(Map<String, ISelDAGTile> subpatternResults : subpatternPermutations) {
-            conversions.add(doConversion(match, subpatternResults, tmpMap, typeMap));
+            ISelDAGTile tile = doConversion(match, subpatternResults, tmpMap, typeMap);
+            
+            if(tile != null) {
+                conversions.add(tile);
+            }
         }
         
         //LOG.finest("Got " + conversions);
@@ -1336,13 +1160,13 @@ public class ISelPatternMatcher {
                         }
                         
                         switch(referencedPatternPart) {
-                            case ISelPatternNodeLocal loc: {
+                            case ISelPatternNodeLocal _: {
                                 // Local. Grab info from producer.
                                 ISelDAGProducerNode prodRef = (ISelDAGProducerNode) referencedMatch.matchMap().get(refID);
                                 return new AASMAbstractRegister(prodRef.getProducedName(), prodRef.getProducedType(), half, high);
                             }
                             
-                            case ISelPatternNodeConstant con: {
+                            case ISelPatternNodeConstant _: {
                                 // Wildcard constant. Determine from producer
                                 ISelDAGProducerNode prodRef = (ISelDAGProducerNode) referencedMatch.matchMap().get(refID);
                                 
@@ -1390,7 +1214,7 @@ public class ISelPatternMatcher {
                         List<AASMPart> referencedAASM = subpatternResults.get(firstKey).aasm();
                         
                         if(half) {
-                            throw new CompilationException("Can't take halves of subpatterns");
+                            throw new CompilationException("Can't take halves of subpatterns: " + subpatternResults);
                         }
                         
                         if(referencedAASM.size() == 1) {

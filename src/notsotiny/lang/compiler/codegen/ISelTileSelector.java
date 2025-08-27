@@ -19,8 +19,8 @@ import notsotiny.lang.compiler.aasm.AASMPrinter;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGNode;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGTile;
-import notsotiny.lang.util.MapUtil;
-import notsotiny.lang.util.Pair;
+import notsotiny.lib.data.Pair;
+import notsotiny.lib.util.MapUtil;
 
 /**
  * Performs instruction selection given the set of covering tiles for each node

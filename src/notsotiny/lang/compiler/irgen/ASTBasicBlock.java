@@ -4,11 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import fr.cenotelie.hime.redist.ASTNode;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.irgen.context.ASTContextTree;
 import notsotiny.lang.ir.parts.IRCondition;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
+import notsotiny.lib.util.ASTUtil;
 
 /**
  * Contains the AST of a basic block

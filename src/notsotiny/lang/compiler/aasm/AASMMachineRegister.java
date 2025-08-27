@@ -1,6 +1,6 @@
 package notsotiny.lang.compiler.aasm;
 
-import notsotiny.asm.Register;
+import notsotiny.sim.Register;
 import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRIdentifierClass;
 import notsotiny.lang.ir.parts.IRType;

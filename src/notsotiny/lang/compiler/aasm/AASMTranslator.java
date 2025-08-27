@@ -5,7 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
-import notsotiny.asm.Register;
+import notsotiny.sim.Register;
 import notsotiny.asm.components.Component;
 import notsotiny.asm.components.Instruction;
 import notsotiny.asm.resolution.ResolvableConstant;
@@ -48,18 +48,18 @@ public class AASMTranslator {
         // Stack slots
         if(allocRes.stackAllocationSize() > 0) {
             if(allocRes.stackAllocationSize() < 0x80) {
-                // Fits in I8 -> SUB
+                // Fits in I8 -> shortcut
                 assemblyComponents.add(new Instruction(
                     Opcode.SUBW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(allocRes.stackAllocationSize())),
                     false, true
                 ));
             } else {
-                // Doesn't fit -> LEA
+                // Doesn't fit -> no shortcut
                 assemblyComponents.add(new Instruction(
-                    Opcode.LEA_RIM,
+                    Opcode.SUBW_RIM,
                     new ResolvableLocationDescriptor(LocationType.REGISTER, Register.SP),
-                    new ResolvableLocationDescriptor(LocationType.MEMORY, 0, new ResolvableMemory(Register.SP, Register.NONE, 0, -allocRes.stackAllocationSize())),
+                    new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(allocRes.stackAllocationSize())),
                     false
                 ));
             }
@@ -138,18 +138,18 @@ public class AASMTranslator {
         // Stack slots
         if(allocRes.stackAllocationSize() > 0) {
             if(allocRes.stackAllocationSize() < 0x80) {
-                // Fits in I8 -> ADD
+                // Fits in I8 -> shortcut
                 epilogue.add(new Instruction(
                     Opcode.ADDW_SP_I8,
                     new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(allocRes.stackAllocationSize())),
                     false, true
                 ));
             } else {
-                // Doesn't fit -> LEA
+                // Doesn't fit -> no shortcut
                 epilogue.add(new Instruction(
-                    Opcode.LEA_RIM,
+                    Opcode.ADDW_RIM,
                     new ResolvableLocationDescriptor(LocationType.REGISTER, Register.SP),
-                    new ResolvableLocationDescriptor(LocationType.MEMORY, 0, new ResolvableMemory(Register.SP, Register.NONE, 0, allocRes.stackAllocationSize())),
+                    new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(allocRes.stackAllocationSize())),
                     false
                 ));
             }
@@ -175,30 +175,12 @@ public class AASMTranslator {
                         case CMOV:
                             // CMOVCC needs its condition as an EI8
                             assemblyComponents.add(new Instruction(
-                                Opcode.CMOVCC_RIM,
+                                (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.CMOVWCC_RIM : Opcode.CMOVCC_RIM,
                                 translateArg(inst.getDestination(), true, false, sourceFunction),
                                 translateArg(inst.getSource(), true, false, sourceFunction),
                                 meta.condition.toJCCOpcode().getOp(),
                                 false
                             ));
-                            break;
-                        
-                        case ADD:
-                            // ADD SP, x is its own opcode
-                            if(meta.destIsRegister && meta.destRegister == Register.SP) {
-                                assemblyComponents.add(new Instruction(
-                                    Opcode.ADDW_SP_I8,
-                                    translateArg(inst.getSource(), true, false, sourceFunction),
-                                    false, false
-                                ));
-                            } else {
-                                assemblyComponents.add(new Instruction(
-                                    op,
-                                    translateArg(inst.getDestination(), true, false, sourceFunction),
-                                    translateArg(inst.getSource(), true, false, sourceFunction),
-                                    false
-                                ));
-                            }
                             break;
                         
                         case CALL, JMP, JCC:
@@ -340,12 +322,13 @@ public class AASMTranslator {
     private static Opcode translateOpcode(AASMInstructionMeta meta) {
         return switch(meta.op) {
             case MOV    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.MOVW_RIM : Opcode.MOV_RIM;
-            case CMOV   -> Opcode.CMOVCC_RIM;
+            case CMOV   -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.CMOVWCC_RIM : Opcode.CMOVCC_RIM;
             case XCHG   -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.XCHGW_RIM : Opcode.XCHG_RIM;
             case PUSH   -> (meta.sourceType == IRType.I32) ? Opcode.PUSHW_RIM : Opcode.PUSH_RIM;
             case POP    -> (meta.sourceType == IRType.I32) ? Opcode.POPW_RIM : Opcode.POP_RIM;
             case ADD    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.ADDW_RIM : Opcode.ADD_RIM;
             case SUB    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.SUBW_RIM : Opcode.SUB_RIM;
+            case CMP    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.CMPW_RIM : Opcode.CMP_RIM;
             case RET    -> Opcode.RET;
             case JCC    -> meta.condition.toJCCOpcode();
             

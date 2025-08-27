@@ -20,7 +20,7 @@ import notsotiny.lang.compiler.codegen.dag.ISelDAGProducerOperation;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGTerminatorNode;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGTerminatorOperation;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGTile;
-import notsotiny.lang.util.MapUtil;
+import notsotiny.lib.util.MapUtil;
 
 /**
  * Schedules instructions within a basic block

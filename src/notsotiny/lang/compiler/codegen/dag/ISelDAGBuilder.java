@@ -22,7 +22,7 @@ import notsotiny.lang.ir.parts.IRLinearInstruction;
 import notsotiny.lang.ir.parts.IRLinearOperation;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
-import notsotiny.lang.util.Pair;
+import notsotiny.lib.data.Pair;
 
 /**
  * Builds an instruction selection DAG

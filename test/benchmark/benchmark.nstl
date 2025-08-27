@@ -3,12 +3,15 @@
 -- Runs some processing intensive programs
 --
 -- Performance History
---	1,042,397,939	original
---    954,578,645	ISA update
+--	total			mandel			badapple
+--	1,042,397,939									original
+--    961,684,560	 387,508,236	 574,176,324	ISA update
+--    895,929,275	 334,554,024	 561,375,251	Use wide compares
 --
 
 library _badappleplayer;
 library _mandel;
+library _util;
 
 external function _badappleplayer.main of none;
 external function _mandel.mandel of none;
@@ -23,6 +26,8 @@ function main of none begin
 
 	-- run benchmarks
 	call _mandel.mandel with none;
+	call _util.halt with none;
+	
 	call _badappleplayer.main with none;
 	
 	-- halt and catch fire

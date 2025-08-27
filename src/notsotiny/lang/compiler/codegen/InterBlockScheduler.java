@@ -17,7 +17,7 @@ import notsotiny.lang.ir.parts.IRBranchInstruction;
 import notsotiny.lang.ir.parts.IRBranchOperation;
 import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRIdentifier;
-import notsotiny.lang.util.Pair;
+import notsotiny.lib.data.Pair;
 
 /**
  * Schedules basic blocks

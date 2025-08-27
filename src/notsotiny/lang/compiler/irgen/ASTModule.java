@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import notsotiny.asm.resolution.ResolvableConstant;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.irgen.context.ASTContextConstant;
 import notsotiny.lang.compiler.irgen.context.ASTContextEntry;
 import notsotiny.lang.compiler.irgen.context.ASTContextTree;
@@ -72,8 +72,8 @@ public class ASTModule {
         this.typeDefinitionMap.put("ptr", RawType.U32);
         
         // Default constant
-        this.context.addEntry(new ASTContextConstant("true", "true", ASTUtil.TRUE_TR));
-        this.context.addEntry(new ASTContextConstant("false", "false", ASTUtil.FALSE_TR));
+        this.context.addEntry(new ASTContextConstant("true", "true", ParseUtils.TRUE_TR));
+        this.context.addEntry(new ASTContextConstant("false", "false", ParseUtils.FALSE_TR));
     }
     
     /**

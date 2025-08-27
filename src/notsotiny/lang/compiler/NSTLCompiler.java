@@ -23,6 +23,7 @@ import java.util.logging.Logger;
 import asmlib.lex.symbols.Symbol;
 import asmlib.token.Tokenizer;
 import asmlib.util.FileLocator;
+import asmlib.util.relocation.ExecWriter;
 import asmlib.util.relocation.RenameableRelocatableObject;
 import fr.cenotelie.hime.redist.ASTNode;
 import fr.cenotelie.hime.redist.ParseError;
@@ -64,7 +65,7 @@ public class NSTLCompiler {
         try(FileInputStream fis = new FileInputStream("compiler.properties")) {
             properties.load(fis);
         } catch(IOException e) {
-            LOG.warning("Could not read configuration file \"compiler.properties\".");
+            LOG.severe("Could not read configuration file \"compiler.properties\".");
             return;
         }
         
@@ -411,14 +412,7 @@ public class NSTLCompiler {
         
         // unify names
         LOG.fine("Unifying library names");
-        for(String name : libraryNameMap.keySet()) {
-            File f = libraryNameMap.get(name).toFile();
-            LOG.finest(() -> "Naming \"" + f + "\" " + name);
-            
-            for(RenameableRelocatableObject obj : assembledObjects) {
-                obj.renameLibraryFile(f, name);
-            }
-        }
+        RenameableRelocatableObject.unifyNames(assembledObjects, libraryNameMap, LOG);
         
         String mainFileName = sourceFile.getFileName().toString(),
                entrySymbolName = mainFileName.substring(0, mainFileName.lastIndexOf('.')) + "." + entry;
@@ -426,83 +420,12 @@ public class NSTLCompiler {
         // compact names if debug isn't enabled
         if(!debug) {
             LOG.fine("Compacting references");
-            Map<String, String> nameIDMap = new HashMap<>(),
-                                libraryIDMap = new HashMap<>();
-            
-            // generate compact names
-            int lid = 0;
-            for(RenameableRelocatableObject obj : assembledObjects) {
-                libraryIDMap.put(obj.getName(), Integer.toHexString(lid++));
-                LOG.fine("Renamed " + obj.getName() + " to " + libraryIDMap.get(obj.getName()));
-                
-                String n = obj.getName() + ".";
-                int id = 0;
-                
-                for(String s : obj.getOutgoingReferenceNames()) {
-                    // dont modify special references
-                    if(s.equals("ORIGIN")) continue;
-                    
-                    String oldName = n + s,
-                           newName = n + Integer.toHexString(id++);
-                    
-                    // track changes to entry symbol
-                    if(oldName.equals(entrySymbolName)) {
-                        entrySymbolName = newName;
-                    }
-                    
-                    nameIDMap.put(oldName, newName);
-                }
-            }
-            
-            // rename references
-            for(RenameableRelocatableObject obj : assembledObjects) {
-                for(String old : nameIDMap.keySet()) {
-                    obj.renameGlobal(old, nameIDMap.get(old));
-                }
-            }
-            
-            // rename libraries
-            int entryIndex = entrySymbolName.indexOf('.');
-            entrySymbolName = libraryIDMap.get(entrySymbolName.substring(0, entryIndex)) + entrySymbolName.substring(entryIndex);
-            
-            for(RenameableRelocatableObject obj : assembledObjects) {
-                for(String old : libraryIDMap.keySet()) {
-                    obj.renameLibrary(old, libraryIDMap.get(old));
-                }
-            }
+            entrySymbolName = RenameableRelocatableObject.compactNames(assembledObjects, Set.of("ORIGIN", "PRIVILEGED"), entrySymbolName, LOG);
         }
         
         // write output
         LOG.fine("Writing output files");
-        Path execRelativeOutputDir = execFile.toAbsolutePath().getParent().relativize(outDir);
-        
-        // make the output directory if it doesn't exist
-        if(!Files.exists(outDir)) {
-            LOG.finest(() -> "Creating output directory " + outDir);
-            Files.createDirectory(outDir);
-        }
-        
-        // write object files
-        Set<String> objectFileNames = new HashSet<>();
-        for(RenameableRelocatableObject obj : assembledObjects) {
-            String fileName = obj.getName() + ".obj";
-            Path ofile = outDir.resolve(fileName);
-            
-            LOG.finer(() -> "Writing output file " + ofile);
-            
-            Files.write(ofile, obj.asObjectFile());
-            objectFileNames.add(execRelativeOutputDir.resolve(fileName).toString());
-        }
-        
-        // exec file
-        LOG.finer(() -> "Writing exec file " + execFile);
-        try(PrintWriter execWriter = new PrintWriter(Files.newBufferedWriter(execFile))) {
-            // entry
-            execWriter.println("#entry " + entrySymbolName);
-            
-            // object files
-            objectFileNames.forEach(execWriter::println);
-        }
+        ExecWriter.write(assembledObjects, outDir, execFile, entrySymbolName, LOG);
         
         LOG.info("Done.");
     }

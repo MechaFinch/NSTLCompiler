@@ -5,7 +5,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.irgen.context.ASTContextTree;
 import notsotiny.lang.compiler.types.ArrayType;
@@ -16,6 +16,8 @@ import notsotiny.lang.compiler.types.StringType;
 import notsotiny.lang.compiler.types.TypedRaw;
 import notsotiny.lang.compiler.types.TypedValue;
 import notsotiny.lang.parser.NstlgrammarLexer;
+import notsotiny.lib.util.ASTLogger;
+import notsotiny.lib.util.ASTUtil;
 
 /**
  * Parses types
@@ -69,7 +71,7 @@ public class TypeParser {
                 ASTNode sizeNode = children.get(1);
                 TypedValue size = ConstantParser.parseConstantExpression(sizeNode, module, context, RawType.NONE, false, Level.SEVERE);
                 
-                ASTUtil.ensureTypedRaw(size.getType(), sizeNode, ALOG, " for array size");
+                ParseUtils.ensureTypedRaw(size.getType(), sizeNode, ALOG, " for array size");
                 
                 // Got a size
                 try {
@@ -93,7 +95,7 @@ public class TypeParser {
             }
         } else {
             // Named type
-            String name = ASTUtil.getNameNoLibraries(children.get(0), ALOG, "type name");
+            String name = ParseUtils.getNameNoLibraries(children.get(0), ALOG, "type name");
             NSTLType t = module.getTypeDefinitionMap().get(name).getRealType();
             
             if(t != null) {

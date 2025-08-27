@@ -5,11 +5,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.irgen.context.ASTContextLabel;
 import notsotiny.lang.compiler.irgen.context.ASTContextTree;
 import notsotiny.lang.parser.NstlgrammarParser;
+import notsotiny.lib.util.ASTLogger;
+import notsotiny.lib.util.ASTUtil;
 
 /*
  * ContextTree

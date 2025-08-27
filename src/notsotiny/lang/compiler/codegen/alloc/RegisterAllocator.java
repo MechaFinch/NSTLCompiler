@@ -14,7 +14,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import notsotiny.asm.Register;
+import notsotiny.sim.Register;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.aasm.AASMAbstractRegister;
 import notsotiny.lang.compiler.aasm.AASMCompileConstant;

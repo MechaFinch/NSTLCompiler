@@ -46,22 +46,26 @@ load_i32:	(I32 LOAD (<x> mem))	-> "<x>" ;
 load_any:	(ANY LOAD (<x> mem))	-> "<x>" ;
 
 # LEA
-# Copy of mem_bio
+# Copy of mem_bio/mem_index
 # If (<x> mem_bio) -> "LEA <out>, <x>" ; was used, it wouldn't appear in the pattern list for ADD
 prod_lea:
-	(<i> mem_index)									-> "LEA <out>, [0 + <i> + 0]" |
-	(I32 ADD (I32 LOCAL <b>) (<i> mem_index))		-> "LEA <out>, [<b> + <i> + 0]" |
-	(I32 ADD (<i> mem_index) (ANY CONSTANT <o>))	-> "LEA <out>, [0 + <i> + <o>]" |
+	(I32 MULU (I32 ZX (I16 LOCAL <x>)) (ANY CONSTANT 2))	-> "LEA <out>, [0 + <x>*2 + 0]" |
+	(I32 SHL (I32 ZX (I16 LOCAL <x>)) (ANY CONSTANT 1))		-> "LEA <out>, [0 + <x>*2 + 0]" |
+	(I32 MULU (I32 ZX (I16 LOCAL <x>)) (ANY CONSTANT 4))	-> "LEA <out>, [0 + <x>*4 + 0]" |
+	(I32 SHL (I32 ZX (I16 LOCAL <x>)) (ANY CONSTANT 2))		-> "LEA <out>, [0 + <x>*4 + 0]" |
+	
+	(I32 ADD (I32 LOCAL <b>) (<i> mem_index))				-> "LEA <out>, [<b> + <i> + 0]" |
+	(I32 ADD (<i> mem_index) (ANY CONSTANT <o>))			-> "LEA <out>, [0 + <i> + <o>]" |
 	
 	(I32 ADD
 		(I32 ADD (<i> mem_index) (ANY CONSTANT <o>))
-		(I32 LOCAL <b>))							-> "LEA <out>, [<b> + <i> + <o>]" |
+		(I32 LOCAL <b>))									-> "LEA <out>, [<b> + <i> + <o>]" |
 	(I32 ADD
 		(I32 ADD (I32 LOCAL <b>) (ANY CONSTANT <o>))
-		(<i> mem_index))							-> "LEA <out>, [<b> + <i> + <o>]" |
+		(<i> mem_index))									-> "LEA <out>, [<b> + <i> + <o>]" |
 	(I32 ADD
 		(I32 ADD (I32 LOCAL <b>) (<i> mem_index))
-		(ANY CONSTANT <o>))							-> "LEA <out>, [<b> + <i> + <o>]" ;
+		(ANY CONSTANT <o>))									-> "LEA <out>, [<b> + <i> + <o>]" ;
 
 
 

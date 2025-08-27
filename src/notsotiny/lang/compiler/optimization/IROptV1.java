@@ -17,8 +17,8 @@ import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRModule;
 import notsotiny.lang.ir.util.IRCFGRenderer;
 import notsotiny.lang.ir.util.IRPrinter;
-import notsotiny.lang.util.LogPrinter;
-import notsotiny.lang.util.StreamPrinter;
+import notsotiny.lib.printing.LogPrinter;
+import notsotiny.lib.printing.StreamPrinter;
 
 /**
  * IR Optimizer

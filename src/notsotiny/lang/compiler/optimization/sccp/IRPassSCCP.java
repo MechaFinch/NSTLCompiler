@@ -32,8 +32,7 @@ import notsotiny.lang.ir.parts.IRModule;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.ir.util.IRUtil;
-import notsotiny.lang.util.Pair;
-import notsotiny.lang.util.Triple;
+import notsotiny.lib.data.Triple;
 
 /**
  * Performs Sparse Conditional Constant Propagation

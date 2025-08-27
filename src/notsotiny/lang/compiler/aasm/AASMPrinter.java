@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import notsotiny.lang.ir.parts.IRIdentifier;
-import notsotiny.lang.util.Printer;
+import notsotiny.lib.printing.Printer;
 
 /**
  * Prints AbstractAssembly in a readable format

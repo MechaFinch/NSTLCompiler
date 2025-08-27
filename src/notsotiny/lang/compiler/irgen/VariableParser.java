@@ -5,7 +5,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.irgen.context.ASTContextTree;
 import notsotiny.lang.compiler.irgen.context.ASTContextVariable;
@@ -31,7 +31,9 @@ import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
-import notsotiny.lang.util.Pair;
+import notsotiny.lib.data.Pair;
+import notsotiny.lib.util.ASTLogger;
+import notsotiny.lib.util.ASTUtil;
 
 // TODO replace @true and @false with context lookups
 
@@ -70,8 +72,8 @@ public class VariableParser {
         try {
             TypedValue tv = ConstantParser.parseConstantExpression(node, sourceModule, context, expectedType, false, Level.FINEST);
             
-            ASTUtil.ensureTypesMatch(expectedType, tv.getType(), false, node, ALOG, "from constant variable expression");
-            ASTUtil.ensureTypedRaw(tv.getType(), node, ALOG, "from constant variable expression");
+            ParseUtils.ensureTypesMatch(expectedType, tv.getType(), false, node, ALOG, "from constant variable expression");
+            ParseUtils.ensureTypedRaw(tv.getType(), node, ALOG, "from constant variable expression");
             
             TypedRaw tr = (TypedRaw) tv;
             return new Pair<>(new IRConstant((int) tr.getResolvedValue(), tr.getType().getIRType()), tv.getType());
@@ -167,8 +169,8 @@ public class VariableParser {
             }
         }
         
-        ASTUtil.ensureTypesMatch(expectedType, leftType, false, leftNode, ALOG, "from integer expression");
-        ASTUtil.ensureTypesMatch(expectedType, rightType, false, rightNode, ALOG, "from integer expression");
+        ParseUtils.ensureTypesMatch(expectedType, leftType, false, leftNode, ALOG, "from integer expression");
+        ParseUtils.ensureTypesMatch(expectedType, rightType, false, rightNode, ALOG, "from integer expression");
         
         IRIdentifier destID = new IRIdentifier(destName, IRIdentifierClass.LOCAL);
         boolean signed = expectedType.isSigned();
@@ -197,7 +199,7 @@ public class VariableParser {
                     }
                 };
                 
-                IRLinearInstruction inst = new IRLinearInstruction(op, destID, expectedType.getIRType(), ASTUtil.TRUE_IR, ASTUtil.FALSE_IR, cond, leftValue, rightValue, irBB, ASTUtil.getLineNumber(node));
+                IRLinearInstruction inst = new IRLinearInstruction(op, destID, expectedType.getIRType(), ParseUtils.TRUE_IR, ParseUtils.FALSE_IR, cond, leftValue, rightValue, irBB, ASTUtil.getLineNumber(node));
                 irBB.addInstruction(inst);
                 break;
             }
@@ -300,9 +302,9 @@ public class VariableParser {
         NSTLType exprType = exprPair.b;
         NSTLType targetType = TypeParser.parseType(typeNode, sourceModule, context);
         
-        ASTUtil.ensureTypedRaw(exprType, exprNode, ALOG, "from integer expression");
-        ASTUtil.ensureTypedRaw(targetType, typeNode, ALOG, "from cast");
-        ASTUtil.ensureTypesMatch(expectedType, targetType, false, typeNode, ALOG, "from cast");
+        ParseUtils.ensureTypedRaw(exprType, exprNode, ALOG, "from integer expression");
+        ParseUtils.ensureTypedRaw(targetType, typeNode, ALOG, "from cast");
+        ParseUtils.ensureTypesMatch(expectedType, targetType, false, typeNode, ALOG, "from cast");
         
         // If the expr is untyped, return it as is
         if(exprType.equals(RawType.NONE)) {
@@ -398,8 +400,8 @@ public class VariableParser {
             }
             
             // Make sure it's an integer of the right type
-            ASTUtil.ensureTypedRaw(varType, nameNode, ALOG, "from variable");
-            ASTUtil.ensureTypesMatch(expectedType, varType, false, nameNode, ALOG, "from variable");
+            ParseUtils.ensureTypedRaw(varType, nameNode, ALOG, "from variable");
+            ParseUtils.ensureTypesMatch(expectedType, varType, false, nameNode, ALOG, "from variable");
             
             IRValue irVal;
             
@@ -486,7 +488,7 @@ public class VariableParser {
                     NSTLType argType = argPair.b;
                     
                     // Check type
-                    ASTUtil.ensureTypesMatch(nstlType, argType, false, argNode, ALOG, "from call argument");
+                    ParseUtils.ensureTypesMatch(nstlType, argType, false, argNode, ALOG, "from call argument");
                     
                     // Map
                     mapping.addMapping(id, argVal);
@@ -513,9 +515,21 @@ public class VariableParser {
                 return mapping;
             }
             
-            // TODO
-            ALOG.severe(node, "No function header: " + ASTUtil.detailed(node));
-            throw new CompilationException();
+            // Has arguments but no header. Assume arguments are correct if types inferrable
+            List<ASTNode> argNodes = node.getChildren();
+            
+            // Compute args
+            for(int i = argNodes.size() - 1; i >= 0; i--) {
+                ASTNode argNode = argNodes.get(i);
+                
+                // Compute
+                Pair<IRValue, NSTLType> argPair = VariableParser.parseIntegerExpression(argNode, "", RawType.NONE, irBB, manager, context, sourceModule, func, irModule);
+                
+                // Map
+                mapping.addMapping(new IRIdentifier("arg" + i, IRIdentifierClass.LOCAL), argPair.a);
+            }
+            
+            return mapping;
         }
     }
     

@@ -6,7 +6,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import notsotiny.asm.Register;
+import notsotiny.sim.Register;
 import notsotiny.lang.compiler.aasm.AASMMachineRegister;
 import notsotiny.lang.ir.parts.IRIdentifier;
 

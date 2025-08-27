@@ -6,9 +6,10 @@
 			<attribute name="module" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry combineaccessrules="false" kind="src" path="/NotSoTiny"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/AssemblerLib"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/graphstream"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.USER_LIBRARY/javafx"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/AssemblerLib"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/NotSoTiny"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/NSTSharedLibrary"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

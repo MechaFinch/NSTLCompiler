@@ -9,7 +9,7 @@ import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
 import notsotiny.asm.resolution.ResolvableConstant;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.irgen.context.ASTContextConstant;
 import notsotiny.lang.compiler.irgen.context.ASTContextTree;
@@ -25,6 +25,8 @@ import notsotiny.lang.compiler.types.TypedStructure;
 import notsotiny.lang.compiler.types.TypedValue;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
+import notsotiny.lib.util.ASTLogger;
+import notsotiny.lib.util.ASTUtil;
 
 /**
  * Parses constants
@@ -161,7 +163,7 @@ public class ConstantParser {
         
         List<ASTNode> children = node.getChildren();
         NSTLType containedType = TypeParser.parseType(children.get(0), module, context);
-        ASTUtil.ensureTypesMatch(eat.getMemberType(), containedType, true, node, ALOG, "for array literal");
+        ParseUtils.ensureTypesMatch(eat.getMemberType(), containedType, true, node, ALOG, "for array literal");
         
         List<TypedValue> memberValues = new ArrayList<>();
         
@@ -201,7 +203,7 @@ public class ConstantParser {
         List<ASTNode> children = node.getChildren();
         
         // Get type
-        NSTLType nameType = module.getTypeDefinitionMap().get(ASTUtil.getNameNoLibraries(children.get(0), ALOG, "structure name"));
+        NSTLType nameType = module.getTypeDefinitionMap().get(ParseUtils.getNameNoLibraries(children.get(0), ALOG, "structure name"));
         
         // Ensure it's a structure
         StructureType structType;
@@ -226,7 +228,7 @@ public class ConstantParser {
             List<ASTNode> memberChildren = memberNode.getChildren();
             
             // Get name, make sure it exists in the structure
-            String memberName = ASTUtil.getNameNoLibraries(memberChildren.get(0), ALOG, "structure member");
+            String memberName = ParseUtils.getNameNoLibraries(memberChildren.get(0), ALOG, "structure member");
             
             if(expectedNames.contains(memberName)) {
                 // Name is a member. Compute it
@@ -308,10 +310,10 @@ public class ConstantParser {
                 }
                 
                 // Verify type
-                ASTUtil.ensureTypesMatch(expectedType, t, requireNotNone, node, ALOG, "from typed value" + ASTUtil.detailed(node));
+                ParseUtils.ensureTypesMatch(expectedType, t, requireNotNone, node, ALOG, "from typed value" + ASTUtil.detailed(node));
                 
                 // Get value
-                long v = ASTUtil.parseInteger(children.get(1).getValue(), 0, false);
+                long v = ParseUtils.parseInteger(children.get(1).getValue(), 0, false);
                 
                 // Return it
                 TypedRaw tr = new TypedRaw(new ResolvableConstant(v), (RawType) t);
@@ -326,7 +328,7 @@ public class ConstantParser {
                 
                 // Try local names first
                 if(typeChildren.size() == 1 && typeChildren.get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_NAME) {
-                    String name = ASTUtil.getNameNoLibraries(typeChildren.get(0), ALOG, "type name");
+                    String name = ParseUtils.getNameNoLibraries(typeChildren.get(0), ALOG, "type name");
                     
                     if(module.variableExists(name, context)) {
                         // Found a variable
@@ -346,7 +348,7 @@ public class ConstantParser {
                 
                 // Otherwise parse type
                 NSTLType t = TypeParser.parseType(typeNode, module, context);
-                ASTUtil.ensureTypesMatch(expectedType, RawType.NONE, requireNotNone, node, ALOG, "from type size");
+                ParseUtils.ensureTypesMatch(expectedType, RawType.NONE, requireNotNone, node, ALOG, "from type size");
                 TypedRaw tr = new TypedRaw(new ResolvableConstant(t.getSize()), RawType.NONE);
                 LOG.finest("Got type size " + tr);
                 return tr;
@@ -354,8 +356,8 @@ public class ConstantParser {
             
             case NstlgrammarLexer.ID.TERMINAL_INTEGER: {
                 // Integer literal
-                long v = ASTUtil.parseInteger(children.get(0).getValue(), expectedType.getSize(), false);
-                ASTUtil.ensureTypesMatch(expectedType, RawType.NONE, requireNotNone, node, ALOG, "from integer literal");
+                long v = ParseUtils.parseInteger(children.get(0).getValue(), expectedType.getSize(), false);
+                ParseUtils.ensureTypesMatch(expectedType, RawType.NONE, requireNotNone, node, ALOG, "from integer literal");
                 TypedRaw tr = new TypedRaw(new ResolvableConstant(v), RawType.NONE);
                 LOG.finest("Got integer literal " + tr);
                 return tr;
@@ -370,7 +372,7 @@ public class ConstantParser {
                 }
                 
                 StringType st = new StringType(s);
-                ASTUtil.ensureTypesMatch(expectedType, st, requireNotNone, node, ALOG, "from string literal");
+                ParseUtils.ensureTypesMatch(expectedType, st, requireNotNone, node, ALOG, "from string literal");
                 LOG.finest("Got string literal " + st);
                 return st;
             }
@@ -425,7 +427,7 @@ public class ConstantParser {
         
         // Make sure it's a raw that exists
         String contextString = (node.getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_OP_SUBTRACT) ? "negation" : "logical NOT";
-        ASTUtil.ensureTypedRaw(rightTV.getType(), valueNode, ALOG, "for constant " + contextString);
+        ParseUtils.ensureTypedRaw(rightTV.getType(), valueNode, ALOG, "for constant " + contextString);
         
         long v;
         try {
@@ -477,8 +479,8 @@ public class ConstantParser {
         TypedValue rightTV = parseConstantExpression(rightNode, module, context, RawType.NONE, false, nonConstantSeverity);
         
         // Ensure they're raws that exist
-        ASTUtil.ensureTypedRaw(leftTV.getType(), leftNode, ALOG, "for constant comparison");
-        ASTUtil.ensureTypedRaw(rightTV.getType(), rightNode, ALOG, "for constant comparison");
+        ParseUtils.ensureTypedRaw(leftTV.getType(), leftNode, ALOG, "for constant comparison");
+        ParseUtils.ensureTypedRaw(rightTV.getType(), rightNode, ALOG, "for constant comparison");
         
         long v1, v2, v3;
         
@@ -497,8 +499,8 @@ public class ConstantParser {
         }
         
         // make values equal to their logical values
-        ASTUtil.trimToSize(v1, ((RawType) leftTV.getType()));
-        ASTUtil.trimToSize(v2, ((RawType) rightTV.getType()));
+        ParseUtils.trimToSize(v1, ((RawType) leftTV.getType()));
+        ParseUtils.trimToSize(v2, ((RawType) rightTV.getType()));
         
         // Compute value & return result
         v3 = switch(node.getSymbol().getID()) {
@@ -592,8 +594,8 @@ public class ConstantParser {
         TypedValue rightTV = parseConstantExpression(rightNode, module, context, RawType.NONE, false, nonConstantSeverity);
         
         // Ensure they're raws that exist
-        ASTUtil.ensureTypedRaw(leftTV.getType(), leftNode, ALOG, "for constant comparison");
-        ASTUtil.ensureTypedRaw(rightTV.getType(), rightNode, ALOG, "for constant comparison");
+        ParseUtils.ensureTypedRaw(leftTV.getType(), leftNode, ALOG, "for constant comparison");
+        ParseUtils.ensureTypedRaw(rightTV.getType(), rightNode, ALOG, "for constant comparison");
         
         long v1, v2, v3;
         
@@ -614,12 +616,12 @@ public class ConstantParser {
         // make values equal to their logical values
         RawType leftType = (RawType) leftTV.getType();
         RawType rightType = (RawType) rightTV.getType();
-        ASTUtil.trimToSize(v1, leftType);
-        ASTUtil.trimToSize(v2, rightType);
+        ParseUtils.trimToSize(v1, leftType);
+        ParseUtils.trimToSize(v2, rightType);
         
         // Resulting type is the larger of the two
         RawType resultType = leftType.promote(rightType);
-        ASTUtil.ensureTypesMatch(expectedType, resultType, requireNotNone, node, ALOG, "from constant expression");
+        ParseUtils.ensureTypesMatch(expectedType, resultType, requireNotNone, node, ALOG, "from constant expression");
         
         // Compute value & return result
         v3 = switch(node.getSymbol().getID()) {

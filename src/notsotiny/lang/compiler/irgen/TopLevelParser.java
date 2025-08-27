@@ -19,7 +19,7 @@ import fr.cenotelie.hime.redist.ASTNode;
 import fr.cenotelie.hime.redist.ParseError;
 import fr.cenotelie.hime.redist.ParseResult;
 import fr.cenotelie.hime.redist.parsers.InitializationException;
-import notsotiny.lang.compiler.ASTUtil;
+import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.types.AliasType;
 import notsotiny.lang.compiler.types.FunctionHeader;
@@ -32,6 +32,8 @@ import notsotiny.lang.compiler.types.TypeContainer;
 import notsotiny.lang.compiler.types.TypedValue;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
+import notsotiny.lib.util.ASTLogger;
+import notsotiny.lib.util.ASTUtil;
 
 /**
  * Parses top level code
@@ -341,7 +343,7 @@ public class TopLevelParser {
             
             // named or nameless?
             if(argumentNode.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_NAMED_ARGUMENT) {
-                argumentNames.add(ASTUtil.getNameNoLibraries(argumentChildren.get(1), ALOG, "argument name"));
+                argumentNames.add(ParseUtils.getNameNoLibraries(argumentChildren.get(1), ALOG, "argument name"));
             } else {
                 argumentNames.add("arg" + i);
             }
@@ -378,7 +380,7 @@ public class TopLevelParser {
         List<ASTNode> children = node.getChildren();
         
         // Get name & type
-        String name = ASTUtil.getNameNoLibraries(children.get(1), ALOG, "global name");
+        String name = ParseUtils.getNameNoLibraries(children.get(1), ALOG, "global name");
         NSTLType type = TypeParser.parseType(children.get(2), module, module.getContext());
         
         // Variable or constant?
@@ -414,7 +416,7 @@ public class TopLevelParser {
      * @throws CompilationException
      */
     private static void fillStructureDefinition(ASTModule module, ASTNode node) throws CompilationException {
-        String name = ASTUtil.getNameNoLibraries(node.getChildren().get(0), ALOG, "structure name");
+        String name = ParseUtils.getNameNoLibraries(node.getChildren().get(0), ALOG, "structure name");
         List<ASTNode> members = node.getChildren().get(1).getChildren();
         List<String> memberNames = new ArrayList<>();
         List<NSTLType> memberTypes = new ArrayList<>();
@@ -426,7 +428,7 @@ public class TopLevelParser {
         for(ASTNode member : members) {
             List<ASTNode> memberChildren = member.getChildren();
             
-            String memberName = ASTUtil.getNameNoLibraries(memberChildren.get(0), ALOG, "structure member");
+            String memberName = ParseUtils.getNameNoLibraries(memberChildren.get(0), ALOG, "structure member");
             NSTLType memberType = TypeParser.parseType(memberChildren.get(1), module, module.getContext()).getRealType();
             
             if(memberType instanceof StringType) {
@@ -457,7 +459,7 @@ public class TopLevelParser {
         List<ASTNode> children = node.getChildren();
         
         // Get name
-        String defName = ASTUtil.getNameNoLibraries(children.get(0), ALOG, "definition name");
+        String defName = ParseUtils.getNameNoLibraries(children.get(0), ALOG, "definition name");
         
         // Get value
         TypedValue tv = ConstantParser.parseConstantExpression(children.get(1), module, module.getContext(), RawType.NONE, false, Level.SEVERE);
@@ -477,7 +479,7 @@ public class TopLevelParser {
         List<ASTNode> children = node.getChildren();
         
         // Get name
-        String aliasName = ASTUtil.getNameNoLibraries(children.get(0), ALOG, "type name");
+        String aliasName = ParseUtils.getNameNoLibraries(children.get(0), ALOG, "type name");
         
         // Get type
         NSTLType t = TypeParser.parseType(children.get(1), module, module.getContext());
@@ -508,7 +510,7 @@ public class TopLevelParser {
         if(node.getSymbol().getID() == NstlgrammarParser.ID.VARIABLE_EXTERNAL_FUNCTION_HEADER) {
             name = ASTUtil.getName(nameNode);
         } else {
-            name = ASTUtil.getNameNoLibraries(nameNode, ALOG, "top level name");
+            name = ParseUtils.getNameNoLibraries(nameNode, ALOG, "top level name");
         }
         
         if(module.nameExists(name)) {

@@ -27,10 +27,10 @@ import notsotiny.lang.ir.parts.IRLinearOperation;
 import notsotiny.lang.ir.parts.IRModule;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
-import notsotiny.lang.util.MapUtil;
-import notsotiny.lang.util.Pair;
-import notsotiny.lang.util.TreeNode;
-import notsotiny.lang.util.UnionFindForest;
+import notsotiny.lib.data.Pair;
+import notsotiny.lib.data.TreeNode;
+import notsotiny.lib.data.UnionFindForest;
+import notsotiny.lib.util.MapUtil;
 
 /**
  * Utility functions for the IR
