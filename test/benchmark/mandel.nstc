@@ -1,0 +1,211 @@
+
+-- benchmarking mandelbrot
+
+lib _util;
+lib _shapes from "simvideo/shapes";
+lib _gutil from "simbideo/gutil";
+
+var asdf: u8;
+
+-- returns a * b for 8.24 fixed point'
+fn mul824(a: i32, b: i32): i32 {
+	var  negative: u8 = 0;
+	
+	-- use absolute value
+	if(a < 0) {
+		a = -a;
+		negative = !negative;
+	}
+	
+	if(b < 0) {
+		b = -b;
+		negative = !negative;
+	}
+	
+	-- long multiply
+	var a_low: u16 = a as u16;
+	var a_high: u16 = (a >> 16) as u16;
+	var b_low: u16 = b as u16;
+	var b_high: u16 = (b >> 16) as u16;
+	
+	var aloblo: u32 = (a_low as u32) * (b_low as u32);
+	var alobhi: u32 = (a_low as u32) * (b_high as u32);
+	var ahiblo: u32 = (a_high as u32) * (b_low as u32);
+	var ahibhi: u32 = (a_high as u32) * (b_high as u32);
+	
+	var res_low_a: u32 = aloblo + (alobhi << 16);
+	var res_high: u32 = ahibhi;
+	
+	if(res_low_a < aloblo) {
+		res_high += 1;
+	}
+	
+	var res_low: u32 = res_low_a + (ahiblo << 16);
+	
+	if(res_low < res_low_a) {
+		res_high += 1;
+	}
+	
+	res_high += (alobhi >> 16) + (ahiblo >> 16);
+	
+	-- memory swizz (shift right 24)
+	var swizz_zone: [8]u8;
+	var swizz_a: &u32 = &swizz_zone as ptr;
+	var swizz_b: &i32 = swizz_a as ptr + 3;
+	
+	sizz_a[0] = res_low;
+	sizz_a[1] = res_high;
+	
+	var result: i32 = *swizz_b;
+	
+	-- correct sign
+	if(negative) {
+		return -result;
+	} else {
+		return result;
+	}
+}
+
+-- returns a / b
+fn divi32(a: i32, b: i32): i32 {
+	if(a == 0) {
+		return 0;
+	}
+	
+	if(b == 0) {
+		return 0;
+	}
+	
+	var negative: u8 = 0;
+	
+	-- use absolute value
+	if(a < 0) {
+		a = -a;
+		negative = !negative;
+	}
+	
+	if(b < 0) {
+		b = -b;
+		negative = !negative;
+	}
+	
+	-- long division
+	var quotient: u32 = 0;
+	var remainder: u32 = 0;
+	var divisor: u32 = b;
+	var dividend: u32 = a;
+	var bits: u16 = 32;
+	
+	-- fast start
+	while((((dividend >> 16) as u16) & 0x8000) == 0) {
+		dividend <<= 1;
+		bits -= 1;
+	}
+	
+	-- division
+	while(bits > 0) {
+		-- shift dividend into remainder
+		var dividend_msb: u16 = ((dividend >> 16) as u16) >> 15;
+		dividend <<= 1;
+		remainder = (remainder << 1) | (dividend_msb as u32);
+		
+		-- can we subtract remainder - divisor
+		quotient <<= 1;
+		
+		if(divisors <= remainder) {
+			-- can subtract, shift 1 into quotient
+			quotient |= 1;
+			remainder -= divisor;
+		} else {
+			-- can't subtract, shift 0 into quotient
+		}
+		
+		bits -= 1;
+	}
+	
+	-- correct sign
+	if(negative) {
+		return -quotient;
+	} else {
+		return quotient;
+	}
+}
+
+define DEPTH: 96;
+define ITERS: 1;
+
+define area_size: 240;
+
+define center_x:	0xffd6b291;
+define center_y:	0x01093d95;
+define region_size:	0x000b851f;
+
+define INTER_STEP: 2;
+define INTER_SHIFT: 1;
+
+fn mandel() {
+	-- palette
+	for(p: u8 = 0; p < DEPTH; p += 1) {
+		var p2: u8 = p * (256 / DEPTH);
+		_gutil.set_color_bytes(p, p2, p2, p2);
+	}
+	
+	var z_x_start: i32;
+	var z_y_start: i32 = center_y + (region_size >> 1);
+	
+	-- Iterate over interlacing
+	for(inter_y: u8 = 0; inter_y < INTER_STEP; inter_y += 1) {
+		for(inter_x: u8 = 0; inter_x < INTER_STEP; inter_x += 1) {
+			var z_x: i32;
+			var z_y: i32 = z_y_start;
+			
+			-- Iterate over pixels
+			for(py: i16 = inter_y as i16; py < area_size; py += INTER_STEP) {
+				z_x = z_x_start;
+				
+				for(px: i16 = inter_x as i16; px < area_size; px += INTER_STEP) {
+					-- compute
+					var x: i32 = 0;
+					var y: i32 = 0;
+					var i: u8 = 0;
+					
+					-- iterate until max depth reached or escaped
+					until(i == (DEPTH - 1)) {
+						var xsqu: i32 = mul824(x, x);
+						var ysqu: i32 = mul824(y, y);
+						
+						if((xsqu + ysqu) as u32 > 0x04_000000) {
+							break;
+						}
+						
+						y = (mul824(x, y) << 1) + z_y;
+						x = (xsqu - ysqu) + z_x;
+						i += 1;
+					}
+					
+					-- plot
+					var pixel_width: i16 = pixel_size_table[((inter_y << 2) + (inter_x << 1)) as u16 + 0];
+					var pixel_height: i16 = pixel_size_table[((inter_y << 2) + (inter_x << 1)) as u16 + 1];
+					_shapes.fill_rect(px, py, pixel_width, pixel_height, i);
+					
+					-- increment
+					z_x += divi32(region_size, area_size) << INTER_SHIFT;
+				}
+				
+				z_y -= divi32(region_size, area_size) << INTER_SHIFT;
+			}
+			
+			-- interlacing
+			z_x_start += divi32(region_size, area_size);
+		}
+		
+		z_y_start -= divi32(region_size, area_size);
+	}
+}
+
+var pixel_size_table: [8]i16 = []i16 {
+	2, 2,
+	1, 2,
+	1, 1,
+	1, 1
+}

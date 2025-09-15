@@ -1,0 +1,107 @@
+
+-- benchmarking badappleplayer
+
+lib _util;
+lib _gutil from "simvideo/gutil";
+lib _badapple;
+
+-- Copy a custom block
+fn ccopy(data: &u8, dest: &u8) {
+	var s: u16 = data[0] as u16;
+	
+	for(i: u16 = 1; i <= s; i += 1) {
+		dest[i - 1] = data[i];
+	}
+}
+
+-- Render a frame
+fn frame(data: &u8, ctable: &u32): &u8 {
+	var datp: u32 = data;
+	var fp: u32 = 0xF0020000;
+	var max: u32 = fp + (320 * 240);
+	
+	while(fp < max) {
+		var first: u8 = *u8 datp;
+		var v: u8 = first & 0xFC;
+		var t: u8 = first & 0x03;
+		
+		if(t == 0) {
+			-- Skip
+			datp += 1;
+			var second: u8 = *u8 datp;
+			fp += (((v as u16) | ((second as u16) << 8)) as u32);
+		} elif(t == 2) {
+			-- Black
+			for(i: u16 = 0; i < (v as u16); i += 4) {
+				*u32 fp = 0;
+				fp += 4;
+			}
+		} elif(t == 3) {
+			-- White
+			for(i: u16 = 0; i < (v as u16); i += 4) {
+				*u32 fp = 0xFFFFFFFF;
+				fp += 4;
+			}
+		} elif(v == 0xFC) {
+			-- Local custom
+			datp += 1;
+			ccopy(datp, fp);
+			var s: u8 = *u8 datp;
+			fp += s as u32;
+			datp += s as u32;
+		} else {
+			-- Global custom
+			var p: u32 = ctable + (v as u32);
+			var d: u32 = *u32 p;
+			ccopy(d, fp);
+			fp += (*u8 d) as u32;
+		}
+		
+		datp += 1;
+	}
+	
+	return datp;
+}
+
+var x: u32 = 0xD7;
+
+{-
+ - Example block comment
+ -}
+fn main() {
+	-- make the RTC vector point to an IRET
+	var p: u32 = 12 * 4;
+	*u32 p = &x;
+	
+	-- Setup colors
+	for(i: u16 = 0; i < 0xFF; i += 1) {
+		var c: u32 = ((i as u32) << 16) | (((i << 8) | i) as u32);
+		_gutil.set_color(i as u8, c);
+	}
+	
+	var cwp: u32 = &_badapple.colorWhite;
+	var cbp: u32 = &_badapple.colorBlack;
+	
+	_gutil.set_color(0x00, 0x00000000);	-- black
+	_gutil.set_color(*u8 cbp, 0x00000000);
+	_gutil.set_color(0xFF, 0xFFFFFFFF);	-- white
+	_gutil.set_color(*u8 cwp, 0xFFFFFFFF);
+	
+	var dp: u32 = &_badapple.f0;
+	
+	for(f: u16 = 0; f < 6571; f += 1) {
+		_util.buffer_screen();
+		dp = frame(dp, &_badapple.customRegionTable);
+		_util.unbuffer_screen();
+		
+		--dp += 1;
+		
+		-- RTC set to 1/30 s period
+		_util.halt();
+	}
+	
+	-- end nicely
+	while(true) {
+		_util.halt();
+	}
+}

@@ -313,7 +313,7 @@ public class ConstantParser {
                 ParseUtils.ensureTypesMatch(expectedType, t, requireNotNone, node, ALOG, "from typed value" + ASTUtil.detailed(node));
                 
                 // Get value
-                long v = ParseUtils.parseInteger(children.get(1).getValue(), 0, false);
+                long v = ASTUtil.parseInteger(children.get(1).getValue(), 0, false);
                 
                 // Return it
                 TypedRaw tr = new TypedRaw(new ResolvableConstant(v), (RawType) t);
@@ -356,7 +356,7 @@ public class ConstantParser {
             
             case NstlgrammarLexer.ID.TERMINAL_INTEGER: {
                 // Integer literal
-                long v = ParseUtils.parseInteger(children.get(0).getValue(), expectedType.getSize(), false);
+                long v = ASTUtil.parseInteger(children.get(0).getValue(), expectedType.getSize(), false);
                 ParseUtils.ensureTypesMatch(expectedType, RawType.NONE, requireNotNone, node, ALOG, "from integer literal");
                 TypedRaw tr = new TypedRaw(new ResolvableConstant(v), RawType.NONE);
                 LOG.finest("Got integer literal " + tr);

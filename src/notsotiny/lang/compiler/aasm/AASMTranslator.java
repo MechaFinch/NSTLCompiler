@@ -178,7 +178,7 @@ public class AASMTranslator {
                                 (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.CMOVWCC_RIM : Opcode.CMOVCC_RIM,
                                 translateArg(inst.getDestination(), true, false, sourceFunction),
                                 translateArg(inst.getSource(), true, false, sourceFunction),
-                                meta.condition.toJCCOpcode().getOp(),
+                                meta.condition.toJCCOpcode().getOp() & 0x0F,
                                 false
                             ));
                             break;

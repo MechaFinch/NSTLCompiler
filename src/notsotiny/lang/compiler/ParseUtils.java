@@ -105,43 +105,4 @@ public class ParseUtils {
             throw new CompilationException();
         }
     }
-    
-    /**
-     * Parse integer literals
-     * 
-     * @param s
-     * @return
-     */
-    public static long parseInteger(String s, int bytes, boolean signed) {
-        long v;
-        
-        // Ignore underscores
-        s = s.replace("_", "");
-        
-        // Parse with specified base
-        if(s.startsWith("0x")) {
-            v = Integer.parseUnsignedInt(s.substring(2), 16);
-        } else if(s.startsWith("0o")) {
-            v = Integer.parseUnsignedInt(s.substring(2), 8);
-        } else if(s.startsWith("0d")) {
-            v = Integer.parseUnsignedInt(s.substring(2));
-        } else if(s.startsWith("0b")) {
-            v = Integer.parseUnsignedInt(s.substring(2), 2);
-        } else {
-            v = Integer.parseUnsignedInt(s);
-        }
-        
-        // Make desired size
-        if(bytes != 0) {
-            if(signed) {
-                // sign extend
-                v = (v << (64 - bytes*8)) >> (64 - bytes*8);
-            } else {
-                // truncate
-                v = (v << (64 - bytes*8)) >>> (64 - bytes*8);
-            }
-        }
-        
-        return v;
-    }
 }

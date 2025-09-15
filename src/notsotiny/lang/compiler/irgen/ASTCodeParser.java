@@ -303,7 +303,7 @@ public class ASTCodeParser {
                     case NstlgrammarLexer.ID.TERMINAL_OP_GREATER_EQUAL  -> signed ? IRCondition.GE : IRCondition.AE;
                     case NstlgrammarLexer.ID.TERMINAL_OP_LESS           -> signed ? IRCondition.L : IRCondition.B;
                     case NstlgrammarLexer.ID.TERMINAL_OP_LESS_EQUAL     -> signed ? IRCondition.LE : IRCondition.BE;
-                    default -> throw new IllegalStateException(); // unreachable
+                    default -> throw new IllegalStateException("Unreachable");
                 };
                 
                 // Make instruction
