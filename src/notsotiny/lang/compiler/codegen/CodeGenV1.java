@@ -1,7 +1,6 @@
 package notsotiny.lang.compiler.codegen;
 
 import java.io.BufferedOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,15 +9,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.MissingResourceException;
 import java.util.Set;
 import java.util.logging.Logger;
 
-import notsotiny.asm.Assembler.AssemblyObject;
-import notsotiny.asm.components.Component;
-import notsotiny.asm.components.InitializedData;
-import notsotiny.asm.resolution.ResolvableConstant;
-import notsotiny.asm.resolution.ResolvableValue;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.aasm.AASMPart;
 import notsotiny.lang.compiler.aasm.AASMPrinter;
@@ -28,11 +21,8 @@ import notsotiny.lang.compiler.codegen.alloc.RegisterAllocator;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGBuilder;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGNode;
-import notsotiny.lang.compiler.codegen.dag.ISelDAGProducerNode;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGRenderer;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGTile;
-import notsotiny.lang.compiler.codegen.pattern.ISelPattern;
-import notsotiny.lang.compiler.codegen.pattern.ISelPatternCompiler;
 import notsotiny.lang.compiler.codegen.pattern.ISelPatternMatcher;
 import notsotiny.lang.compiler.codegen.pretransform.ISelPretransformConditionalArguments;
 import notsotiny.lang.compiler.codegen.pretransform.ISelPretransformer;
@@ -45,10 +35,16 @@ import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRModule;
 import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
-import notsotiny.lang.ir.util.IRPrinter;
 import notsotiny.lang.ir.util.IRUtil;
 import notsotiny.lib.data.Pair;
 import notsotiny.lib.printing.StreamPrinter;
+import notsotiny.nstasm.asmparts.ASMConstant;
+import notsotiny.nstasm.asmparts.ASMInitializedData;
+import notsotiny.nstasm.asmparts.ASMLabel;
+import notsotiny.nstasm.asmparts.ASMObject;
+import notsotiny.nstasm.asmparts.ASMReference;
+import notsotiny.nstasm.asmparts.ASMReference.ReferenceType;
+import notsotiny.nstasm.asmparts.ASMValue;
 
 public class CodeGenV1 implements CodeGenerator {
     
@@ -61,10 +57,8 @@ public class CodeGenV1 implements CodeGenerator {
     private boolean showRAIGUncolored = false;
     private boolean showRAIGColored = false;
     private boolean outputAbstractToFile = false;
-    private boolean outputFinalToFile = false;
     
     private Path abstractOutputDirectory = null;
-    private Path finalOutputDirectory = null;
     
     // Transformations
     private static List<ISelPretransformer> pretransformers;
@@ -76,15 +70,11 @@ public class CodeGenV1 implements CodeGenerator {
     }
 
     @Override
-    public AssemblyObject generate(IRModule module) throws CompilationException {
+    public ASMObject generate(IRModule module) throws CompilationException {
         
-        // Convert from Path to File because I love technical debt 
-        HashMap<File, String> libraryFilesMap = new HashMap<>();
-        module.getLibraryFileMap().forEach((p, n) -> libraryFilesMap.put(p.toFile(), n));
-        
-        // Parts filled out by code generation
-        List<Component> assemblyComponents = new ArrayList<>();             // List of assembly Components
-        HashMap<String, Integer> assemblyLabelIndexMap = new HashMap<>();   // Maps label name to index in assemblyComponents
+        // Object filled out by code generation
+        ASMObject asmObj = new ASMObject(module.getName());
+        module.getLibraryFileMap().forEach((p, n) -> asmObj.addLibraryMapping(p, n));
         
         // pre-register allocation AASM so we can output 1 file per module instead of 1 file per function
         Map<IRIdentifier, List<List<AASMPart>>> abstractResults = new HashMap<>();
@@ -174,7 +164,7 @@ public class CodeGenV1 implements CodeGenerator {
             }
             
             // Convert to assembly components
-            AASMTranslator.translate(new AllocationResult(bestCode, bestResult.stackAllocationSize(), bestResult.usedCalleeSavedRegisters()), assemblyComponents, assemblyLabelIndexMap, function);
+            AASMTranslator.translate(new AllocationResult(bestCode, bestResult.stackAllocationSize(), bestResult.usedCalleeSavedRegisters()), asmObj, function);
         }
         
         // Output abstract assembly to file if needed
@@ -194,7 +184,7 @@ public class CodeGenV1 implements CodeGenerator {
         
         // Convert globals to assembly components
         for(IRGlobal g : module.getGlobals().values()) {
-            assemblyLabelIndexMap.put(g.getID().getName(), assemblyComponents.size());
+            asmObj.addComponent(new ASMLabel(g.getID().getName()));
             
             // Are we dealing with a single type or multiple
             boolean hasSingleType = true;
@@ -217,54 +207,38 @@ public class CodeGenV1 implements CodeGenerator {
             
             if(hasSingleType) {
                 // Single type. Collect into 1 InitializedData
-                List<ResolvableValue> values = new ArrayList<>();
+                List<ASMValue> values = new ArrayList<>();
                 
                 for(IRValue v : g.getContents()) {
                     if(v instanceof IRConstant c) {
-                        values.add(new ResolvableConstant(c.getValue()));
+                        values.add(new ASMConstant(c.getValue()));
                     } else {
-                        values.add(new ResolvableConstant(((IRIdentifier) v).getName()));
+                        values.add(new ASMReference(((IRIdentifier) v).getName(), ReferenceType.NORMAL));
                     }
                 }
                 
-                assemblyComponents.add(new InitializedData(values, firstType.getSize()));
+                asmObj.addComponent(new ASMInitializedData(values, firstType.getSize()));
             } else {
                 // Multiple types. One InitializedData per item
                 for(IRValue v : g.getContents()) {
-                    ResolvableValue rv;
+                    ASMValue rv;
                     IRType type;
                     
                     if(v instanceof IRConstant c) {
-                        rv = new ResolvableConstant(c.getValue());
+                        rv = new ASMConstant(c.getValue());
                         type = c.getType();
                     } else {
-                        rv = new ResolvableConstant(((IRIdentifier) v).getName());
+                        rv = new ASMReference(((IRIdentifier) v).getName(), ReferenceType.NORMAL);
                         type = IRType.I32;
                     }
                     
-                    assemblyComponents.add(new InitializedData(List.of(rv), type.getSize()));
+                    asmObj.addComponent(new ASMInitializedData(List.of(rv), type.getSize()));
                 }
             }
         }
         
         // Done!
-        AssemblyObject ao = new AssemblyObject(assemblyComponents, assemblyLabelIndexMap, module.getName(), libraryFilesMap, new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>());
-        
-        // Output concrete assembly to file if needed
-        if(this.outputFinalToFile) {
-            // Get name, trim extension
-            String sourceFileName = module.getSourceFile().getFileName().toString();
-            sourceFileName = sourceFileName.substring(0, sourceFileName.lastIndexOf("."));
-            Path outputFile = this.finalOutputDirectory.resolve(sourceFileName + ".asm");
-            
-            LOG.info("Writing generated assembly to " + outputFile);
-            
-            try(BufferedOutputStream bos = new BufferedOutputStream(Files.newOutputStream(outputFile))) {
-                ao.print(bos);
-            } catch(IOException e) {}
-        }
-        
-        return ao;
+        return asmObj;
     }
 
     @Override
@@ -280,10 +254,4 @@ public class CodeGenV1 implements CodeGenerator {
         this.abstractOutputDirectory = directory;
     }
 
-    @Override
-    public void setFinalOutput(boolean output, Path directory) {
-        this.outputFinalToFile = output;
-        this.finalOutputDirectory = directory;
-    }
-    
 }

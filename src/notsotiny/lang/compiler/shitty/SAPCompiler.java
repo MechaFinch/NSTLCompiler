@@ -43,6 +43,15 @@ import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.sim.ops.Opcode;
 import notsotiny.sim.ops.Operation;
 
+/**
+ * First version of the compiler
+ * This compiler is fully deprecated, as it
+ * - is missing features
+ * - produces incorrect results in some cases
+ * - is no longer compatible with the CLI frontend
+ * - is just bad in general
+ * 
+ */
 public class SAPCompiler implements NSTCompiler {
     
     private static Logger LOG = Logger.getLogger(SAPCompiler.class.getName());

@@ -1,27 +1,21 @@
 package notsotiny.lang.compiler;
 
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Logger;
 
-import asmlib.lex.symbols.Symbol;
-import asmlib.token.Tokenizer;
 import asmlib.util.FileLocator;
 import asmlib.util.relocation.ExecWriter;
 import asmlib.util.relocation.RenameableRelocatableObject;
@@ -29,20 +23,22 @@ import fr.cenotelie.hime.redist.ASTNode;
 import fr.cenotelie.hime.redist.ParseError;
 import fr.cenotelie.hime.redist.ParseResult;
 import fr.cenotelie.hime.redist.parsers.InitializationException;
-import notsotiny.asm.Assembler;
-import notsotiny.asm.Assembler.AssemblyObject;
 import notsotiny.lang.compiler.codegen.CodeGenV1;
 import notsotiny.lang.compiler.codegen.CodeGenerator;
-import notsotiny.lang.compiler.codegen.EmptyCodeGenerator;
 import notsotiny.lang.compiler.compilers.IRCompiler;
 import notsotiny.lang.compiler.irgen.IRGenV1;
 import notsotiny.lang.compiler.irgen.IRGenerator;
 import notsotiny.lang.compiler.optimization.IROptV1;
 import notsotiny.lang.compiler.optimization.IROptimizationLevel;
 import notsotiny.lang.compiler.optimization.IROptimizer;
-import notsotiny.lang.compiler.shitty.SAPCompiler;
 import notsotiny.lang.parser.NstlgrammarLexer;
 import notsotiny.lang.parser.NstlgrammarParser;
+import notsotiny.lib.printing.StreamPrinter;
+import notsotiny.nstasm.AssemblyException;
+import notsotiny.nstasm.AssemblyOptions;
+import notsotiny.nstasm.NSTAssembler;
+import notsotiny.nstasm.asmparts.ASMObject;
+import notsotiny.nstasm.asmparts.ASMPrinter;
 
 public class NSTLCompiler {
     
@@ -238,7 +234,9 @@ public class NSTLCompiler {
             return;
         }
         
-        List<AssemblyObject> compiledObjects = new ArrayList<>();
+        AssemblyOptions asmOptions = new AssemblyOptions(true, true, debug, entry, standardDir, 8);
+        
+        List<ASMObject> compiledObjects = new ArrayList<>();
         List<RenameableRelocatableObject> assembledObjects = new ArrayList<>();
         
         Map<String, Path> libraryNameMap = new HashMap<>();
@@ -317,7 +315,6 @@ public class NSTLCompiler {
                             
                             yield new IRCompiler(generator, optimizer, codegen);
                         }
-                        case "shit" -> new SAPCompiler();
                         default     -> throw new IllegalArgumentException("Unknown compiler: " + compilerName);
                     };
                     
@@ -348,7 +345,7 @@ public class NSTLCompiler {
                         
                         try {
                             // Compile!
-                            AssemblyObject obj = comp.compile(root, libname, locator, workingFile);
+                            ASMObject obj = comp.compile(root, libname, locator, workingFile);
                             
                             // output AssemblyObject if applicable
                             if(hasFASMOutputDir) {
@@ -358,13 +355,14 @@ public class NSTLCompiler {
                                 LOG.info("Writing final assembly to " + fasmOutputFile);
                                 
                                 try(BufferedOutputStream bos = new BufferedOutputStream(Files.newOutputStream(fasmOutputFile))) {
-                                    obj.print(bos);
+                                    StreamPrinter filePrinter = new StreamPrinter(bos);
+                                    ASMPrinter.printObject(filePrinter, obj);
                                 } catch(IOException e) {}
                             }
                             
-                            compiledObjects.add(obj);
+                            assembledObjects.add(NSTAssembler.assembleObject(obj, asmOptions));
                             libraryNameMap.put(libname, workingFile);
-                        } catch(CompilationException e) {
+                        } catch(CompilationException | AssemblyException e) {
                             errorsEncountered = true;
                         } catch(IllegalStateException e) {
                             LOG.severe(e.getMessage());
@@ -375,13 +373,13 @@ public class NSTLCompiler {
                 
                 case ".asm":
                     // assemble
-                    try(BufferedReader br = Files.newBufferedReader(workingFile)) {
-                        List<Symbol> symbols = Assembler.lexer.lex(Tokenizer.tokenize(br.lines().toList()));
-                        RenameableRelocatableObject obj = Assembler.assembleObjectFromSource(symbols, workingFile, locator, true);
-                        
+                    try {
+                        RenameableRelocatableObject obj = NSTAssembler.assembleFile(workingFile, locator, asmOptions);
                         assembledObjects.add(obj);
                         libraryNameMap.put(obj.getName(), workingFile);
-                    } catch(Exception e) {
+                    } catch(AssemblyException e) {
+                        errorsEncountered = true;
+                    } catch(IOException e) {
                         LOG.severe("Exception while assembling " + workingFile);
                         e.printStackTrace();
                         errorsEncountered = true;
@@ -402,13 +400,17 @@ public class NSTLCompiler {
             }
         }
         
+        // assemble compiled stuff
+        LOG.fine("Assembling compiled objects");
+        try {
+            assembledObjects.addAll(NSTAssembler.assembleObjects(compiledObjects, asmOptions));
+        } catch(AssemblyException e) {
+            errorsEncountered = true;
+        }
+        
         if(errorsEncountered) {
             throw new IllegalStateException("Encountered errors during file processing. See severe logs above.");
         }
-        
-        // assemble compiled stuff
-        LOG.fine("Assembling compiled objects");
-        assembledObjects.addAll(Assembler.assemble(compiledObjects, true));
         
         // unify names
         LOG.fine("Unifying library names");

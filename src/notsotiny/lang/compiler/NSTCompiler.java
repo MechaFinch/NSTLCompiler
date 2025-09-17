@@ -4,7 +4,7 @@ import java.nio.file.Path;
 
 import asmlib.util.FileLocator;
 import fr.cenotelie.hime.redist.ASTNode;
-import notsotiny.asm.Assembler.AssemblyObject;
+import notsotiny.nstasm.asmparts.ASMObject;
 
 /**
  * AST goes in code comes out
@@ -13,9 +13,9 @@ import notsotiny.asm.Assembler.AssemblyObject;
  */
 public interface NSTCompiler {
     
-    public AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) throws CompilationException;
+    public ASMObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator) throws CompilationException;
     
-    public default AssemblyObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator, Path sourcePath) throws CompilationException {
+    public default ASMObject compile(ASTNode astRoot, String defaultLibName, FileLocator locator, Path sourcePath) throws CompilationException {
         return compile(astRoot, defaultLibName, locator);
     }
     

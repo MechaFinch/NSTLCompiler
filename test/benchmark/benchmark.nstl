@@ -7,6 +7,8 @@
 --	1,042,397,939									original
 --    961,684,560	 387,508,236	 574,176,324	ISA update
 --    895,929,275	 334,554,024	 561,375,251	Use wide compares
+--    908,169,006    346,793,755     561,375,251	Pre-assembler change
+--    893,023,672    331,648,166     561,375,506	Post-assembler change
 --
 
 library _badappleplayer;

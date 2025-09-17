@@ -1,20 +1,22 @@
 package notsotiny.lang.compiler.aasm;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
 import notsotiny.sim.Register;
-import notsotiny.asm.components.Component;
-import notsotiny.asm.components.Instruction;
-import notsotiny.asm.resolution.ResolvableConstant;
-import notsotiny.asm.resolution.ResolvableLocationDescriptor;
-import notsotiny.asm.resolution.ResolvableMemory;
-import notsotiny.asm.resolution.ResolvableLocationDescriptor.LocationType;
 import notsotiny.lang.compiler.codegen.alloc.AllocationResult;
 import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRType;
+import notsotiny.nstasm.asmparts.ASMArgument;
+import notsotiny.nstasm.asmparts.ASMComponent;
+import notsotiny.nstasm.asmparts.ASMConstant;
+import notsotiny.nstasm.asmparts.ASMInstruction;
+import notsotiny.nstasm.asmparts.ASMLabel;
+import notsotiny.nstasm.asmparts.ASMObject;
+import notsotiny.nstasm.asmparts.ASMReference;
+import notsotiny.nstasm.asmparts.ASMReference.ReferenceType;
+import notsotiny.nstasm.asmparts.ASMMemory;
 import notsotiny.sim.ops.Opcode;
 
 /**
@@ -29,38 +31,32 @@ public class AASMTranslator {
      * @param assemblyComponents
      * @param assemblyLabelIndexMap
      */
-    public static void translate(AllocationResult allocRes, List<Component> assemblyComponents, HashMap<String, Integer> assemblyLabelIndexMap, IRFunction sourceFunction) {
+    public static void translate(AllocationResult allocRes, ASMObject asmObj, IRFunction sourceFunction) {
         // Create prologue
-        assemblyLabelIndexMap.put(sourceFunction.getID().getName(), assemblyComponents.size());
+        asmObj.addComponent(new ASMLabel(sourceFunction.getID().getName()));
         
         // Base pointer
-        assemblyComponents.add(new Instruction(
-            Opcode.PUSHW_BP,
-            true
-        ));
-        assemblyComponents.add(new Instruction(
+        asmObj.addComponent(new ASMInstruction(Opcode.PUSHW_BP));
+        asmObj.addComponent(new ASMInstruction(
             Opcode.MOVW_RIM,
-            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.BP),
-            new ResolvableLocationDescriptor(LocationType.REGISTER, Register.SP),
-            true
+            ASMArgument.REG_BP,
+            ASMArgument.REG_SP
         ));
         
         // Stack slots
         if(allocRes.stackAllocationSize() > 0) {
-            if(allocRes.stackAllocationSize() < 0x80) {
+            if(allocRes.stackAllocationSize() < 0x100) {
                 // Fits in I8 -> shortcut
-                assemblyComponents.add(new Instruction(
+                asmObj.addComponent(new ASMInstruction(
                     Opcode.SUBW_SP_I8,
-                    new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(allocRes.stackAllocationSize())),
-                    false, true
+                    new ASMArgument(new ASMConstant(allocRes.stackAllocationSize()), 1)
                 ));
             } else {
                 // Doesn't fit -> no shortcut
-                assemblyComponents.add(new Instruction(
+                asmObj.addComponent(new ASMInstruction(
                     Opcode.SUBW_RIM,
-                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.SP),
-                    new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(allocRes.stackAllocationSize())),
-                    false
+                    ASMArgument.REG_SP,
+                    new ASMArgument(new ASMConstant(allocRes.stackAllocationSize()), 0)
                 ));
             }
         }
@@ -68,70 +64,70 @@ public class AASMTranslator {
         // Push callee-saved registers  if needed
         Set<Register> toSave = allocRes.usedCalleeSavedRegisters(); 
         if(toSave.contains(Register.JI)) {
-            assemblyComponents.add(new Instruction(Opcode.PUSHW_JI, true));
+            asmObj.addComponent(new ASMInstruction(Opcode.PUSHW_JI));
         } else {
             if(toSave.contains(Register.I)) {
-                assemblyComponents.add(new Instruction(Opcode.PUSH_I, true));
+                asmObj.addComponent(new ASMInstruction(Opcode.PUSH_I));
             }
             
             if(toSave.contains(Register.J)) {
-                assemblyComponents.add(new Instruction(Opcode.PUSH_J, true));
+                asmObj.addComponent(new ASMInstruction(Opcode.PUSH_J));
             }
         }
         
         if(toSave.contains(Register.LK)) {
-            assemblyComponents.add(new Instruction(Opcode.PUSHW_LK, true));
+            asmObj.addComponent(new ASMInstruction(Opcode.PUSHW_LK));
         } else {
             if(toSave.contains(Register.K)) {
-                assemblyComponents.add(new Instruction(Opcode.PUSH_K, true));
+                asmObj.addComponent(new ASMInstruction(Opcode.PUSH_K));
             }
             
             if(toSave.contains(Register.L)) {
-                assemblyComponents.add(new Instruction(Opcode.PUSH_L, true));
+                asmObj.addComponent(new ASMInstruction(Opcode.PUSH_L));
             }
         }
         
         if(toSave.contains(Register.XP)) {
-            assemblyComponents.add(new Instruction(Opcode.PUSHW_XP, true));
+            asmObj.addComponent(new ASMInstruction(Opcode.PUSHW_XP));
         }
         
         if(toSave.contains(Register.YP)) {
-            assemblyComponents.add(new Instruction(Opcode.PUSHW_YP, true));
+            asmObj.addComponent(new ASMInstruction(Opcode.PUSHW_YP));
         }
         
         // Create epilogue, which replaces RET
-        List<Component> epilogue = new ArrayList<>();
+        List<ASMComponent> epilogue = new ArrayList<>();
         
         // Pop callee-saved registers if needed
         if(toSave.contains(Register.YP)) {
-            epilogue.add(new Instruction(Opcode.POPW_YP, true));
+            epilogue.add(new ASMInstruction(Opcode.POPW_YP));
         }
         
         if(toSave.contains(Register.XP)) {
-            epilogue.add(new Instruction(Opcode.POPW_XP, true));
+            epilogue.add(new ASMInstruction(Opcode.POPW_XP));
         }
         
         if(toSave.contains(Register.LK)) {
-            epilogue.add(new Instruction(Opcode.POPW_LK, true));
+            epilogue.add(new ASMInstruction(Opcode.POPW_LK));
         } else {
             if(toSave.contains(Register.L)) {
-                epilogue.add(new Instruction(Opcode.POP_L, true));
+                epilogue.add(new ASMInstruction(Opcode.POP_L));
             }
             
             if(toSave.contains(Register.K)) {
-                epilogue.add(new Instruction(Opcode.POP_K, true));
+                epilogue.add(new ASMInstruction(Opcode.POP_K));
             }
         }
         
         if(toSave.contains(Register.JI)) {
-            epilogue.add(new Instruction(Opcode.POPW_JI, true));
+            epilogue.add(new ASMInstruction(Opcode.POPW_JI));
         } else {
             if(toSave.contains(Register.J)) {
-                epilogue.add(new Instruction(Opcode.POP_J, true));
+                epilogue.add(new ASMInstruction(Opcode.POP_J));
             }
             
             if(toSave.contains(Register.I)) {
-                epilogue.add(new Instruction(Opcode.POP_I, true));
+                epilogue.add(new ASMInstruction(Opcode.POP_I));
             }
         }
         
@@ -139,25 +135,22 @@ public class AASMTranslator {
         if(allocRes.stackAllocationSize() > 0) {
             if(allocRes.stackAllocationSize() < 0x80) {
                 // Fits in I8 -> shortcut
-                epilogue.add(new Instruction(
+                epilogue.add(new ASMInstruction(
                     Opcode.ADDW_SP_I8,
-                    new ResolvableLocationDescriptor(LocationType.IMMEDIATE, 1, new ResolvableConstant(allocRes.stackAllocationSize())),
-                    false, true
+                    new ASMArgument(new ASMConstant(allocRes.stackAllocationSize()), 1)
                 ));
             } else {
                 // Doesn't fit -> no shortcut
-                epilogue.add(new Instruction(
+                epilogue.add(new ASMInstruction(
                     Opcode.ADDW_RIM,
-                    new ResolvableLocationDescriptor(LocationType.REGISTER, Register.SP),
-                    new ResolvableLocationDescriptor(LocationType.IMMEDIATE, -1, new ResolvableConstant(allocRes.stackAllocationSize())),
-                    false
+                    new ASMArgument(new ASMConstant(allocRes.stackAllocationSize()), 0)
                 ));
             }
         }
         
         // Base pointer
-        epilogue.add(new Instruction(Opcode.POPW_BP, true));
-        epilogue.add(new Instruction(Opcode.RET, true));
+        epilogue.add(new ASMInstruction(Opcode.POPW_BP));
+        epilogue.add(new ASMInstruction(Opcode.RET));
         
         // Translate each part
         for(AASMPart part : allocRes.allocatedCode()) {
@@ -169,54 +162,57 @@ public class AASMTranslator {
                     switch(meta.op) {
                         // Special cases
                         case RET:
-                            assemblyComponents.addAll(epilogue);
+                            asmObj.addComponents(epilogue);
                             break;
                         
                         case CMOV:
                             // CMOVCC needs its condition as an EI8
-                            assemblyComponents.add(new Instruction(
+                            asmObj.addComponent(new ASMInstruction(
                                 (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.CMOVWCC_RIM : Opcode.CMOVCC_RIM,
-                                translateArg(inst.getDestination(), true, false, sourceFunction),
-                                translateArg(inst.getSource(), true, false, sourceFunction),
-                                meta.condition.toJCCOpcode().getOp() & 0x0F,
-                                false
+                                translateArg(inst.getDestination(), true, false, false, sourceFunction),
+                                translateArg(inst.getSource(), true, false, false, sourceFunction),
+                                new ASMConstant(meta.condition.toJCCOpcode().getOp() & 0x0F)
                             ));
                             break;
                         
                         case CALL, JMP, JCC:
                             // Inferred link sizes
-                            assemblyComponents.add(new Instruction(
+                            asmObj.addComponent(new ASMInstruction(
                                 op,
-                                translateArg(inst.getSource(), true, true, sourceFunction),
-                                false, false
+                                translateArg(inst.getSource(), true, true, false, sourceFunction)
                             ));
                             break;
                         
                         // One argument (destination)
                         case POP, INC, ICC, DEC, DCC, NOT, NEG:
-                            assemblyComponents.add(new Instruction(
+                            asmObj.addComponent(new ASMInstruction(
                                 op,
-                                translateArg(inst.getDestination(), true, false, sourceFunction),
-                                true, false
+                                translateArg(inst.getDestination(), true, false, false, sourceFunction)
                             ));
                             break;
                             
                         // One argument (source)
-                        case PUSH, CALLA, JMPA:
-                            assemblyComponents.add(new Instruction(
+                        case CALLA, JMPA:
+                            asmObj.addComponent(new ASMInstruction(
                                 op,
-                                translateArg(inst.getSource(), true, false, sourceFunction),
-                                false, false
+                                translateArg(inst.getSource(), true, false, false, sourceFunction)
+                            ));
+                            break;
+                            
+                        case PUSH:
+                            // Push needs its size specified
+                            asmObj.addComponent(new ASMInstruction(
+                                op,
+                                translateArg(inst.getSource(), true, false, true, sourceFunction)
                             ));
                             break;
                         
                         // Two argument
                         default:
-                            assemblyComponents.add(new Instruction(
+                            asmObj.addComponent(new ASMInstruction(
                                 op,
-                                translateArg(inst.getDestination(), true, false, sourceFunction),
-                                translateArg(inst.getSource(), true, false, sourceFunction),
-                                false
+                                translateArg(inst.getDestination(), true, false, false, sourceFunction),
+                                translateArg(inst.getSource(), true, false, false, sourceFunction)
                             ));
                             break;
                     }
@@ -225,7 +221,7 @@ public class AASMTranslator {
                 
                 case AASMLabel lbl: {
                     // Label
-                    assemblyLabelIndexMap.put(lbl.acName(sourceFunction.getID().getName()), assemblyComponents.size());
+                    asmObj.addComponent(new ASMLabel(lbl.acName(sourceFunction.getID().getName())));
                     break;
                 }
                 
@@ -240,27 +236,16 @@ public class AASMTranslator {
      * @param arg
      * @return
      */
-    private static ResolvableLocationDescriptor translateArg(AASMPart arg, boolean signed, boolean inferLink, IRFunction sourceFunction) {
+    private static ASMArgument translateArg(AASMPart arg, boolean signed, boolean inferLink, boolean includeSize, IRFunction sourceFunction) {
         switch(arg) {
             case AASMCompileConstant cc:
-                return new ResolvableLocationDescriptor(
-                    LocationType.IMMEDIATE,
-                    cc.type().getSize(),
-                    new ResolvableConstant(signed ? cc.signedLongValue() : cc.unsignedLongValue())
-                );
+                return new ASMArgument(new ASMConstant(signed ? cc.signedLongValue() : cc.unsignedLongValue()), includeSize ? cc.type().getSize() : 0);
             
             case AASMLinkConstant lc:
-                return new ResolvableLocationDescriptor(
-                    LocationType.IMMEDIATE,
-                    inferLink ? -1 : 4,
-                    new ResolvableConstant(lc.acName(sourceFunction.getID().getName()))
-                );
+                return new ASMArgument(new ASMReference(lc.acName(sourceFunction.getID().getName()), inferLink ? ReferenceType.RELATIVE_CURRENT : ReferenceType.NORMAL), inferLink ? 0 : 4);
             
             case AASMMachineRegister mr:
-                return new ResolvableLocationDescriptor(
-                    LocationType.REGISTER,
-                    mr.reg()
-                );
+                return ASMArgument.fromReg(mr.reg());
             
             case AASMMemory mem: {
                 Register base = translateMemReg(mem.getBase()),
@@ -273,27 +258,14 @@ public class AASMTranslator {
                 
                 // Compile constant and link constant handled differently
                 if(mem.getOffset() instanceof AASMCompileConstant cc) {
-                    return new ResolvableLocationDescriptor(
-                        LocationType.MEMORY,
-                        mem.getType().getSize(),
-                        new ResolvableMemory(
-                            base,
-                            index,
-                            scale,
-                            cc.signedValue()
-                        )
-                    );
+                    return new ASMArgument(new ASMMemory(
+                        base, index, new ASMConstant(scale), new ASMConstant(cc.signedLongValue())
+                    ), mem.getType().getSize());
                 } else {
-                    return new ResolvableLocationDescriptor(
-                        LocationType.MEMORY,
-                        mem.getType().getSize(),
-                        new ResolvableMemory(
-                            base,
-                            index,
-                            scale,
-                            new ResolvableConstant(((AASMLinkConstant) mem.getOffset()).acName(sourceFunction.getID().getName()))
-                        )
-                    );
+                    return new ASMArgument(new ASMMemory(
+                        base, index, new ASMConstant(scale),
+                        new ASMReference(((AASMLinkConstant) mem.getOffset()).acName(sourceFunction.getID().getName()), ReferenceType.NORMAL)
+                    ), mem.getType().getSize());
                 }
             }
             

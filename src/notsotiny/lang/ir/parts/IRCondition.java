@@ -28,7 +28,6 @@ public enum IRCondition {
      * @return
      */
     public boolean conditionTrue(IRConstant left, IRConstant right) {
-        IRType t = left.getType();
         int signedL = left.getValue();
         int signedR = right.getValue();
         long unsignedL = left.getUnsignedValue();
