@@ -1,8 +1,19 @@
 #entry benchmark.main
-out\benchmark.obj
+out\stdio_files.obj
+out\handlers.obj
+out\os.obj
+out\fakeos.obj
 out\util.obj
 out\gutil.obj
 out\badappleplayer.obj
+out\pgutil.obj
 out\mandel.obj
+out\ptext.obj
+out\ivt.obj
+out\sieve.obj
+out\benchmark.obj
+out\pdma.obj
+out\terminal.obj
+out\queens.obj
 out\badapple.obj
 out\shapes.obj

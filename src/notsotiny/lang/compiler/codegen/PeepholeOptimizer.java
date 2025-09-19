@@ -217,6 +217,7 @@ public class PeepholeOptimizer {
         AASMInstructionMeta m1 = peepMeta.get(1);
         
         //LOG.finest("O2: " + i0 + "; " + i1);
+        // TODO: MOV X, Y; MOV X, Z
         
         if(m0.op == AASMOperation.MOV && m1.op == AASMOperation.MOV) {
             // MOV ?, ?
@@ -473,11 +474,11 @@ public class PeepholeOptimizer {
                 
                 // If z smaller than y, use lower half of y
                 Register newSource = offsMap.get(meta.sourceOffset),
-                         oldDest = ((AASMMachineRegister) oldInst.getDestination()).reg(); 
+                         oldDest = oldInst.getDestination() == null ? Register.NONE : ((AASMMachineRegister) oldInst.getDestination()).reg(); 
                 
-                if(oldDest.size() < newSource.size()) {
+                if(oldDest != Register.NONE && oldDest.size() < newSource.size()) {
                     newSource = MachineRegisters.lowerHalf(newSource);
-                } else if(oldDest.size() != newSource.size() && !meta.op.allowsHalfRegisterSource()) {
+                } else if(oldDest != Register.NONE && oldDest.size() != newSource.size() && !meta.op.allowsHalfRegisterSource()) {
                     LOG.severe("Attempted to move " + newSource + " to " + oldDest + " from " + oldInst);
                     throw new IllegalStateException();
                 }

@@ -7,25 +7,11 @@ function main of none begin
 
 end function
 
-function test1 of u16 a, u16 b returns u16 begin
-	call fa with 1, 2;
-	call fb with 3;
-	call fc with none;
+function test1 of u16 a, u16 b, u16 c returns u16 begin
+	if (a > b) or not (b < c) then
+		return 69;
+	end if
+
+	return ((a + b) - c * (a + b)) / c;
 end function
 
-function fa of u8 a, u8 b returns u8 begin
-	while a < b do
-		b gets b - 1;
-		a gets a + 3;
-	end while
-	
-	return a + b;
-end function
-
-function fb of u8 a returns none begin
-
-end function
-
-function fc of none returns none begin
-
-end function

@@ -1,0 +1,132 @@
+
+library _gutil from "simvideo/gutil";
+
+-- 
+-- Benchmarking: 8-Queens
+--
+
+define pixel_size is 3;
+
+function queens of none begin
+	-- bitboards for current board state
+	variable queen_board is u8 array size 8;	-- 1 = queen there
+	variable valid_board is u8 array size 8;	-- 1 = queen can't go there
+	
+	call _gutil.set_color with 0x00, 0x000000;
+	call _gutil.set_color with 0xFF, 0xFFFFFF;
+	call _gutil.clear_screen with 0x00;
+	
+	variable total is u8 array size 1;
+	
+	for i is u16 gets 0x01; i < 0x100; i gets i + 0x02 do
+		call reset_board with to queen_board;
+		call reset_board with to valid_board;
+		total index 0 gets 0;
+		
+		call enumerate with to queen_board, to valid_board, 0, to total, i as u8;
+	end for
+end function
+
+-- Enumerate boards from current state
+function enumerate of u8 pointer queen_board, u8 pointer valid_board, u16 row, u8 pointer total_found, u8 c begin
+	-- are we in final state
+	if row >= 8 then
+		-- yes. Display board
+		call display_board with queen_board, at total_found, c;
+		at total_found gets (at total_found) + 1;
+		return;
+	end if
+	
+	-- No. Iterate valid queens in row and recurse
+	for i is u8 gets 0; i < 8; i gets i + 1 do
+		variable candidate is u8 gets 1 << i;
+		
+		if ((valid_board index row) and candidate) = 0 then
+			-- A queen can go here. Place it
+			queen_board index row gets candidate;
+			
+			-- Board to modify
+			variable new_valid_board is u8 array size 8;
+			
+			call copy_board with valid_board, to new_valid_board;
+			
+			-- Mark invalid
+			for j is u8 gets 1; ((row as u8) + j) < 8; j gets j + 1 do
+				new_valid_board index row + (j as u16) gets (new_valid_board index row + (j as u16)) or (call mask with i, j);
+			end for
+			
+			-- Recurse
+			call enumerate with queen_board, to new_valid_board, row + 1, total_found, c;
+		end if
+	end for
+end function
+
+-- Get the mask for row j below with queen in column i
+function mask of i8 i, i8 j returns u8 begin
+	variable m is u8 gets 1 << i;
+	
+	if (i + j) < 8 then
+		m gets m or (1 << (i + j));
+	end if
+	
+	if (i - j) >= 0 then
+		m gets m or (1 << (i - j));
+	end if
+	
+	return m;
+end function
+
+-- Display a board with given index
+function display_board of u8 pointer bb, u8 i, u8 c begin
+	constant board_width is u16 gets pixel_size * 8;
+	constant total_width is u16 gets board_width + 1;
+	
+	-- Find spot on screen corresponding to i
+	variable px is u16 gets (i as u16) * total_width;
+	variable py is u16 gets 0;
+	
+	while px > (320 - board_width) do
+		px gets px - (total_width * (320 / total_width));
+		py gets py + total_width;
+	end while
+	
+	-- Display bitboard there
+	for y is u16 gets 0; y < board_width; y gets y + 1 do
+		for x is u16 gets 0; x < board_width; x gets x + 1 do
+			-- Is there a queen here
+			variable bx is u16 gets x / pixel_size;
+			variable by is u16 gets y / pixel_size;
+			
+			if ((bb index by) and (1 << (bx as u8))) != 0 then
+				call pixel with px + x, py + y, c;
+			end if
+		end for
+	end for
+	
+	-- Outline bitboard
+	for i is u16 gets 0; i <= board_width; i gets i + 1 do
+		call pixel with px + board_width, py + i, c;
+		call pixel with px + i, py + board_width, c;
+	end for
+end function
+
+-- Plot a pixel
+function pixel of u16 x, u16 y, u8 c begin
+	variable screen is u8 pointer gets 0xF002_0000;
+	screen index ((y as u32) * 320) + (x as u32) gets c;
+end function
+
+-- Reset bitboard
+function reset_board of u8 pointer board begin
+	variable bb is u32 pointer gets board as ptr;
+	bb index 0 gets 0;
+	bb index 1 gets 0;
+end function
+
+-- Copy b1 to b2
+function copy_board of u8 pointer b1, u8 pointer b2 begin
+	variable bb1 is u32 pointer gets b1 as ptr;
+	variable bb2 is u32 pointer gets b2 as ptr;
+	bb2 index 0 gets bb1 index 0;
+	bb2 index 1 gets bb1 index 1;
+end function

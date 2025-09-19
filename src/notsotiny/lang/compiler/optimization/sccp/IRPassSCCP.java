@@ -202,7 +202,7 @@ public class IRPassSCCP implements IROptimizationPass {
         // Use the results of SCCP to optimize
         // Substitute constants
         for(Entry<IRIdentifier, SCCPLatticeElement> latticeEntry : lattice.entrySet()) {
-            if(latticeEntry.getValue().getType() != Type.BOTTOM) {
+            if(latticeEntry.getValue().getType() != Type.BOTTOM && latticeEntry.getKey().getIDClass() == IRIdentifierClass.LOCAL) {
                 if(LOG.isLoggable(Level.FINEST)) {
                     LOG.finest("Replacing " + latticeEntry.getKey() + " with " + latticeEntry.getValue());
                 }
@@ -266,11 +266,11 @@ public class IRPassSCCP implements IROptimizationPass {
                 IRIdentifier trueSuccID = bbExit.getTrueTargetBlock();
                 IRIdentifier falseSuccID = bbExit.getFalseTargetBlock();
                 
-                if(trueSuccID != null) {
+                if(func.getBasicBlock(trueSuccID) != null) {
                     func.getBasicBlock(trueSuccID).removePredecessor(bb.getID());
                 }
                 
-                if(falseSuccID != null) {
+                if(func.getBasicBlock(falseSuccID) != null) {
                     func.getBasicBlock(falseSuccID).removePredecessor(bb.getID());
                 }
                 
@@ -298,6 +298,7 @@ public class IRPassSCCP implements IROptimizationPass {
                 
                 // Remove
                 func.removeBasicBlock(bb.getID());
+                i--;
             }
         }
         

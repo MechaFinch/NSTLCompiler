@@ -66,14 +66,26 @@ public class ISelPretransformConditionalArguments implements ISelPretransformer 
         
         // Move original target to new BB
         newBB.setExitInstruction(new IRBranchInstruction(IRBranchOperation.JMP, target, mapping, bb, branch.getSourceLineNumber()));
+        newBB.addPredecessor(bb.getID());
+        
+        IRBasicBlock targetBlock = function.getBasicBlock(target);
+        targetBlock.addPredecessor(newID);
         
         // Retarget to new BB
         if(isTrue) {
             branch.setTrueTargetBlock(newID);
             branch.setTrueArgumentMapping(new IRArgumentMapping());
+            
+            if(!branch.getFalseTargetBlock().equals(target)) {
+                targetBlock.removePredecessor(bb.getID());
+            }
         } else {
             branch.setFalseTargetBlock(newID);
             branch.setFalseArgumentMapping(new IRArgumentMapping());
+            
+            if(!branch.getTrueTargetBlock().equals(target)) {
+                targetBlock.removePredecessor(bb.getID());
+            }
         }
     }
     

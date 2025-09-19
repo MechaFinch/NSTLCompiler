@@ -68,10 +68,6 @@ end function
 variable x is u32 gets 0xD7;
 
 function main of none begin
-	-- make the RTC vector point to an IRET
-	variable p is u32 gets 12 * 4;
-	(u32 at p) gets to x;
-	
 	-- Setup colors
 	for i is u16 gets 0; i < 0xFF; i gets i + 1 do
 		variable c is u32 gets ((i as u32) << 16) or (((i << 8) or i) as u32);
@@ -92,15 +88,5 @@ function main of none begin
 		call _util.buffer_screen with none;
 		dp gets (call frame with dp, to _badapple.customRegionTable);
 		call _util.unbuffer_screen with none;
-		
-		--dp gets dp + 1;
-		
-		-- RTC set to 1/30 s period
-		--call _util.halt with none;
 	end for
-	
-	-- end nicely
-	--while true do
-	--	call _util.halt with none;
-	--end while
 end function

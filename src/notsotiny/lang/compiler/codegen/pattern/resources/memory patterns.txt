@@ -91,7 +91,7 @@ term_out_mems:
 ################################
 
 prod_trunc_mems:
-	(I8 TRUNC (<x> load_i8))	-> "MOV <out>, <x><low>" |
+	(I8 TRUNC (<x> load_i16))	-> "MOV <out>, <x><low>" |
 	(I8 TRUNC (<x> load_i32))	-> "MOV <out>, <x><low><low>" |
 	(I16 TRUNC (<x> load_i32))	-> "MOV <out>, <x><low>" ;
 
@@ -345,7 +345,7 @@ prod_neg_mems:
 prod_push_mems:
 	(I8 PUSH (<x> load_i8))		-> "PUSH <x><i8>" |
 	(I16 PUSH (<x> load_i16))	-> "PUSH <x><i16>" |
-	(I32 PUSH (<x> load_i32))	-> "PUSH <x><i32>" ;	
+	(I32 PUSH (<x> load_i32))	-> "PUSH <x><i32>" ;
 
 
 

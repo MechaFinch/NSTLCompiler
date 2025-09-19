@@ -186,19 +186,20 @@ public class ISelPatternCompiler {
                 
                 List<ASTNode> args = children.get(i).getChildren();
                 
-                if(op == ISelDAGPatternOperation.LOCAL) {
+                if(op == ISelDAGPatternOperation.LOCAL || op == ISelDAGPatternOperation.ARG) {
+                    
                     // argument should be a single identifier
                     if(args.size() != 1) {
-                        throw new IllegalArgumentException("Expected identifier for LOCAL, got " + args);
+                        throw new IllegalArgumentException("Expected identifier for " + op + ", got " + args);
                     }
                     
                     ASTNode id = args.get(0);
                     
                     if(id.getSymbol().getID() != IselPatternLexer.ID.TERMINAL_IDENTIFIER) {
-                        throw new IllegalArgumentException("Expected identifier for LOCAL, got " + ASTUtil.detailed(id));
+                        throw new IllegalArgumentException("Expected identifier for " + op + ", got " + ASTUtil.detailed(id));
                     }
                     
-                    return new ISelPatternNodeLocal(id.getValue(), type);
+                    return op == ISelDAGPatternOperation.LOCAL ? new ISelPatternNodeLocal(id.getValue(), type) : new ISelPatternNodeArgument(id.getValue(), type);
                 } else if(op == ISelDAGPatternOperation.CONSTANT) {
                     // argument should be a single number or single identifier
                     if(args.size() != 1) {

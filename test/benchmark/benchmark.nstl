@@ -3,34 +3,53 @@
 -- Runs some processing intensive programs
 --
 -- Performance History
---	total			mandel			badapple
---	1,042,397,939									original
---    961,684,560	 387,508,236	 574,176,324	ISA update
---    895,929,275	 334,554,024	 561,375,251	Use wide compares
---    908,169,006    346,793,755     561,375,251	Pre-assembler change
---    893,023,672    331,648,166     561,375,506	Post-assembler change
+--	total            mandel         sieve          queens         badapple
+--	1,042,397,939                                                                original
+--    961,684,560    387,508,236                                  574,176,324    ISA update
+--    895,929,275    334,554,024                                  561,375,251    Use wide compares
+--    893,023,672    331,648,166                                  561,375,506    Assembler change
+--    894,400,759    333,295,064                                  561,105,695    Args in isel patterns
+--  1,229,979,278    323,307,211    127,617,756    217,948,599    561,105,712    New benchmarks
+--  1,245,654,583    338,446,332    127,617,748    218,484,791    561,105,712    Liveness sets fix
 --
+
+library _os from "fakeos/os";
 
 library _badappleplayer;
 library _mandel;
-library _util;
+library _queens;
+library _sieve;
 
 external function _badappleplayer.main of none;
 external function _mandel.mandel of none;
+external function _queens.queens of none;
+external function _sieve.sieve of none;
 
 variable hcf is ptr gets -1;
 
 variable iret is u8 gets 0xD7;
-variable nmi is u32 pointer gets 4;
+variable nmi is u32 pointer gets 1 * 4;
+variable rtc is u32 pointer gets 12 * 4;
 
 function main of none begin
 	at nmi gets to iret;
+	at rtc gets to iret;
+	
+	-- init os
+	call _os.init with 0x0800_0000, 0x0010_0000;
 
 	-- run benchmarks
 	call _mandel.mandel with none;
-	call _util.halt with none;
+	call _os.defer with none;
+	
+	call _sieve.sieve with none;
+	call _os.defer with none;
+	
+	call _queens.queens with none;
+	call _os.defer with none;
 	
 	call _badappleplayer.main with none;
+	call _os.defer with none;
 	
 	-- halt and catch fire
 	call hcf with none;

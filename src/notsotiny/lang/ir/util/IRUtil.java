@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import notsotiny.lang.ir.parts.IRArgumentList;
@@ -267,7 +268,9 @@ public class IRUtil {
         glsPartialLivenessDFS(function.getEntryBlock().getID(), argAssignmentsAreLiveOut, livenessSetMap, new HashSet<>(), function, listToMap(dfsOrderList), dfsAncestryMap);
         
         // Propagate liveness through loops
+        //LOG.info(loopNestingForest.getRoots() + "");
         for(TreeNode<IRIdentifier> loopHeaderNode : loopNestingForest.getRoots()) {
+            //loopHeaderNode.logTree(LOG, Level.FINEST);
             glsPropagateLoops(loopHeaderNode, livenessSetMap, function);
         }
         
@@ -497,7 +500,7 @@ public class IRUtil {
      * @return
      */
     public static UnionFindForest<IRIdentifier> getLoopNestingForest(IRFunction function, List<IRIdentifier> dfsOrderList, Map<Integer, Integer> dfsAncestryMap) {
-        UnionFindForest<IRIdentifier> forest= new UnionFindForest<>();
+        UnionFindForest<IRIdentifier> forest = new UnionFindForest<>();
         
         // Initialize forest with BBs
         for(IRBasicBlock bb : function.getBasicBlockList()) {
@@ -508,6 +511,9 @@ public class IRUtil {
         // Construct map from ID to list index
         Map<IRIdentifier, Integer> dfsIndexMap = listToMap(dfsOrderList);
         
+        //LOG.finest(dfsAncestryMap + "");
+        //LOG.finest(dfsIndexMap + "");
+        
         // Go in reverse order
         List<IRIdentifier> dfsReverseList = new ArrayList<>(dfsOrderList);
         Collections.reverse(dfsReverseList);
@@ -515,8 +521,6 @@ public class IRUtil {
             // findLoop
             getLNFFindLoop(bbID, forest, dfsIndexMap, dfsAncestryMap, function);
         }
-        
-        // 
         
         return forest;
     }

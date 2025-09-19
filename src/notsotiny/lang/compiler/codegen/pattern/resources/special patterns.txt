@@ -1,3 +1,30 @@
 
 # Special Patterns
 # Special cases as patterns
+
+# Truncated division
+prod_div_truc:
+    (I8 TRUNC
+        (I16 DIVU
+            (I16 LOCAL <x>)
+            (I16 ZX (I8 LOCAL <y>))))   -> "MOV <tmp16_0>, <x>; DIVM <tmp16_0>, <y>; MOV <out>, <tmp16_0><low>" |
+    (I8 TRUNC
+        (I16 DIVS
+            (I16 LOCAL <x>)
+            (I16 SX (I8 LOCAL <y>))))   -> "MOV <tmp16_0>, <x>; DIVMS <tmp16_0>, <y>; MOV <out>, <tmp16_0><low>" |
+    (I8 TRUNC
+        (I32 DIVU
+            (I32 LOCAL <x>)
+            (I32 ZX (I16 LOCAL <y>))))  -> "MOV <tmp32_0>, <x>; DIVM <tmp32_0>, <y>; MOV <out>, <tmp32_0><low><low>" |
+    (I8 TRUNC
+        (I32 DIVS
+            (I32 LOCAL <x>)
+            (I32 SX (I16 LOCAL <y>))))  -> "MOV <tmp32_0>, <x>; DIVMS <tmp32_0>, <y>; MOV <out>, <tmp32_0><low><low>" |
+    (I16 TRUNC
+        (I32 DIVU
+            (I32 LOCAL <x>)
+            (I32 ZX (I16 LOCAL <y>))))  -> "MOV <tmp32_0>, <x>; DIVM <tmp32_0>, <y>; MOV <out>, <tmp32_0><low>" |
+    (I16 TRUNC
+        (I32 DIVS
+            (I32 LOCAL <x>)
+            (I32 SX (I16 LOCAL <y>))))  -> "MOV <tmp32_0>, <x>; DIVMS <tmp32_0>, <y>; MOV <out>, <tmp32_0><low>" ;

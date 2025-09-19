@@ -76,7 +76,8 @@ public class ISelPatternMatcher {
                     "patterns basic.txt",
                     "memory patterns.txt",
                     "constant patterns.txt",
-                    //"special patterns.txt",
+                    "argument patterns.txt",
+                    "special patterns.txt",
                     "" // placeholder to allow trailing comma
             );
             
@@ -600,6 +601,7 @@ public class ISelPatternMatcher {
             
             // Verify that at least one tile matched
             if(matchingTiles.size() == 0) {
+                // Nothing matched
                 // log some debug info
                 IRBasicBlock sourceBB = dag.getBasicBlock();
                 IRFunction sourceFunction = sourceBB.getFunction();
@@ -652,7 +654,7 @@ public class ISelPatternMatcher {
             // Matched!
             LOG.finest("Pattern match succeeded");
             
-            List<ISelDAGTile> rawTiles = doConversions(matchData, new HashMap<>(), typeMap);
+            List<ISelDAGTile> rawTiles = doConversions(matchData, new HashMap<>(), typeMap, node.getDAG().getBasicBlock().getFunction());
             
             // Verification
             List<ISelDAGTile> validTiles = new ArrayList<>();
@@ -850,6 +852,25 @@ public class ISelPatternMatcher {
                 }
             }
             
+            case ISelPatternNodeArgument argNode: {
+                // Argument.
+                if(dagNode instanceof ISelDAGProducerNode prod && prod.getOperation() == ISelDAGProducerOperation.ARG) {
+                     // Check types
+                    if(argNode.getType() == IRType.NONE || argNode.getType() == prod.getProducedType()) {
+                        // Match!
+                        matchData.matchMap().put(argNode.getIdentifier(), prod);
+                        matchData.coveredNodes().add(prod);
+                        return true;
+                    } else {
+                        LOG.finest("Match failed: Wrong type");
+                        return false;
+                    }
+                } else {
+                    LOG.finest("Match failed: Not an argument");
+                    return false;
+                }
+            }
+            
             case ISelPatternNodeConstant constNode: {
                 // Constant. Must be a VALUE node
                 if(dagNode instanceof ISelDAGProducerNode prod && prod.getOperation() == ISelDAGProducerOperation.VALUE) {
@@ -868,7 +889,7 @@ public class ISelPatternMatcher {
                             matchData.matchMap().put(constNode.getIdentifier(), prod);
                         }
                         
-                        matchData.coveredNodes().add(dagNode);
+                        matchData.coveredNodes().add(prod);
                         return true;
                     } else {
                         LOG.finest("Match failed: Wrong type");
@@ -974,7 +995,7 @@ public class ISelPatternMatcher {
      * @param typeMap
      * @return
      */
-    private static List<ISelDAGTile> doConversions(ISelMatchData match, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap) {
+    private static List<ISelDAGTile> doConversions(ISelMatchData match, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap, IRFunction sourceFunction) {
         if(LOG.isLoggable(Level.FINEST)) {
             LOG.finest("Performing conversions for " + match.pattern().getDescription());
         }
@@ -994,7 +1015,7 @@ public class ISelPatternMatcher {
             List<List<ISelDAGTile>> subpatConversionList = new ArrayList<>(subpat.getValue().size());
             
             for(ISelMatchData subpatMatch : subpat.getValue()) {
-                subpatConversionList.add(doConversions(subpatMatch, tmpMap, typeMap));
+                subpatConversionList.add(doConversions(subpatMatch, tmpMap, typeMap, sourceFunction));
             }
             
             subpatternConversions.put(subpat.getKey(), subpatConversionList);
@@ -1008,7 +1029,7 @@ public class ISelPatternMatcher {
         List<ISelDAGTile> conversions = new ArrayList<>();
         
         for(Map<String, ISelDAGTile> subpatternResults : subpatternPermutations) {
-            ISelDAGTile tile = doConversion(match, subpatternResults, tmpMap, typeMap);
+            ISelDAGTile tile = doConversion(match, subpatternResults, tmpMap, typeMap, sourceFunction);
             
             if(tile != null) {
                 conversions.add(tile);
@@ -1034,7 +1055,7 @@ public class ISelPatternMatcher {
      * @param typeMap
      * @return
      */
-    private static ISelDAGTile doConversion(ISelMatchData match, Map<String, ISelDAGTile> subpatternResults, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap) {
+    private static ISelDAGTile doConversion(ISelMatchData match, Map<String, ISelDAGTile> subpatternResults, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap, IRFunction sourceFunction) {
         List<AASMPart> parts = new ArrayList<>();
         Set<ISelDAGNode> coveredNodes = new HashSet<>(match.coveredNodes());
         Set<ISelDAGNode> inputNodes = new HashSet<>(match.inputNodes());
@@ -1048,7 +1069,7 @@ public class ISelPatternMatcher {
         try {
             // Convert AASM parts
             for(AASMPart patternPart : match.pattern().getTemplate()) {
-                parts.add(convertPart(patternPart, match, subpatternResults, tmpMap, typeMap));
+                parts.add(convertPart(patternPart, match, subpatternResults, tmpMap, typeMap, sourceFunction));
             }
             
             return new ISelDAGTile(match.matchRoot(), coveredNodes, inputNodes, parts, match);
@@ -1068,7 +1089,7 @@ public class ISelPatternMatcher {
      * @param typeMap Types of temporaries are added to the map
      * @return
      */
-    private static AASMPart convertPart(AASMPart part, ISelMatchData match, Map<String, ISelDAGTile> subpatternResults, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap) throws CompilationException {
+    private static AASMPart convertPart(AASMPart part, ISelMatchData match, Map<String, ISelDAGTile> subpatternResults, Map<String, IRIdentifier> tmpMap, Map<IRIdentifier, IRType> typeMap, IRFunction sourceFunction) throws CompilationException {
         //LOG.finest("Converting " + part);
         
         switch(part) {
@@ -1084,11 +1105,11 @@ public class ISelPatternMatcher {
                 
                 // If source/dest exist, convert them
                 if(patDest != null) {
-                    resDest = convertPart(patDest, match, subpatternResults, tmpMap, typeMap);
+                    resDest = convertPart(patDest, match, subpatternResults, tmpMap, typeMap, sourceFunction);
                 }
                 
                 if(patSource != null) {
-                    resSource = convertPart(patSource, match, subpatternResults, tmpMap, typeMap);
+                    resSource = convertPart(patSource, match, subpatternResults, tmpMap, typeMap, sourceFunction);
                 }
                 
                 // Build output instruction
@@ -1164,6 +1185,17 @@ public class ISelPatternMatcher {
                                 // Local. Grab info from producer.
                                 ISelDAGProducerNode prodRef = (ISelDAGProducerNode) referencedMatch.matchMap().get(refID);
                                 return new AASMAbstractRegister(prodRef.getProducedName(), prodRef.getProducedType(), half, high);
+                            }
+                            
+                            case ISelPatternNodeArgument _: {
+                                // Argument. Construct [BP + <arg pos>]
+                                ISelDAGProducerNode prodRef = (ISelDAGProducerNode) referencedMatch.matchMap().get(refID);
+                                return new AASMMemory(
+                                    new AASMMachineRegister(Register.BP),
+                                    null, null,
+                                    new AASMCompileConstant(sourceFunction.getArguments().getBPOffset(prodRef.getProducedName())),
+                                    prodRef.getProducedType()
+                                );
                             }
                             
                             case ISelPatternNodeConstant _: {
@@ -1247,7 +1279,7 @@ public class ISelPatternMatcher {
                 // or all parts
                 
                 if(patMem.getIndex() == null) {
-                    base = convertPart(patMem.getBase(), match, subpatternResults, tmpMap, typeMap);
+                    base = convertPart(patMem.getBase(), match, subpatternResults, tmpMap, typeMap, sourceFunction);
                     
                     if(base instanceof AASMCompileConstant || base instanceof AASMLinkConstant) {
                         offset = base;
@@ -1255,10 +1287,10 @@ public class ISelPatternMatcher {
                     }
                 } else {
                     // All availabe
-                    base = convertPart(patMem.getBase(), match, subpatternResults, tmpMap, typeMap);
-                    index = convertPart(patMem.getIndex(), match, subpatternResults, tmpMap, typeMap);
-                    scale = convertPart(patMem.getScale(), match, subpatternResults, tmpMap, typeMap);
-                    offset = convertPart(patMem.getOffset(), match, subpatternResults, tmpMap, typeMap);
+                    base = convertPart(patMem.getBase(), match, subpatternResults, tmpMap, typeMap, sourceFunction);
+                    index = convertPart(patMem.getIndex(), match, subpatternResults, tmpMap, typeMap, sourceFunction);
+                    scale = convertPart(patMem.getScale(), match, subpatternResults, tmpMap, typeMap, sourceFunction);
+                    offset = convertPart(patMem.getOffset(), match, subpatternResults, tmpMap, typeMap, sourceFunction);
                 }
                 
                 // If index includes scale, unpack it
@@ -1274,7 +1306,7 @@ public class ISelPatternMatcher {
             
             case AASMPatternIndex idx: {
                 // Index. Convert index, copy scale
-                AASMPart index = convertPart(idx.index(), match, subpatternResults, tmpMap, typeMap);
+                AASMPart index = convertPart(idx.index(), match, subpatternResults, tmpMap, typeMap, sourceFunction);
                 return new AASMPatternIndex(index, idx.scale());
             }
             

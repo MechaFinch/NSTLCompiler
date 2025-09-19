@@ -17,10 +17,10 @@ import notsotiny.lib.util.ASTLogger;
  */
 public class ParseUtils {
     
-    public static final TypedRaw TRUE_TR = new TypedRaw(new ResolvableConstant(1), RawType.NONE),
+    public static final TypedRaw TRUE_TR = new TypedRaw(new ResolvableConstant(-1), RawType.NONE),
                                  FALSE_TR = new TypedRaw(new ResolvableConstant(0), RawType.NONE);
     
-    public static final IRValue TRUE_IR = new IRConstant(1, IRType.NONE),
+    public static final IRValue TRUE_IR = new IRConstant(-1, IRType.NONE),
                                 FALSE_IR = new IRConstant(0, IRType.NONE);
     
     /**

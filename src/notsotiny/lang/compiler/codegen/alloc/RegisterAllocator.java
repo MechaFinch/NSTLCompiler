@@ -660,7 +660,6 @@ public class RegisterAllocator {
         // It either misses things biased coloring catches, or causes extra spills
         
         Set<Register> biased = EnumSet.noneOf(Register.class);
-        
         for(RAMove move : node.getMoves()) {
             RAIGNode src = move.source().getAlias();
             RAIGNode dst = move.destination().getAlias();

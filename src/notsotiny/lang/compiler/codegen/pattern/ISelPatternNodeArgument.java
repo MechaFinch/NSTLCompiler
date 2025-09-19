@@ -3,9 +3,9 @@ package notsotiny.lang.compiler.codegen.pattern;
 import notsotiny.lang.ir.parts.IRType;
 
 /**
- * An ISelPatternNode that represents an 'input' to the tile
+ * An IselPatternNode that represents a function argument
  */
-public class ISelPatternNodeLocal extends ISelPatternNode {
+public class ISelPatternNodeArgument extends ISelPatternNode {
     
     private String identifier;
     
@@ -15,7 +15,7 @@ public class ISelPatternNodeLocal extends ISelPatternNode {
      * @param identifier
      * @param type
      */
-    public ISelPatternNodeLocal(String identifier, IRType type) {
+    public ISelPatternNodeArgument(String identifier, IRType type) {
         this.identifier = identifier;
         this.type = type;
     }
@@ -25,7 +25,7 @@ public class ISelPatternNodeLocal extends ISelPatternNode {
     
     @Override
     public String toString() {
-        return "(" + this.type + " LOCAL " + this.identifier + ")";
+        return "(" + this.type + " ARG " + this.identifier + ")";
     }
     
 }

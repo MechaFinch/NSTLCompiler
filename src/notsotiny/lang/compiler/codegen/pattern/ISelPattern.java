@@ -52,7 +52,6 @@ public class ISelPattern {
      * Recursively fills out the pattern map
      * @param node
      */
-    @SuppressWarnings("unused") // type switches require variable names even if you don't use them
     private void fillPatternMap(ISelPatternNode node) {
         switch(node) {
             case ISelPatternNodeNode nn:
@@ -71,6 +70,10 @@ public class ISelPattern {
                 this.subpatternMap.put(loc.getIdentifier(), loc);
                 break;
                 
+            case ISelPatternNodeArgument arg:
+                this.subpatternMap.put(arg.getIdentifier(), arg);
+                break;
+                
             case ISelPatternNodeConstant con:
                 if(con.isWildcard()) {
                     this.subpatternMap.put(con.getIdentifier(), con);
@@ -78,7 +81,7 @@ public class ISelPattern {
                 break;
             
                 // no action
-            case ISelPatternNodeReference ref: break;
+            case ISelPatternNodeReference _: break;
             
             default:
                 // Invalid

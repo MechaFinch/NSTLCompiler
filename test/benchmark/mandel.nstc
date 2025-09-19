@@ -9,7 +9,7 @@ var asdf: u8;
 
 -- returns a * b for 8.24 fixed point'
 fn mul824(a: i32, b: i32): i32 {
-	var  negative: u8 = 0;
+	var negative: u8 = 0;
 	
 	-- use absolute value
 	if(a < 0) {

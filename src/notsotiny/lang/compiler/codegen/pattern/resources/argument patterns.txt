@@ -1,0 +1,279 @@
+
+# Argument Patterns
+# Patterns using arguments as operands
+
+###############
+# Terminators #
+###############
+
+term_ret_arg:
+	(RET (I8 ARG <x>))	-> "MOV AL, <x>; RET" |
+	(RET (I16 ARG <x>))	-> "MOV A, <x>; RET" |
+	(RET (I32 ARG <x>))	-> "MOV DA, <x>; RET" ;
+	
+term_out_arg:
+	(OUT (ANY ARG <x>))	-> "MOV <out>, <x>" ;
+
+
+
+#############
+# Producers #
+#############
+
+prod_trunc_arg:
+	(I8 TRUNC (I8 ARG <x>))		-> "MOV <out>, <x><low>" |
+	(I8 TRUNC (I32 ARG <x>))	-> "MOV <out>, <x><low><low>" |
+	(I16 TRUNC (I32 ARG <x>))	-> "MOV <out>, <x><low>" ;
+
+prod_sx_arg:
+	(I16 SX (I8 ARG <x>))	-> "MOVS <out>, <x>" |
+	(I32 SX (I8 ARG <x>))	-> "MOVS <out><low>, <x>; MOVS <out>, <out><low>" |
+	(I32 SX (I16 ARG <x>))	-> "MOVS <out>, <x>" ;
+
+prod_zx_arg:
+	(I16 ZX (I8 ARG <x>))	-> "MOVZ <out>, <x>" |
+	(I32 ZX (I8 ARG <x>))	-> "MOVZ <out><low>, <x>; MOVZ <out>, <out><low>" |
+	(I32 ZX (I16 ARG <x>))	-> "MOVZ <out>, <x>" ;
+
+prod_add_arg:
+	(I8 ADD (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I8 ADD (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I16 ADD (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I16 ADD (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I32 ADD (I32 LOCAL <x>) (I32 ARG <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I32 ADD (I32 CONSTANT <x>) (I32 ARG <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" ;
+
+prod_add_arg:
+	(I8 ADD (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I8 ADD (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I16 ADD (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I16 ADD (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I32 ADD (I32 LOCAL <x>) (I32 ARG <y>))		-> "MOV <out>, <x>; ADD <out>, <y>" |
+	(I32 ADD (I32 CONSTANT <x>) (I32 ARG <y>))	-> "MOV <out>, <x>; ADD <out>, <y>" ;
+
+prod_sub_arg:
+	(I8 SUB (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I8 SUB (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I8 SUB (I8 ARG <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I8 SUB (I8 ARG <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I16 ARG <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I16 SUB (I16 ARG <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I32 SUB (I32 LOCAL <x>) (I32 ARG <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I32 SUB (I32 CONSTANT <x>) (I32 ARG <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I32 SUB (I32 ARG <x>) (I32 LOCAL <y>))		-> "MOV <out>, <x>; SUB <out>, <y>" |
+	(I32 SUB (I32 ARG <x>) (I32 CONSTANT <y>))	-> "MOV <out>, <x>; SUB <out>, <y>" ;
+
+prod_mulu_arg:
+	(I8 MULU (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I8 MULU (I8 CONSTANT <x>) (I8 ARG <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I16 MULU (I16 LOCAL <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I16 MULU (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I32 MULU (I32 ARG <x>) (I32 LOCAL <y>))	-> "
+		MOV <out>, <x>;
+		MOV <tmp16_0>, <out><low>;
+		MULH <out>, <y><low>;
+		MUL <tmp16_0>, <y><high>;
+		ADD <out><high>, <tmp16_0>" |
+	(I32 MULU (I32 ARG <x>) (I32 CONSTANT <y>))	-> "
+		MOV <out>, <x>;
+		MOV <tmp16_0>, <out><low>;
+		MULH <out>, <y><low>;
+		MUL <tmp16_0>, <y><high>;
+		ADD <out><high>, <tmp16_0>" |
+	
+	(I16 MULU (I16 ZX (I8 LOCAL <x>)) (I16 ZX (I8 ARG <y>)))	->
+		"MOV <out><low>, <x>; MULH <out>, <y>" |
+	(I32 MULU (I32 ZX (I16 LOCAL <x>)) (I32 ZX (I16 ARG <y>)))	->
+		"MOV <out><low>, <x>; MULH <out>, <y>" ;
+
+prod_muls_arg:
+	(I8 MULS (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I8 MULS (I8 CONSTANT <x>) (I8 ARG <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I16 MULS (I16 LOCAL <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I16 MULS (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
+	(I32 MULS (I32 ARG <x>) (I32 LOCAL <y>))	-> "
+		MOV <out>, <x>;
+		MOV <tmp16_0>, <out><low>;
+		MULSH <out>, <y><low>;
+		MUL <tmp16_0>, <y><high>;
+		ADD <out><high>, <tmp16_0>" |
+	(I32 MULS (I32 ARG <x>) (I32 CONSTANT <y>))	-> "
+		MOV <out>, <x>;
+		MOV <tmp16_0>, <out><low>;
+		MULSH <out>, <y><low>;
+		MUL <tmp16_0>, <y><high>;
+		ADD <out><high>, <tmp16_0>" |
+	
+	(I16 MULS (I16 ZX (I8 LOCAL <x>)) (I16 ZX (I8 ARG <y>)))	->
+		"MOV <out><low>, <x>; MULSH <out>, <y>" |
+	(I32 MULS (I32 ZX (I16 LOCAL <x>)) (I32 ZX (I16 ARG <y>)))	->
+		"MOV <out><low>, <x>; MULSH <out>, <y>" ;
+
+prod_divu_arg:
+	(I8 DIVU (I8 LOCAL <x>) (I8 ARG <y>))			-> "MOV <out>, <x>; DIV <out>, <y>" |
+	(I8 DIVU (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; DIV <out>, <y>" |
+	(I8 DIVU (I8 ARG <x>) (I8 LOCAL <y>))			-> "MOV <out>, <x>; DIV <out>, <y>" |
+	(I8 DIVU (I8 ARG <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; DIV <out>, <y>" |
+	(I16 DIVU (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; DIV <out>, <y>" |
+	(I16 DIVU (I16 CONSTANT <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; DIV <out>, <y>" |
+	(I16 DIVU (I16 ARG <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; DIV <out>, <y>" |
+	(I16 DIVU (I16 ARG <x>) (I16 CONSTANT <y>))		-> "MOV <out>, <x>; DIV <out>, <y>" ;
+
+prod_divs_arg:
+	(I8 DIVS (I8 LOCAL <x>) (I8 ARG <y>))			-> "MOV <out>, <x>; DIVS <out>, <y>" |
+	(I8 DIVS (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; DIVS <out>, <y>" |
+	(I8 DIVS (I8 ARG <x>) (I8 LOCAL <y>))			-> "MOV <out>, <x>; DIVS <out>, <y>" |
+	(I8 DIVS (I8 ARG <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; DIVS <out>, <y>" |
+	(I16 DIVS (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; DIVS <out>, <y>" |
+	(I16 DIVS (I16 CONSTANT <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; DIVS <out>, <y>" |
+	(I16 DIVS (I16 ARG <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; DIVS <out>, <y>" |
+	(I16 DIVS (I16 ARG <x>) (I16 CONSTANT <y>))		-> "MOV <out>, <x>; DIVS <out>, <y>" ;
+
+prod_remu_arg:
+	(I8 REMU (I8 LOCAL <x>) (I8 ARG <y>))		-> "
+		MOVZ <tmp16_0>, <x>;
+		DIVM <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I8 REMU (I8 CONSTANT <x>) (I8 ARG <y>))	-> "
+		MOVZ <tmp16_0>, <x>;
+		DIVM <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I8 REMU (I8 ARG <x>) (I8 LOCAL <y>))		-> "
+		MOVZ <tmp16_0>, <x>;
+		DIVM <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I8 REMU (I8 ARG <x>) (I8 CONSTANT <y>))	-> "
+		MOVZ <tmp16_0>, <x>;
+		DIVM <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I16 REMU (I16 LOCAL <x>) (I16 ARG <y>))	-> "
+		MOVZ <tmp32_0>, <x>;
+		DIVM <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" |
+	(I16 REMU (I16 CONSTANT <x>) (I16 ARG <y>))	-> "
+		MOVZ <tmp32_0>, <x>;
+		DIVM <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" |
+	(I16 REMU (I16 ARG <x>) (I16 LOCAL <y>))	-> "
+		MOVZ <tmp32_0>, <x>;
+		DIVM <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" |
+	(I16 REMU (I16 ARG <x>) (I16 CONSTANT <y>))	-> "
+		MOVZ <tmp32_0>, <x>;
+		DIVM <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" ;
+
+prod_rems_arg:
+	(I8 REMS (I8 LOCAL <x>) (I8 ARG <y>))		-> "
+		MOVS <tmp16_0>, <x>;
+		DIVMS <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I8 REMS (I8 CONSTANT <x>) (I8 ARG <y>))	-> "
+		MOVS <tmp16_0>, <x>;
+		DIVMS <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I8 REMS (I8 ARG <x>) (I8 LOCAL <y>))		-> "
+		MOVS <tmp16_0>, <x>;
+		DIVMS <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I8 REMS (I8 ARG <x>) (I8 CONSTANT <y>))	-> "
+		MOVS <tmp16_0>, <x>;
+		DIVMS <tmp16_0>, <y>;
+		MOV <out>, <tmp16_0><high>" |
+	(I16 REMS (I16 LOCAL <x>) (I16 ARG <y>))	-> "
+		MOVS <tmp32_0>, <x>;
+		DIVMS <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" |
+	(I16 REMS (I16 CONSTANT <x>) (I16 ARG <y>))	-> "
+		MOVS <tmp32_0>, <x>;
+		DIVMS <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" |
+	(I16 REMS (I16 ARG <x>) (I16 LOCAL <y>))	-> "
+		MOVS <tmp32_0>, <x>;
+		DIVMS <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" |
+	(I16 REMS (I16 ARG <x>) (I16 CONSTANT <y>))	-> "
+		MOVS <tmp32_0>, <x>;
+		DIVMS <tmp32_0>, <y>;
+		MOV <out>, <tmp32_0><high>" ;
+
+prod_shl_arg:
+	(I8 SHL (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; SHL <out>, <y>" |
+	(I8 SHL (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; SHL <out>, <y>" |
+	(I8 SHL (I8 ARG <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SHL <out>, <y>" |
+	(I8 SHL (I8 ARG <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; SHL <out>, <y>" |
+	(I16 SHL (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; SHL <out>, <y>" |
+	(I16 SHL (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; SHL <out>, <y>" |
+	(I16 SHL (I16 ARG <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; SHL <out>, <y>" |
+	(I16 SHL (I16 ARG <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; SHL <out>, <y>" ;
+
+prod_shr_arg:
+	(I8 SHR (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; SHR <out>, <y>" |
+	(I8 SHR (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; SHR <out>, <y>" |
+	(I8 SHR (I8 ARG <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SHR <out>, <y>" |
+	(I8 SHR (I8 ARG <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; SHR <out>, <y>" |
+	(I16 SHR (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; SHR <out>, <y>" |
+	(I16 SHR (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; SHR <out>, <y>" |
+	(I16 SHR (I16 ARG <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; SHR <out>, <y>" |
+	(I16 SHR (I16 ARG <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; SHR <out>, <y>" ;
+
+prod_sar_arg:
+	(I8 SAR (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; SAR <out>, <y>" |
+	(I8 SAR (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; SAR <out>, <y>" |
+	(I8 SAR (I8 ARG <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; SAR <out>, <y>" |
+	(I8 SAR (I8 ARG <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; SAR <out>, <y>" |
+	(I16 SAR (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; SAR <out>, <y>" |
+	(I16 SAR (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; SAR <out>, <y>" |
+	(I16 SAR (I16 ARG <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; SAR <out>, <y>" |
+	(I16 SAR (I16 ARG <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; SAR <out>, <y>" ;
+
+prod_ror_arg:
+	(I8 ROR (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; ROR <out>, <y>" |
+	(I8 ROR (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; ROR <out>, <y>" |
+	(I8 ROR (I8 ARG <x>) (I8 LOCAL <y>))		-> "MOV <out>, <x>; ROR <out>, <y>" |
+	(I8 ROR (I8 ARG <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; ROR <out>, <y>" |
+	(I16 ROR (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; ROR <out>, <y>" |
+	(I16 ROR (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; ROR <out>, <y>" |
+	(I16 ROR (I16 ARG <x>) (I16 LOCAL <y>))		-> "MOV <out>, <x>; ROR <out>, <y>" |
+	(I16 ROR (I16 ARG <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; ROR <out>, <y>" ;
+
+prod_and_arg:
+	(I8 AND (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; AND <out>, <y>" |
+	(I8 AND (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; AND <out>, <y>" |
+	(I16 AND (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; AND <out>, <y>" |
+	(I16 AND (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; AND <out>, <y>" |
+	(I32 AND (I32 ARG <x>) (I32 LOCAL <y>))		-> "MOV <out>, <x>; AND <out><low>, <y><low>; AND <out><high>, <y><high>" |
+	(I32 AND (I32 ARG <x>) (I32 CONSTANT <y>))	-> "MOV <out>, <x>; AND <out><low>, <y><low>; AND <out><high>, <y><high>" ;
+
+prod_or_arg:
+	(I8 OR (I8 LOCAL <x>) (I8 ARG <y>))			-> "MOV <out>, <x>; OR <out>, <y>" |
+	(I8 OR (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; OR <out>, <y>" |
+	(I16 OR (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; OR <out>, <y>" |
+	(I16 OR (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; OR <out>, <y>" |
+	(I32 OR (I32 ARG <x>) (I32 LOCAL <y>))		-> "MOV <out>, <x>; OR <out><low>, <y><low>; OR <out><high>, <y><high>" |
+	(I32 OR (I32 ARG <x>) (I32 CONSTANT <y>))	-> "MOV <out>, <x>; OR <out><low>, <y><low>; OR <out><high>, <y><high>" ;
+
+prod_xor_arg:
+	(I8 XOR (I8 LOCAL <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; XOR <out>, <y>" |
+	(I8 XOR (I8 CONSTANT <x>) (I8 ARG <y>))		-> "MOV <out>, <x>; XOR <out>, <y>" |
+	(I16 XOR (I16 LOCAL <x>) (I16 ARG <y>))		-> "MOV <out>, <x>; XOR <out>, <y>" |
+	(I16 XOR (I16 CONSTANT <x>) (I16 ARG <y>))	-> "MOV <out>, <x>; XOR <out>, <y>" |
+	(I32 XOR (I32 ARG <x>) (I32 LOCAL <y>))		-> "MOV <out>, <x>; XOR <out><low>, <y><low>; XOR <out><high>, <y><high>" |
+	(I32 XOR (I32 ARG <x>) (I32 CONSTANT <y>))	-> "MOV <out>, <x>; XOR <out><low>, <y><low>; XOR <out><high>, <y><high>" ;
+
+prod_not_arg:
+	(I8 NOT (I8 ARG <x>))	-> "MOV <out>, <x>; NOT <out>" |
+	(I16 NOT (I16 ARG <x>))	-> "MOV <out>, <x>; NOT <out>" |
+	(I32 NOT (I32 ARG <x>))	-> "MOV <out>, <x>; NOT <out><low>; NOT <out><high>" ;
+
+prod_neg_arg:
+	(I8 NEG (I8 ARG <x>))	-> "MOV <out>, <x>; NEG <out>" |
+	(I16 NEG (I16 ARG <x>))	-> "MOV <out>, <x>; NEG <out>" |
+	(I32 NEG (I32 ARG <x>))	-> "MOV <out>, <x>; NEG <out><low>; NEG <out><high>" ;
+
+prod_push_arg:
+	(I8 PUSH (I8 ARG <x>))		-> "PUSH <x><i8>" |
+	(I16 PUSH (I16 ARG <x>))	-> "PUSH <x><i16>" |
+	(I32 PUSH (I32 ARG <x>))	-> "PUSH <x><i32>" ;

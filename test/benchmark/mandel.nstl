@@ -144,7 +144,7 @@ define INTER_STEP is 2;
 define INTER_SHIFT is 1;
 
 function mandel of none begin
-	--variable gwuh is i32 gets (call mul824 with 0x01_020408, 0x10_204080); -- 0x10_40C203
+	variable gwuh is i32 gets (call mul824 with 0x01_020408, 0x10_204080); -- 0x10_40C203
 	--call _util.halt with none;
 
 	-- palette

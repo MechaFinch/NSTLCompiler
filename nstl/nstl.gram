@@ -129,7 +129,7 @@ grammar NSTLGrammar {
 		OP_ARITH_SHIFT_RIGHT -> '>>>';
 		OP_LOGIC_SHIFT_RIGHT -> '>>';
 		
-		STRING	-> '"' (. - NEWLINE)* '"';
+		STRING	-> '"' (. - (NEWLINE | '"'))* '"';
 	}
 	
 	rules {

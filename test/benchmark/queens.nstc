@@ -1,0 +1,130 @@
+
+-- 
+-- Benchmarking: 8-Queens
+--
+
+lib _gutil from "simvideo/gutil";
+
+define pixel_size: 3;
+
+fn nqueens(n: u8) {
+	-- bitboards for current board state
+	var queen_board: [8]u8;	-- 1 = queen there
+	var valid_board: [8]u8;	-- 1 = queen can't go there
+	
+	_gutil.clear_screen(0x00);
+	
+	var total: [1]u8;
+	
+	for(i: u16 = 0x01; i < 0x100; i += 0x02) {
+		reset_board(&queen_board);
+		reset_board(&valid_board);
+		total[0] = 0;
+		
+		enumerate(&queen_board, &valid_board, 0, &total, i as u8);
+	}
+}
+
+-- Enumerate boards from current state
+fn enumerate(queen_board: &u8, valid_board: &u8, row: u16, total_found: &u8, c: u8) {
+	-- are we in final state
+	if(row >= 8) {
+		-- yes. Display board.
+		display_board(queen_board, *total_found, c);
+		*total_found += 1;
+		return;
+	}
+	
+	-- No. Iterate valid queens in row and recurse
+	for(i: u8 = 0; i < 8; i += 1) {
+		var candidate: u8 = 1 << i;
+		
+		if((valid_board[row] & candidate) == 0) {
+			-- A queen can go here. Place it
+			queen_board[row] = candidate;
+			
+			-- Board to modify
+			var new_valid_board: [8]u8;
+			
+			copy_board(valid_board, &new_valid_board);
+			
+			-- Mark invalid
+			for(j: u8 = 1; ((row as u8) + j) < 8; j += 1) {
+				valid_board[row + (j as u16)] |= mask(i, j);
+			}
+			
+			-- Recurse
+			enumerate(queen_board, &new_valid_board, row + 1, total_found, c);
+		}
+	}
+}
+
+-- Get the mask for row j below with queen in column i
+fn mask(i: i8, j: i8): u8 {
+	var m: u8 = 1 << i;
+	
+	if((i + j) < 8) {
+		m |= 1 << (i + j);
+	}
+	
+	if((i - j) >= 0) {
+		m |= 1 << (i - j);
+	}
+	
+	return m;
+}
+
+-- Display a board with given index
+fn display_board(bb: &u8, i: u8, c: u8) {
+	const total_width = pixel_size * 9;
+	const board_width = pixel_size * 8;
+	
+	-- Find spot on screen corresponding to i
+	var px: u16 = (i as u16) * total_width;
+	var py: u16 = 0;
+	
+	while(px > (320 - board_width)) {
+		px -= total_width;
+		py += total_width;
+	}
+	
+	-- Display bitboard there
+	for(y: u16 = 0; y < board_width; y += 1) {
+		for(x: u16 = 0; x < board_width; x += 1) {
+			-- is there a queen here
+			var bx: u16 = x / pixel_size;
+			var by: u16 = y / pixel_size;
+			
+			if((bb[by] & (1 << (bx as u8))) != 0) {
+				pixel(px + x, py + y, c);
+			}
+		}
+	}
+	
+	-- Outline bitboard
+	for(i: u16 = 0; i <= board_width; i += 1) {
+		pixel(px + board_width, py + i, c);
+		pixel(px + i, py + board_width, c);
+	}
+}
+
+-- Plot a pixel
+fn pixel(x: u16, y: u16, c: u8) {
+	var screen: &u8 = 0xF002_0000;
+	screen[(y * 320) + x] = c;
+}
+
+-- Reset bitboard
+fn reset_board(board: &u8) {
+	var bb: &u32 = board as ptr;
+	bb[0] = 0;
+	bb[1] = 0;
+}
+
+-- Copy b1 to b2
+fn copy_board(b1: &u8, b2: &u8) {
+	var bb1: &u32 = b1 as ptr;
+	var bb2: &u32 = b2 as ptr;
+	bb2[0] = bb1[0];
+	bb2[1] = bb1[1];
+}
