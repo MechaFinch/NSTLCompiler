@@ -1,11 +1,13 @@
 package notsotiny.lang.compiler.irgen;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import fr.cenotelie.hime.redist.ASTNode;
-import notsotiny.lang.compiler.ParseUtils;
 import notsotiny.lang.compiler.CompilationException;
 import notsotiny.lang.compiler.irgen.context.ASTContextLabel;
 import notsotiny.lang.compiler.irgen.context.ASTContextTree;
@@ -46,6 +48,51 @@ public class CFGParser {
             exitBlock.setExitCode(null, ASTBasicBlock.ExitType.RETURN);
         }
         
+        // Remove unreachable blocks
+        LOG.finer("Eliminating unreachable blocks");
+        Set<ASTBasicBlock> reachable = new HashSet<>();
+        findReachable(entryBlock, reachable);
+        
+        for(int i = 0; i < function.getBasicBlocks().size(); i++) {
+            ASTBasicBlock bb = function.getBasicBlocks().get(i);
+            
+            if(!reachable.contains(bb)) {
+                LOG.finest("Eliminated unreachable block " + bb.getName());
+                
+                if(bb.getTrueSuccessor() != null) {
+                    bb.getTrueSuccessor().removePredecessor(bb);
+                }
+                
+                if(bb.getFalseSuccessor() != null) {
+                    bb.getFalseSuccessor().removePredecessor(bb);
+                }
+                
+                function.getBasicBlocks().remove(i--);
+            }
+        }
+    }
+    
+    /**
+     * Determine which basic blocks are reachable from entry
+     * @param entry
+     * @param reachable
+     */
+    private static void findReachable(ASTBasicBlock entry, Set<ASTBasicBlock> reachable) {
+        if(reachable.contains(entry)) {
+            return;
+        }
+        
+        reachable.add(entry);
+        
+        if(entry.getTrueSuccessor() != null) {
+            //LOG.info(entry.getTrueSuccessor().getName() + " reachable by " + entry.getName());
+            findReachable(entry.getTrueSuccessor(), reachable);
+        }
+        
+        if(entry.getFalseSuccessor() != null) {
+            //LOG.info(entry.getFalseSuccessor().getName() + " reachable by " + entry.getName());
+            findReachable(entry.getFalseSuccessor(), reachable);
+        }
     }
     
     /**
@@ -105,8 +152,15 @@ public class CFGParser {
                     basicBlock.setExitCode(node, ASTBasicBlock.ExitType.RETURN);
                     
                     // Remove successors if present
-                    basicBlock.setTrueSuccessor(null);
-                    basicBlock.setFalseSuccessor(null);
+                    if(basicBlock.getTrueSuccessor() != null) {
+                        basicBlock.getTrueSuccessor().removePredecessor(basicBlock);
+                        basicBlock.setTrueSuccessor(null);
+                    }
+                    
+                    if(basicBlock.getFalseSuccessor() != null) {
+                        basicBlock.getFalseSuccessor().removePredecessor(basicBlock);
+                        basicBlock.setFalseSuccessor(null);
+                    }
                     
                     // This should be the last item in a block
                     if(i < code.size() - 1) {
@@ -498,6 +552,10 @@ public class CFGParser {
             target = context.getEnclosingLabel().getBreakBlock();
         }
         
+        if(parent.getTrueSuccessor() != null) {
+            parent.getTrueSuccessor().removePredecessor(parent);
+        }
+        
         parent.setTrueSuccessor(target);
     }
     
@@ -534,6 +592,10 @@ public class CFGParser {
         } else {
             // No label
             target = context.getEnclosingLabel().getContinueBlock();
+        }
+        
+        if(parent.getTrueSuccessor() != null) {
+            parent.getTrueSuccessor().removePredecessor(parent);
         }
         
         parent.setTrueSuccessor(target);

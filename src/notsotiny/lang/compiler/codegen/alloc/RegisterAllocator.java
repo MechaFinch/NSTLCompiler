@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Random;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -1097,7 +1098,7 @@ public class RegisterAllocator {
                         // Liveness set. Set currentlyLive accordingly
                         if(ls.isDef()) {
                             // Live-in/def
-                            graph.addDefCost(ls.localSet());
+                            //graph.addDefCost(ls.localSet());
                             currentlyLive.addAll(ls.localSet());
                             
                             // For each define, add an edge to each live
@@ -1108,7 +1109,7 @@ public class RegisterAllocator {
                             }
                         } else {
                             // Live-out/use
-                            graph.addUseCost(ls.localSet());
+                            //graph.addUseCost(ls.localSet());
                             
                             currentlyLive.clear();
                             currentlyLive.addAll(ls.localSet());
@@ -1386,6 +1387,7 @@ public class RegisterAllocator {
      */
     private static <T> T get(Set<T> set) {
         return set.iterator().next();
+        //return set.stream().skip(new Random().nextInt(set.size())).findFirst().get();
     }
     
 }

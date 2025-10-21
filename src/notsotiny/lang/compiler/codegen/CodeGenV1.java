@@ -51,7 +51,7 @@ public class CodeGenV1 implements CodeGenerator {
     private static Logger LOG = Logger.getLogger(CodeGenV1.class.getName());
     
     // TODO: tie to optimization level?
-    private static final int ALLOCATION_ITERATIONS = 4;
+    private static final int ALLOCATION_ITERATIONS = 8;
     
     private boolean showISelDAG = false;
     private boolean showRAIGUncolored = false;

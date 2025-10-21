@@ -58,7 +58,7 @@ public class ConstantParser {
                 throw new CompilationException();
             
             case NstlgrammarParser.ID.VARIABLE_REFERENCE: {
-                // TO <string> is a constant
+                // TO <global> is a constant
                 List<ASTNode> children = node.getChildren();
                 if(children.size() == 2 &&
                    children.get(0).getSymbol().getID() == NstlgrammarLexer.ID.TERMINAL_KW_TO) {                    
@@ -71,6 +71,10 @@ public class ConstantParser {
                         
                         if(module.constantExists(name, context) && module.getConstantValue(name, context) instanceof StringType st) {
                             // TO <string>
+                            tv = new TypedRaw(new ResolvableConstant(name), RawType.PTR);
+                            break;
+                        } else if(module.getGlobalVariableMap().containsKey(name)) {
+                            // TO <global>
                             tv = new TypedRaw(new ResolvableConstant(name), RawType.PTR);
                             break;
                         }

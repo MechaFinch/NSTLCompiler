@@ -1,7 +1,0 @@
-#entry testing-mdbt.main
-out\fxp.obj
-out\util.obj
-out\gutil.obj
-out\mathutil.obj
-out\shapes.obj
-out\testing-mdbt.obj

@@ -58,6 +58,8 @@ public class ASTBasicBlock {
         this.exitCode = null;
         this.exitType = ExitType.UNCONDITIONAL;
         this.sourceLineNumber = parentFunction.getHeader().getSource().getPosition().getLine();
+        
+        parentFunction.getBasicBlocks().add(this);
     }
     
     /**

@@ -80,6 +80,7 @@ public class ASTCodeParser {
         for(IRBasicBlock irBB : targetFunction.getBasicBlockList()) {
             if(!manager.isSealed(irBB.getID())) {
                 LOG.severe("Block " + irBB.getID() + " was not sealed");
+                LOG.severe(irBB.getPredecessorBlocks() + "");
                 throw new CompilationException();
             }
         }
@@ -328,6 +329,8 @@ public class ASTCodeParser {
                         elimSuccessor.removePredecessor(irBB.getID());
                     }
                     
+                    // If we make a block unreachable, we need to propagate that information
+                    checkUnreachable(elimSource, sourceBB);
                     elimSource.removePredecessor(sourceBB);
                     
                     if(irc.getValue() != 0) {
@@ -341,6 +344,31 @@ public class ASTCodeParser {
                     // If the value isn't constant, conditional branch
                     return new IRBranchInstruction(IRBranchOperation.JCC, IRCondition.NE, condVal, new IRConstant(0, IRType.NONE), trueID, new IRArgumentMapping(), falseID, new IRArgumentMapping(), irBB, lineNum);
                 }
+        }
+    }
+    
+    /**
+     * When eliminated is eliminated as a successor from from, check if that makes eliminated unreachable 
+     * @param eliminated
+     * @param from
+     */
+    private static void checkUnreachable(ASTBasicBlock eliminated, ASTBasicBlock from) {
+        if(eliminated.getPredecessors().size() == 1 && eliminated.getPredecessors().get(0) == from) {
+            // Eliminated is now unreachable
+            if(LOG.isLoggable(Level.FINEST)) {
+                LOG.finest("Basic block " + eliminated.getName() + " is now unreachable");
+            }
+            
+            // Remove eliminated from predecessor of successors
+            if(eliminated.getTrueSuccessor() != null) {
+                checkUnreachable(eliminated.getTrueSuccessor(), eliminated);
+                eliminated.getTrueSuccessor().removePredecessor(eliminated);
+            }
+            
+            if(eliminated.getFalseSuccessor() != null) {
+                checkUnreachable(eliminated.getFalseSuccessor(), eliminated);
+                eliminated.getFalseSuccessor().removePredecessor(eliminated);
+            }
         }
     }
     

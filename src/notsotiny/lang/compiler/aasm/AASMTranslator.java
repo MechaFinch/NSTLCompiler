@@ -184,7 +184,7 @@ public class AASMTranslator {
                             break;
                         
                         // One argument (destination)
-                        case POP, INC, ICC, DEC, DCC, NOT, NEG:
+                        case INC, ICC, DEC, DCC, NOT, NEG:
                             asmObj.addComponent(new ASMInstruction(
                                 op,
                                 translateArg(inst.getDestination(), true, false, false, sourceFunction)
@@ -200,10 +200,20 @@ public class AASMTranslator {
                             break;
                             
                         case PUSH:
-                            // Push needs its size specified
+                            // Push becomes DST SP, x & needs its size specified
                             asmObj.addComponent(new ASMInstruction(
                                 op,
+                                ASMArgument.REG_SP,
                                 translateArg(inst.getSource(), true, false, true, sourceFunction)
+                            ));
+                            break;
+                            
+                        case POP:
+                            // POP becomes LDI x, SP
+                            asmObj.addComponent(new ASMInstruction(
+                                op,
+                                translateArg(inst.getDestination(), true, false, false, sourceFunction),
+                                ASMArgument.REG_SP
                             ));
                             break;
                         
@@ -296,8 +306,8 @@ public class AASMTranslator {
             case MOV    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.MOVW_RIM : Opcode.MOV_RIM;
             case CMOV   -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.CMOVWCC_RIM : Opcode.CMOVCC_RIM;
             case XCHG   -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.XCHGW_RIM : Opcode.XCHG_RIM;
-            case PUSH   -> (meta.sourceType == IRType.I32) ? Opcode.PUSHW_RIM : Opcode.PUSH_RIM;
-            case POP    -> (meta.sourceType == IRType.I32) ? Opcode.POPW_RIM : Opcode.POP_RIM;
+            case PUSH   -> (meta.sourceType == IRType.I32) ? Opcode.DSTW_RIM : Opcode.DST_RIM;
+            case POP    -> (meta.sourceType == IRType.I32) ? Opcode.LDIW_RIM : Opcode.LDI_RIM;
             case ADD    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.ADDW_RIM : Opcode.ADD_RIM;
             case SUB    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.SUBW_RIM : Opcode.SUB_RIM;
             case CMP    -> (meta.sourceType == IRType.I32 || meta.destType == IRType.I32) ? Opcode.CMPW_RIM : Opcode.CMP_RIM;

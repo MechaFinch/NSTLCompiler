@@ -1,13 +1,9 @@
 
+# Ignore generated files
 *.lst
 *.dat
-
-out/*
-uir/*
-iru/*
-iir/*
-iri/*
-oir/*
-iro/*
-aasm/*
-asm/*
+*.obj
+*.oex
+*.aasm
+*.asm
+*.nir
