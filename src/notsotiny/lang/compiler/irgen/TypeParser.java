@@ -96,9 +96,10 @@ public class TypeParser {
         } else {
             // Named type
             String name = ParseUtils.getNameNoLibraries(children.get(0), ALOG, "type name");
-            NSTLType t = module.getTypeDefinitionMap().get(name).getRealType();
+            NSTLType t = module.getTypeDefinitionMap().get(name);
             
             if(t != null) {
+                t = t.getRealType();
                 LOG.finest("Found type " + t);
                 return t;
             } else if(module.constantExists(name, context)) {

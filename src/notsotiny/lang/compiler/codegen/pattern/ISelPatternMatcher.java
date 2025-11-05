@@ -21,6 +21,7 @@ import notsotiny.lang.compiler.aasm.AASMCompileConstant;
 import notsotiny.lang.compiler.aasm.AASMInstruction;
 import notsotiny.lang.compiler.aasm.AASMLabel;
 import notsotiny.lang.compiler.aasm.AASMLinkConstant;
+import notsotiny.lang.compiler.aasm.AASMLocation;
 import notsotiny.lang.compiler.aasm.AASMMachineRegister;
 import notsotiny.lang.compiler.aasm.AASMMemory;
 import notsotiny.lang.compiler.aasm.AASMOperation;
@@ -83,7 +84,7 @@ public class ISelPatternMatcher {
             
             for(String fileName : patternFiles) {
                 if(!fileName.equals("")) {
-                    patternGroupMap.putAll(ISelPatternCompiler.compilePatterns(ISelPatternMatcher.class.getResourceAsStream("resources/" + fileName)));
+                    patternGroupMap.putAll(ISelPatternCompiler.compilePatterns(ISelPatternMatcher.class.getResourceAsStream("resources/" + fileName), fileName));
                 }
             }
         } catch(IOException | NullPointerException | CompilationException e) {
@@ -1110,6 +1111,11 @@ public class ISelPatternMatcher {
                 
                 if(patSource != null) {
                     resSource = convertPart(patSource, match, subpatternResults, tmpMap, typeMap, sourceFunction);
+                }
+                
+                // TRUNC arg produces invalid code otherwise
+                if(match.matchRoot().getOp() == ISelDAGProducerOperation.TRUNC && resSource instanceof AASMMemory am) {
+                    resSource = new AASMMemory(am.getBase(), am.getIndex(), am.getScale(), am.getOffset(), ((AASMLocation) resDest).getType());
                 }
                 
                 // Build output instruction

@@ -66,9 +66,18 @@ prod_mulu:
 	(I16 MULU (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
 	(I32 MULU (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "
 		MOV <out>, <x>;
-		MOV <tmp16_0>, <x><low>;
+		MOV <tmp32_0>, <x>;
 		MULH <out>, <y><low>;
-		MUL <tmp16_0>, <y><high>;
+		MUL <tmp32_0><low>, <y><high>;
+		ADD <out><high>, <tmp32_0><low>;
+		MUL <tmp32_0><high>, <y><low>;
+		ADD <out><high>, <tmp32_0><high>" |
+		
+	(I32 MULU (I32 LOCAL <x>) (I32 ZX (I16 LOCAL <y>)))	-> "
+		MOV <out>, <x>;
+		MOV <tmp16_0>, <x><high>;
+		MULH <out>, <y>;
+		MUL <tmp16_0>, <y>;
 		ADD <out><high>, <tmp16_0>" |
 	
 	(I16 MULU (I16 ZX (I8 LOCAL <x>)) (I16 ZX (I8 LOCAL <y>)))		->
@@ -81,10 +90,14 @@ prod_muls:
 	(I16 MULS (I16 LOCAL <x>) (I16 LOCAL <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
 	(I32 MULS (I32 LOCAL <x>) (I32 LOCAL <y>))	-> "
 		MOV <out>, <x>;
-		MOV <tmp16_0>, <x><low>;
-		MULSH <out>, <y><low>;
-		MUL <tmp16_0>, <y><high>;
-		ADD <out><high>, <tmp16_0>" |
+		MOV <tmp32_0>, <x>;
+		MULH <out>, <y><low>;
+		MUL <tmp32_0><low>, <y><high>;
+		ADD <out><high>, <tmp32_0><low>;
+		MUL <tmp32_0><high>, <y><low>;
+		ADD <out><high>, <tmp32_0><high>" |
+	
+	# MULS LOCAL SX as a single pattern isn't shorter than the two pattern version
 	
 	(I16 MULS (I16 SX (I8 LOCAL <x>)) (I16 SX (I8 LOCAL <y>)))		->
 		"MOV <out><low>, <x>; MULSH <out>, <y>" |

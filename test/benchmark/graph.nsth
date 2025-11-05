@@ -1,0 +1,92 @@
+
+-- Graph Benchmark
+
+external function _graph.run of none returns none;
+
+type graph_t is graph_s pointer;
+type node_list_t is node_list_s pointer;
+type graph_node_t is graph_node_s pointer;
+
+--
+-- A graph
+--
+type graph_s is structure of
+	nodes is graph_node_t pointer,
+	num_nodes is u16,
+	max_nodes is u16
+end type
+
+--
+-- A linked list of graph nodes
+--
+type node_list_s is structure of
+	next is node_list_t,
+	node is graph_node_t,
+	weight is u32
+end type
+
+--
+-- A node in the graph
+--
+type graph_node_s is structure of
+	edges is node_list_t,
+	num_edges is u32,
+	pos_x is u32,
+	pos_y is u32,
+	id is u16
+end type
+
+external function _graph.generate_graph of u16 num_nodes, u16 num_edges, u32 seed returns graph_t;
+external function _graph.generate_edge of graph_t graph, graph_node_t node, xors_state_t rng_state returns none;
+external function _graph.compute_weight of graph_node_t node_a, graph_node_t node_b returns u32;
+external function _graph.list_contains of node_list_t list, graph_node_t node returns boolean;
+external function _graph.index_list of node_list_t list, u16 idx returns node_list_t;
+external function _graph.generate_coordinate of xors_state_t rng_state returns u32;
+external function _graph.render_graph of graph_t graph, graph_node_t start, graph_node_t target returns none;
+external function _graph.destroy_graph of graph_t graph returns none;
+external function _graph.destroy_node of graph_node_t node returns none;
+external function _graph.destroy_edges of node_list_t edges returns none;
+
+--
+-- A*
+--
+
+type path_t is path_s pointer;
+type heap_t is heap_s pointer;
+
+type path_s is structure of
+	prev is path_t,
+	node is graph_node_t
+end type
+
+type heap_s is structure of
+	data is graph_node_t pointer,
+	value_map is u32 pointer,
+	num_elements is u16,
+	max_elements is u16
+end type
+
+external function _graph.a_star of graph_t graph, graph_node_t start, graph_node_t target returns path_t;
+external function _graph.heap_contains of heap_t heap, graph_node_t node returns boolean;
+external function _graph.heap_extract of heap_t heap returns graph_node_t;
+external function _graph.heap_insert of heap_t heap, graph_node_t node returns none;
+external function _graph.create_heap of u32 data_bytes, u32 pointer value_map returns heap_t;
+external function _graph.destroy_heap of heap_t heap returns none;
+external function _graph.heuristic of graph_node_t node, graph_node_t target returns u32;
+external function _graph.render_path of path_t path returns none;
+external function _graph.destroy_path of path_t path returns none;
+
+--
+-- PRNG State
+--
+type xors_state_t is xors_state_s pointer;
+
+type xors_state_s is structure of
+	x is u16 array size 5,
+	c is u16
+end type
+
+external function _graph.create_state of u32 seed returns xors_state_t;
+external function _graph.destroy_state of xors_state_t state returns none;
+external function _graph.xors16 of xors_state_t state returns u16;
+external function _graph.xors32 of xors_state_t state returns u32;

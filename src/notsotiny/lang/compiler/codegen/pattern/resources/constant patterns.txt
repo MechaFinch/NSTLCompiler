@@ -11,9 +11,6 @@ term_ret_const:
 	(RET (I16 CONSTANT <x>))	-> "MOV A, <x>; RET" |
 	(RET (I32 CONSTANT <x>))	-> "MOV DA, <x>; RET" ;
 
-term_out_const:
-	(OUT (ANY CONSTANT <x>))	-> "MOV <out>, <x>" ;
-
 
 
 ##########################
@@ -63,10 +60,12 @@ prod_muls_const:
 	(I16 MULS (I16 LOCAL <x>) (I16 CONSTANT <y>))	-> "MOV <out>, <x>; MUL <out>, <y>" |
 	(I32 MULS (I32 LOCAL <x>) (I32 CONSTANT <y>))	-> "
 		MOV <out>, <x>;
-		MOV <tmp16_0>, <x><low>;
-		MULSH <out>, <y><low>;
-		MUL <tmp16_0>, <y><high>;
-		ADD <out><high>, <tmp16_0>" ;
+		MOV <tmp32_0>, <x>;
+		MULH <out>, <y><low>;
+		MUL <tmp32_0><low>, <y><high>;
+		ADD <out><high>, <tmp32_0><low>;
+		MUL <tmp32_0><high>, <y><low>;
+		ADD <out><high>, <tmp32_0><high>" ;
 
 prod_divu_const:
 	(I8 DIVU (I8 LOCAL <x>) (I8 CONSTANT <y>))		-> "MOV <out>, <x>; DIV <out>, <y>" |

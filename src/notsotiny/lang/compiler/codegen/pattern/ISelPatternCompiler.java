@@ -45,7 +45,7 @@ public class ISelPatternCompiler {
      * @return
      * @throws IOException 
      */
-    public static Map<String, List<ISelPattern>> compilePatterns(InputStream patternStream) throws IOException, CompilationException {
+    public static Map<String, List<ISelPattern>> compilePatterns(InputStream patternStream, String name) throws IOException, CompilationException {
         Map<String, List<ISelPattern>> patternMap = new HashMap<>();
         
         // Parse the given file
@@ -54,7 +54,7 @@ public class ISelPatternCompiler {
         ParseResult result = parser.parse();
         
         if(result.getErrors().size() != 0) {
-            LOG.severe("Encountered errors parsing instruction selection patterns.");
+            LOG.severe("Encountered errors parsing instruction selection patterns from " + name);
             for(ParseError e : result.getErrors()) {
                 LOG.severe("ParseError: " + e);
             }

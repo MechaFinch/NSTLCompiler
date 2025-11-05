@@ -81,9 +81,6 @@ term_ret_mems:
 	(RET (<x> load_i16))	-> "MOV A, <x>; RET" |
 	(RET (<x> load_i32))	-> "MOV DA, <x>; RET" ;
 
-term_out_mems:
-	(OUT (<x> load_any))	-> "MOV <out>, <x>" ;
-
 
 
 ################################
@@ -141,16 +138,20 @@ prod_mulu_mems:
 	(I16 MULU (I16 CONSTANT <x>) (<y> load_i16))	-> "MOV <out>, <x>; MUL <out>, <y>" |
 	(I32 MULU (<x> load_i32) (I32 LOCAL <y>))		-> "
 		MOV <out>, <x>;
-		MOV <tmp16_0>, <out><low>;
+		MOV <tmp32_0>, <x>;
 		MULH <out>, <y><low>;
-		MUL <tmp16_0>, <y><high>;
-		ADD <out><high>, <tmp16_0>" |
+		MUL <tmp32_0><low>, <y><high>;
+		ADD <out><high>, <tmp32_0><low>;
+		MUL <tmp32_0><high>, <y><low>;
+		ADD <out><high>, <tmp32_0><high>" |
 	(I32 MULU (<x> load_i32) (I32 CONSTANT <y>))	-> "
 		MOV <out>, <x>;
-		MOV <tmp16_0>, <out><low>;
+		MOV <tmp32_0>, <x>;
 		MULH <out>, <y><low>;
-		MUL <tmp16_0>, <y><high>;
-		ADD <out><high>, <tmp16_0>" |
+		MUL <tmp32_0><low>, <y><high>;
+		ADD <out><high>, <tmp32_0><low>;
+		MUL <tmp32_0><high>, <y><low>;
+		ADD <out><high>, <tmp32_0><high>" |
 	
 	(I16 MULU (I16 ZX (I8 LOCAL <x>)) (I16 ZX (<y> load_i8)))	->
 		"MOV <out><low>, <x>; MULH <out>, <y>" |
@@ -164,16 +165,20 @@ prod_muls_mems:
 	(I16 MULS (I16 CONSTANT <x>) (<y> load_i16))	-> "MOV <out>, <x>; MUL <out>, <y>" |
 	(I32 MULS (<x> load_i32) (I32 LOCAL <y>))		-> "
 		MOV <out>, <x>;
-		MOV <tmp16_0>, <out><low>;
-		MULSH <out>, <y><low>;
-		MUL <tmp16_0>, <y><high>;
-		ADD <out><high>, <tmp16_0>" |
+		MOV <tmp32_0>, <x>;
+		MULH <out>, <y><low>;
+		MUL <tmp32_0><low>, <y><high>;
+		ADD <out><high>, <tmp32_0><low>;
+		MUL <tmp32_0><high>, <y><low>;
+		ADD <out><high>, <tmp32_0><high>" |
 	(I32 MULS (<x> load_i32) (I32 CONSTANT <y>))	-> "
 		MOV <out>, <x>;
-		MOV <tmp16_0>, <out><low>;
-		MULSH <out>, <y><low>;
-		MUL <tmp16_0>, <y><high>;
-		ADD <out><high>, <tmp16_0>" |
+		MOV <tmp32_0>, <x>;
+		MULH <out>, <y><low>;
+		MUL <tmp32_0><low>, <y><high>;
+		ADD <out><high>, <tmp32_0><low>;
+		MUL <tmp32_0><high>, <y><low>;
+		ADD <out><high>, <tmp32_0><high>" |
 	
 	(I16 MULS (I16 ZX (I8 LOCAL <x>)) (I16 ZX (<y> load_i8)))	->
 		"MOV <out><low>, <x>; MULSH <out>, <y>" |

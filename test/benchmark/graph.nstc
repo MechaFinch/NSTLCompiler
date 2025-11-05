@@ -1,0 +1,623 @@
+
+lib _os from "fakeos/os";
+lib _gutil from "simvideo/gutil";
+lib _shapes from "simvideo/shapes";
+lib _fxp from "math/fixedpoint";
+
+--
+-- Benchmarking: Graphs
+--
+-- Generates a graph and performs the following algorithms on it:
+--	A*
+--
+
+fn run() {
+	-- Clear screen
+	_gutil.set_color(0x00, 0x000000);
+	_gutil.set_color(0x80, 0x00FF00);
+	_gutil.set_color(0xFF, 0xFFFFFF);
+	_gutil.clear_screen(0x00);
+	
+	-- generate graph
+	var graph: graph_t = generate_graph(8192, 2, 19426802);
+	
+	-- find greatest and least coordinate nodes
+	var start: graph_node_t = graph.nodes[0];
+	var start_val: u32 = start.pos_x + start.pos_y;
+	var target: graph_node_t = start;
+	var target_val: u32 = start_val;
+	
+	for(n: u16 = 0; n < graph.num_nodes; n += 1) {
+		var node: graph_node_t = graph.nodes[n];
+		var node_val: u32 = node.pos_x + node.pos_y;
+		
+		if(node_val < start_val) {
+			start = node;
+			start_val = node_val;
+		}
+		
+		if(node_val > target_val) {
+			target = node;
+			target_val = node_val;
+		}
+	}
+	
+	-- render graph
+	render_graph(graph, start, target);
+	
+	-- run A*
+	var path: path_t = a_star(graph, start, target);
+	
+	-- render A* result
+	render_path(path);
+	
+	-- clean up
+	destroy_path(path);
+	destroy_graph(graph);
+}
+
+--
+-- Run A*
+--
+fn a_star(graph: graph_t, start: graph_node_t, target: graph_node_t): path_t {
+	-- Allocate maps & sets
+	var data_bytes: u32 = (graph.num_nodes as u32 << 1) << 1);	-- number of bytes per data structure
+	var came_from: &graph_node_t = _os.malloc(data_bytes);		-- id -> previous node ptr
+	var g_score: &u32 = _os.malloc(data_bytes);					-- id -> gscore
+	var f_score: &u32 = _os.malloc(data_bytes);					-- id -> fscore
+	var open_heap: heap_t = create_heap(data_bytes, f_score);	-- min-heap of open set
+	var successful: boolean = false;
+	
+	-- Initialize data structure
+	for(i: u16 = 0; i < graph.num_nodes; i += 1) {
+		came_from[i] = 0;
+		g_score[i] = 0xFFFFFFFF;
+		f_score[i] = 0xFFFFFFFF;
+	}
+	
+	g_score[start.id] = 0;
+	f_score[start.id] = heuristic(start, target);
+	heap_insert(open_heap, start);
+	
+	-- Find true path
+	while(open_heap.num_elements != 0) {
+		-- Get lowest fscore node
+		var current: graph_node_t = heap_extract(open_heap);
+		
+		-- are we done
+		if(current == target) {
+			successful = true;
+			break;
+		}
+		
+		-- no. add neighbors
+		var edge: node_list_t = current.edges;
+		
+		while(edge != 0) {
+			-- is this a better path to edge.node
+			var tentative_g_score: u32 = g_score[current.id] + edge.weight;
+			
+			if(tentative_g_score < g_score[edge.node.id]) {
+				-- yes
+				var prev_f_score: u32 = f_score[edge.node.id];
+				
+				came_from[edge.node.id] = current;
+				g_score[edge.node.id] = tentative_g_score;
+				f_score[edge.node.id] = tentative_g_score + heuristic(current, edge.node);
+				
+				-- a node without an fscore won't be in the heap
+				if(prev_f_score == 0xFFFFFFFF) {
+					heap_insert(open_heap, edge.node);
+				} elif(!heap_contains(open_heap, edge.node)) {
+					heap_insert(open_heap, edge.node);
+				}
+			}
+			
+			edge = edge.next;
+		}
+	}
+	
+	-- make path
+	var path: path_t = _os.malloc(sizeof path_s);
+	path.prev = 0;
+	path.node = target;
+	
+	-- can't construct actual path without success
+	if(successful) {
+		-- follow came_from from target to start
+		var node: graph_node_t = target;
+		var prev_p: path_t = path;
+		
+		while(node != start) {
+			node = came_from[node.id];
+			
+			var p: path_t = _os.malloc(sizeof path_s);
+			p.prev = 0;
+			p.node = node;
+			prev_p.prev = p;
+			prev_p = p;
+		}
+	}
+	
+	-- clean up
+	destroy_heap(open_heap);
+	_os.free(came_from);
+	_os.free(g_score);
+	_os.free(f_score);
+	
+	return path;
+}
+
+--
+-- Checks if a node is in the heap
+--
+fn heap_contains(heap: heap_t, node: graph_node_t): boolean {
+	for(i: u16 = 0; i < heap.num_elements; i += 1) {
+		if(heap.data[i] == node) {
+			return true;
+		}
+	}
+	
+	return false;
+}
+
+--
+-- Extracts the minimum from min-heap heap
+--
+fn heap_extract(heap: heap_t): graph_node_t {
+	-- min element is at index 0
+	var min: graph_node_t = heap.data[0];
+	
+	-- maintain heap property
+	-- Replace root with last
+	heap.data[0] = heap.data[heap.num_elements - 1];
+	heap.data[heap.num_elements - 1] = 0;
+	heap.num_elements -= 1;
+	
+	-- Was that the only elements?
+	if(heap.num_elements == 0) {
+		return min;
+	}
+	
+	-- Sift down new root
+	var i: u16 = 0;
+	var i_val: graph_node_t = heap.data[i];
+	var i_score: u32 = heap.value_map[i_val.id];
+	
+	while(true) {
+		-- check first child
+		var j: u16 = (i << 1) + 1;
+		
+		-- is it in bounds
+		if((j < i) || (j >= heap.num_elements)) {
+			-- first child out of bounds. done
+			break;
+		}
+		
+		-- does it violate the heap property
+		var j_score: u32 = heap.value_map[heap.data[j].id];
+		
+		if(j_score < i_score) {
+			-- yes. swap.
+			heap.data[i] = heap.data[j];
+			heap.data[j] = i_val;
+			
+			i = j;
+			continue;
+		}
+		
+		-- check second child
+		j += 1;
+		
+		if((j < i) || (j >= heap.num_elements)) {
+			-- second child is out of bounds. done
+			break;
+		}
+		
+		-- doe sit violate the heap property
+		j_score = heap.value_map[heap.data[j].id];
+		
+		if(j_score < i_score) {
+			-- yes. swap.
+			heap.data[i] = heap.data[j];
+			heap.data[j] = i_val;
+			
+			i = j;
+			continue;
+		} else {
+			-- no. done.
+			break;
+		}
+	}
+	
+	return min;
+}
+
+--
+-- Insert a value into the heap
+--
+fn heap_insert(heap: heap_t, node: graph_node_t) {
+	-- insert element at end
+	var i: u16 = heap.num_elements;
+	
+	if(i >= heap.max_elements) {
+		-- die if too many inserted
+		var j: ptr = 0;
+		*u8 j = 1;
+	}
+	
+	var i_score: u32 = heap.value_map[node.id];
+	heap.num_elements += 1;
+	
+	-- maintain heap property
+	while(i > 0) {
+		var j: u16 = (i - 1) >> 1;
+		var j_score: u32 = heap.value_map[heap.data[j].id];
+		
+		-- does the heap property hold
+		if(j_score < i_score) {
+			-- yes. done
+			break;
+		}
+		
+		-- sift up
+		heap.data[i] = heap.data[j];
+		i = j;
+	}
+	
+	heap.data[i] = node;
+}
+
+-- 
+-- Create a heap
+--
+fn create_heap(data_bytes: u32, value_map: &u32): heap_t {
+	var heap: heap_t = _os.malloc(sizeof heap_s);
+	
+	heap.data = _os.malloc(data_bytes);
+	heap.value_map = value_map;
+	heap.num_elements = 0;
+	heap.max_elements = ((data_bytes >> 1) >> 1) as u16;
+	
+	return heap;
+}
+
+--
+-- Destroy a heap
+--
+fn destroy_heap(heap: heap_t) {
+	_os.free(heap.data);
+	_os.free(heap);
+}
+
+-- 
+-- A* Heuristic - distance between two nodes
+--
+fn heuristic(node: graph_node_t, graph_node_t: target): u32 {
+	return compute_weight(node, target);
+}
+
+--
+-- Render a path
+--
+fn render_path(path: path_t) {
+	var prev_node: graph_node_t = path.node;
+	path = path.prev;
+	
+	while(path != 0) {
+		var current_node: graph_node_t = path.node;
+		
+		-- draw line between nodes
+		_shapes.freeline((prev_node.pos_x >> 16) as u16, (prev_node.pos_y >> 16) as u16, (current_node.pos_x >> 16) as u16, (current_node.pos_y >> 16) as u16, 0x80);
+		
+		path = path.prev;
+		prev_node = current_node;
+	}
+}
+
+--
+-- Destroy a path
+--
+fn destroy_path(path: path_t) {
+	if(path != 0) {
+		destroy_path(path.prev);
+		_os.free(path);
+	}
+}
+
+--
+-- Generate a graph
+--
+fn generate_graph(num_nodes: u16, min_edge_per_node: u16, seed: u32): graph_t {
+	var graph: graph_t = _os.malloc(sizeof graph_s);
+	graph.nodes = _os.malloc((num_nodes as u32) * (sizeof ptr));
+	graph.num_nodes = 0;
+	graph.max_nodes = num_nodes;
+	
+	-- create rng state
+	var rng_state: xors_state_t = create_state(seed);
+	
+	-- randomly place num_nodes nodes
+	for(i: u16 = 0; i < num_nodes; i += 1) {
+		-- Allocate graph node
+		var node: graph_node_t = _os.malloc(sizeof graph_node_s);
+		
+		-- Initialize node
+		node.edges = 0;
+		node.num_edges = 0;
+		node.pos_x = generate_coordinate(rng_state, false);
+		node.pos_y = generate_coordinate(rng_state, true);
+		node.id = graph.num_nodes as u16;
+		
+		-- Place in graph
+		graph.nodes[i] = node;
+		graph.num_nodes += 1;
+		
+		-- Generate initial edge at time of creation to ensure a path exists between all nodes
+		generate_edge(graph, node, rng_state);
+	}
+	
+	-- place min_edge_per_node edges at each node (1 already placed)
+	for(n: u16 = 0; n < graph.num_nodes; n += 1) {
+		var node_a: graph_node_t = graph.nodes[n];
+		
+		for(i: u16 = 0; i < (min_edge_per_node - 1); i += 1) {
+			generate_edge(graph, node_a, rng_state);
+		}
+	}
+	
+	-- clean up
+	destroy_state(rng_state);
+	
+	return graph;
+}
+
+--
+-- Generate an edge for a node
+--
+fn generate_edge(graph: graph_t, node: graph_node_t, rng_state: xors_state_t) {
+	var node_a: graph_node_t = node;
+	
+	-- are we full of edges
+	var num_edges: u16 = 0;
+	var current_edge: node_list_t = node.edges;
+	
+	while(current_edge != 0) {
+		num_edges += 1;
+		current_edge = current_edge.next;
+	}
+	
+	if(num_edges >= (graph.num_nodes as u16 - 1)) {
+		return;
+	}
+	
+	-- there's space. make an edge.
+	while(true) {
+		-- Pick nodes to put an edge between
+		var node_b_idx: u16 = xors16(rng_state) % (graph.num_nodes as u16);
+		var node_b: graph_node_t = graph.nodes[node_b_idx];
+		
+		-- Can't make an edge to itself
+		if(node_a == node_b) {
+			continue;
+		}
+		
+		-- Check that this edge doesn't already exist
+		-- Edge must be in both lists; check shorter list
+		if(node_a.num_edges > node_b.num_edges) {
+			if(list_contains(node_b.edges, node_a)) {
+				continue;
+			}
+		} else {
+			if(list_contains(node_a.edges, node_b)) {
+				continue;
+			}
+		}
+		
+		-- Edge is not already present. Put edge in lists
+		var node_a_edge: node_list_t = _os.malloc(sizeof node_list_s);
+		var node_b_edge: node_list_t = _os.malloc(sizeof node_list_s);
+		var weight: u32 = compute_weight(node_a, node_b);
+		
+		node_a_edge.next = node_a.edges;
+		node_a_edge.node = node_b;
+		node_a_edge.weight = weight;
+		node_a.edges = node_a_edge;
+		node_a.num_edges += 1;
+		
+		node_b_edge.next = node_b.edges;
+		node_b_edge.node = node_a;
+		node_b_edge.weight = weight;
+		node_b.edges = node_b_edge;
+		node_b.num_edges += 1;
+		
+		return;
+	}
+}
+
+--
+-- Compute the weight of an edge between two nodes
+--
+fn compute_weight(node_a: graph_node_t, node_b: graph_node_t): u32 {
+	-- compute x^2 + y^2
+	var dist_x: u32 = node_a.pos_x - node_b.pos_x;
+	var dist_y: u32 = node_a.pos_y - node_b.pos_y;
+	
+	var x_sq: i32 = _fxp.muls1616(dist_x, dist_x);
+	var y_sq: i32 = _fxp.muls1616(dist_y, dist_y);
+	
+	-- compute an approximation of sqrt(x^2 + y^2)
+	var dist_sq: i32 = (x_sq + y_sq);
+	var dist_est: i32 = (dist_sq >> 1) >> 1;
+	
+	if(dist_est == 0) {
+		return 0;
+	}
+	
+	for(i: u16 = 0; i < 6; i += 1) {
+		dist_est = (dist_est + _fxp.divu1616(dist_sq, dist_est)) >> 1;
+	}
+	
+	return dist_est;
+}
+
+--
+-- Search a list for a node, returning true if it is present
+--
+fn list_contains(list: node_list_t, node: graph_node_t): boolean {
+	while(list != 0) {
+		if(list.node == node) {
+			return true;
+		}
+		
+		list = list.next;
+	}
+	
+	return false;
+}
+
+--
+-- Index into a node list
+--
+fn index_list(list: node_list_t, idx: u16): node_list_t {
+	while(idx > 0) {
+		list = list.next;
+		idx -= 1;
+	}
+	
+	return list;
+}
+
+--
+-- Generate a u16.u16 coordinate
+--
+fn generate_coordinate(rng_state: xors_state_t, y: boolean): u32 {
+	var upper: u16 = xors16(rng_state);
+	var lower: u16 = xors16(rng_state);
+	var modulus: u16;
+	
+	if(y) {
+		modulus = 230;
+	} else {
+		modulus = 310;
+	}
+	
+	return ((((upper % modulus) + 4) as u32) << 16) | (lower as u32);
+}
+
+--
+-- Render a graph
+--
+fn render_graph(graph: graph_t, start: graph_node_t, target: graph_node_t) {
+	-- For each node
+	for(n: u16 = 0; n < graph.num_nodes; n += 1) {
+		var node: graph_node_t = graph.nodes[n];
+		var nx: u16 = (node.pos_x >> 16) as u16;
+		var ny: u16 = (node.pos_y >> 16) as u16;
+		
+		-- Plot the node itself
+		_shapes.fill_rect(nx - 2, ny - 2, 5, 5, 0xFF);
+		
+		-- Plot the edges
+		var edges: node_list_t = node.edges;
+		
+		while(edges != 0) {
+			var other: graph_node_t = edges.node;
+			
+			-- Plot edge
+			_shapes.freeline(nx, ny, (other.pos_x >> 16) as u16, (other.pos_y >> 16) as u16, 0xFF);
+			
+			edges = edges.next;
+		}
+	}
+	
+	-- Re-draw first and last node
+	_shapes.fill_rect((start.pos_x >> 16) as u16 - 2, (start.pos_y >> 16) as u16 - 2, 5, 5, 0x80);
+	_shapes.fill_rect((target.pos_x >> 16) as u16 - 2, (target.pos_y >> 16) as u16 - 2, 5, 5, 0x80);
+}
+
+--
+-- Destroy a graph
+--
+
+fn destroy_graph(graph: graph_t) {
+	if(graph == 0) {
+		return;
+	}
+	
+	-- destroy nodes
+	for(n: u16 = 0; n < graph.num_nodes; n += 1) {
+		destroy_node(graph.nodes[n]);
+	}
+	
+	-- Destroy node list
+	_os.free(graph.nodes);
+	
+	-- destroy graph
+	_os.free(graph);
+}
+
+fn destroy_node(node: graph_node_t) {
+	if(node != 0) {
+		-- destroy each part
+		destroy_edges(node.edges);
+		_os.free(node);
+	}
+}
+
+fn destroy_edges(edges: node_list_t) {
+	if(edges != 0) {
+		destroy_edges(edges.next);	-- destroy subsequent edges
+		_os.free(edges);			-- destroy edge
+	}
+}
+
+--
+-- PRNG Functions
+--
+
+-- Create rng state
+fn create_state(seed: u32): xors_state_t {
+	var state: xors_state_t = _os.malloc(sizeof xors_state_s);
+	var seed_low: u16 = seed as u16;
+	var seed_high: u16 = (seed >> 16) as u16;
+	
+	state.x[0] = 63197 ^ (seed_high << 8);
+	state.x[1] = 20313 ^ (seed_high >> 8);
+	state.x[2] = 3078 ^ seed_low ^ seed_high;
+	state.x[3] = 55319 ^ (seed_low << 8);
+	state.x[4] = 20190 ^ (seed_high >> 8);
+	state.c = 49073 ^ seed_low ^ seed_high;
+	
+	return state;
+}
+
+-- Destroy rng state
+fn destroy_state(state: xors_state_t) {
+	_os.free(state);
+}
+
+fn xors16(state: xors_state_t): u16 {
+	-- value
+	fn t: u16 = state.x[4];
+	
+	-- shift state
+	var s: u16 = state.x[0];
+	state.x[4] = state.x[3];
+	state.x[3] = state.x[2];
+	state.x[2] = state.x[1];
+	state.x[1] = s;
+	
+	-- xor nonsense
+	t ^= t >> 2;
+	t ^= t << 1;
+	t ^= t ^ (s ^ (s << 4));
+	state.x[0] = t;
+	state.c += 29261;
+	
+	return t + state.c;
+}
+
+fn xors32(state: xors_state_t): u32 {
+	return ((xors16(state) as u32) << 16) | (xors16(state) as u32);
+}

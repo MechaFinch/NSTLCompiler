@@ -10,9 +10,6 @@ term_ret_arg:
 	(RET (I8 ARG <x>))	-> "MOV AL, <x>; RET" |
 	(RET (I16 ARG <x>))	-> "MOV A, <x>; RET" |
 	(RET (I32 ARG <x>))	-> "MOV DA, <x>; RET" ;
-	
-term_out_arg:
-	(OUT (ANY ARG <x>))	-> "MOV <out>, <x>" ;
 
 
 

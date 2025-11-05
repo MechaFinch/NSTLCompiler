@@ -1,0 +1,92 @@
+
+-- Graph Benchmark
+
+efn _graph.run(): none;
+
+type graph_t: &graph_s;
+type node_list_t: &node_list_s;
+type graph_node_t: &graph_node_s;
+
+--
+-- A graph
+-- 
+type graph_s: {
+	nodes: &graph_node_t,
+	num_nodes: u16,
+	max_nodes: u16
+};
+
+--
+-- A linked list of graph nodes
+--
+type node_list_s: {
+	next: node_list_t,
+	node: graph_node_t,
+	weight: u32
+};
+
+--
+-- A node in the graph
+--
+type graph_node_s: {
+	edges: node_list_t,
+	num_edges: u32,
+	pos_x: u32,
+	pos_y: u32,
+	id: u16
+};
+
+efn _graph.generate_graph(num_nodes: u16, num_edges: u16, seed: u32): graph_t;
+efn _graph.generate_edge(graph: graph_t, node: graph_node_t, rng_state: xors_state_t): none;
+efn _graph.compute_weight(node_a: graph_node_t, node_b: graph_node_t): u32;
+efn _graph.list_contains(list: node_list_t, node: graph_node_t): boolean;
+efn _graph.index_list(list: node_list_t, idx: u16): node_list_t;
+efn _graph.generate_coordinate(rng_state: xors_state_t): u32;
+efn _graph.render_graph(graph: graph_t, start: graph_node_t, target: graph_node_t): none;
+efn _graph.destroy_graph(graph: graph_t): none;
+efn _graph.destroy_node(node: graph_node_t): none;
+efn _graph.destroy_edges(edges: node_list_t): none;
+
+-- 
+-- A*
+--
+
+type path_t: &path_s;
+type heap_t: &heap_s;
+
+type path_s: {
+	prev: path_t,
+	node: graph_node_t
+};
+
+type heap_s: {
+	data: &graph_node_t,
+	value_map: &u32,
+	num_elements: u16,
+	max_elements: u16
+};
+
+efn _graph.a_star(graph: graph_t, start: graph_node_t, target: graph_node_t): path_t;
+efn _graph.heap_contains(heap: heap_t, node: graph_node_t): boolean;
+efn _graph.heap_extract(heap: heap_t): graph_node_t;
+efn _graph.heap_insert(heap: heap_t, node: graph_node_t): none;
+efn _graph.create_heap(data_bytes: u32, value_map: &u32): heap_t;
+efn _graph.destroy_heap(heap: heap_t): none;
+efn _graph.heuristic(node: graph_node_t, target: graph_node_t): u32;
+efn _graph.render_path(path: path_t): none;
+efn _graph.destroy_path(path: path_t): none;
+
+--
+-- PRNG State
+--
+type xors_state_t: &xors_state_s;
+
+type xors_state_s: {
+	x: [5]u16,
+	c: u16
+};
+
+efn _graph.create_state(seed: u32): xors_state_t;
+efn _graph.destroy_state(state: xors_state_t): u16;
+efn _graph.xors16(state: xors_state_t): u16;
+efn _graph.xors32(state: xors_state_t): u32;

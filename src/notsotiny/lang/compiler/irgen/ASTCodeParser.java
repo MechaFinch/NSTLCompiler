@@ -317,6 +317,7 @@ public class ASTCodeParser {
                 Pair<IRValue, NSTLType> condPair = VariableParser.parseIntegerExpression(conditionNode, "", RawType.NONE, irBB, manager, sourceBB.getContext(), sourceFunction.getParentModule(), targetFunction, irModule);
                 IRValue condVal = condPair.a;
                 
+                /* Eliminating unreachable paths at this stage causes problems with sealing and it gets handled later anyways. so dont do that.
                 if(condVal instanceof IRConstant irc) {
                     // If the value is constant, lower to an unconditional jump
                     IRIdentifier dest = (irc.getValue() != 0) ? trueID : falseID;
@@ -329,8 +330,6 @@ public class ASTCodeParser {
                         elimSuccessor.removePredecessor(irBB.getID());
                     }
                     
-                    // If we make a block unreachable, we need to propagate that information
-                    checkUnreachable(elimSource, sourceBB);
                     elimSource.removePredecessor(sourceBB);
                     
                     if(irc.getValue() != 0) {
@@ -343,32 +342,9 @@ public class ASTCodeParser {
                 } else {
                     // If the value isn't constant, conditional branch
                     return new IRBranchInstruction(IRBranchOperation.JCC, IRCondition.NE, condVal, new IRConstant(0, IRType.NONE), trueID, new IRArgumentMapping(), falseID, new IRArgumentMapping(), irBB, lineNum);
-                }
-        }
-    }
-    
-    /**
-     * When eliminated is eliminated as a successor from from, check if that makes eliminated unreachable 
-     * @param eliminated
-     * @param from
-     */
-    private static void checkUnreachable(ASTBasicBlock eliminated, ASTBasicBlock from) {
-        if(eliminated.getPredecessors().size() == 1 && eliminated.getPredecessors().get(0) == from) {
-            // Eliminated is now unreachable
-            if(LOG.isLoggable(Level.FINEST)) {
-                LOG.finest("Basic block " + eliminated.getName() + " is now unreachable");
-            }
-            
-            // Remove eliminated from predecessor of successors
-            if(eliminated.getTrueSuccessor() != null) {
-                checkUnreachable(eliminated.getTrueSuccessor(), eliminated);
-                eliminated.getTrueSuccessor().removePredecessor(eliminated);
-            }
-            
-            if(eliminated.getFalseSuccessor() != null) {
-                checkUnreachable(eliminated.getFalseSuccessor(), eliminated);
-                eliminated.getFalseSuccessor().removePredecessor(eliminated);
-            }
+                }*/
+                
+                return new IRBranchInstruction(IRBranchOperation.JCC, IRCondition.NE, condVal, new IRConstant(0, IRType.NONE), trueID, new IRArgumentMapping(), falseID, new IRArgumentMapping(), irBB, lineNum);
         }
     }
     

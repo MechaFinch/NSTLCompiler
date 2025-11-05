@@ -1,0 +1,623 @@
+
+library _os from "fakeos/os";
+library _gutil from "simvideo/gutil";
+library _shapes from "simvideo/shapes";
+library _fxp from "math/fixedpoint";
+
+-- 
+-- Benchmarking: Graphs
+--
+-- Generates a graph and performs the following algorithms on it:
+--	A*
+--
+
+function run of none begin
+	-- Clear screen
+	call _gutil.set_color with 0x00, 0x000000;
+	call _gutil.set_color with 0x80, 0x00FF00;
+	call _gutil.set_color with 0xFF, 0xFFFFFF;
+	call _gutil.clear_screen with 0x00;
+	
+	-- generate graph
+	variable graph is graph_t gets (call generate_graph with 8192, 2, 19426802);
+	
+	-- find greatest and least coordinate nodes
+	variable start is graph_node_t gets graph.nodes index 0;
+	variable start_val is u32 gets start.pos_x + start.pos_y;
+	variable target is graph_node_t gets start;
+	variable target_val is u32 gets start_val;
+	
+	for n is u16 gets 0; n < graph.num_nodes; n gets n + 1 do
+		variable node is graph_node_t gets graph.nodes index n;
+		variable node_val is u32 gets node.pos_x + node.pos_y;
+		
+		if node_val < start_val then
+			start gets node;
+			start_val gets node_val;
+		end if
+		
+		if node_val > target_val then
+			target gets node;
+			target_val gets node_val;
+		end if
+	end for
+	
+	-- render graph
+	call render_graph with graph, start, target;
+	
+	-- run A*
+	variable path is path_t gets (call a_star with graph, start, target);
+	
+	-- render A* result
+	call render_path with path;
+	
+	-- clean up
+	call destroy_path with path;
+	call destroy_graph with graph;
+end function
+
+--
+-- Run A*
+--
+function a_star of graph_t graph, graph_node_t start, graph_node_t target returns path_t begin
+	-- Allocate maps & sets
+	variable data_bytes is u32 gets (graph.num_nodes as u32 << 1) << 1; -- number of bytes per data structure
+	variable came_from is graph_node_t pointer gets (call _os.malloc with data_bytes);	-- id -> previous node ptr
+	variable g_score is u32 pointer gets (call _os.malloc with data_bytes);				-- id -> gscore
+	variable f_score is u32 pointer gets (call _os.malloc with data_bytes);				-- id -> fscore
+	variable open_heap is heap_t gets (call create_heap with data_bytes, f_score);		-- min-heap of open set
+	variable successful is boolean gets false;
+	
+	-- Initialize data structures
+	for i is u16 gets 0; i < graph.num_nodes; i gets i + 1 do
+		came_from index i gets 0;
+		g_score index i gets 0xFFFFFFFF;
+		f_score index i gets 0xFFFFFFFF;
+	end for
+	
+	g_score index start.id gets 0;
+	f_score index start.id gets (call heuristic with start, target);
+	call heap_insert with open_heap, start;
+	
+	-- Find the path
+	while open_heap.num_elements != 0 do
+		-- Get lowest fscore node
+		variable current is graph_node_t gets (call heap_extract with open_heap);
+		
+		-- are we done
+		if current = target then
+			successful gets true;
+			break;
+		end if
+		
+		-- no. add neighbors
+		variable edge is node_list_t gets current.edges;
+		
+		while edge != 0 do
+			-- is this a better path to edge.node
+			variable tentative_g_score is u32 gets (g_score index current.id) + edge.weight;
+			
+			if tentative_g_score < (g_score index edge.node.id) then
+				-- yes
+				variable prev_f_score is u32 gets f_score index edge.node.id;
+				
+				came_from index edge.node.id gets current;
+				g_score index edge.node.id gets tentative_g_score;
+				f_score index edge.node.id gets tentative_g_score + (call heuristic with current, edge.node);
+				
+				-- a node without an fscore won't be in the heap
+				if prev_f_score = 0xFFFFFFFF then
+					call heap_insert with open_heap, edge.node;
+				elseif not (call heap_contains with open_heap, edge.node) then
+					call heap_insert with open_heap, edge.node;
+				end if
+			end if
+			
+			edge gets edge.next;
+		end while
+	end while
+	
+	-- make path
+	variable path is path_t gets (call _os.malloc with sizeof path_s);
+	path.prev gets 0;
+	path.node gets target;
+	
+	-- can't construct actual path without success
+	if successful then
+		-- follow came_from from target to start
+		variable node is graph_node_t gets target;
+		variable prev_p is path_t gets path;
+		
+		while node != start do
+			node gets came_from index node.id;
+			
+			variable p is path_t gets (call _os.malloc with sizeof path_s);
+			p.prev gets 0;
+			p.node gets node;
+			prev_p.prev gets p;
+			prev_p gets p;
+		end while
+	end if
+	
+	-- clean up
+	call destroy_heap with open_heap;
+	call _os.free with came_from;
+	call _os.free with g_score;
+	call _os.free with f_score;
+	
+	return path;
+end function
+
+--
+-- Checks if a node is in the heap
+--
+function heap_contains of heap_t heap, graph_node_t node returns boolean begin
+	for i is u16 gets 0; i < heap.num_elements; i gets i + 1 do
+		if (heap.data index i) = node then
+			return true;
+		end if
+	end for
+	
+	return false;
+end function
+
+--
+-- Extracts the minimum from min-heap heap
+--
+function heap_extract of heap_t heap returns graph_node_t begin
+	-- min element is at index 0
+	variable min is graph_node_t gets heap.data index 0;
+	
+	-- maintain heap property
+	-- Replace root with last
+	heap.data index 0 gets heap.data index (heap.num_elements - 1);
+	heap.data index (heap.num_elements - 1) gets 0;
+	heap.num_elements gets heap.num_elements - 1;
+	
+	-- Was that the only elements?
+	if heap.num_elements = 0 then
+		return min;
+	end if
+	
+	-- Sift down new root
+	variable i is u16 gets 0;
+	variable i_val is graph_node_t gets heap.data index i;
+	variable i_score is u32 gets heap.value_map index i_val.id;
+	
+	while true do
+		-- check first child
+		variable j is u16 gets (i << 1) + 1;
+		
+		-- is it in bounds
+		if (j < i) or (j >= heap.num_elements) then
+			-- first child out of bounds. done
+			break;
+		end if
+		
+		-- does it violate the heap property
+		variable j_score is u32 gets heap.value_map index (heap.data index j).id;
+		
+		if j_score < i_score then
+			-- yes. swap.
+			heap.data index i gets heap.data index j;
+			heap.data index j gets i_val;
+			
+			i gets j;
+			continue;
+		end if
+		
+		-- check second child
+		j gets j + 1;
+		
+		if (j < i) or (j >= heap.num_elements) then
+			-- second child out of bounds. done
+			break;
+		end if
+		
+		-- doe sit violate the heap property
+		j_score gets heap.value_map index (heap.data index j).id;
+		
+		if j_score < i_score then
+			-- yes. swap.
+			heap.data index i gets heap.data index j;
+			heap.data index j gets i_val;
+			
+			i gets j;
+			continue;
+		else
+			-- no. done.
+			break;
+		end if
+	end while
+	
+	return min;
+end function
+
+--
+-- Insert a value into the heap
+--
+function heap_insert of heap_t heap, graph_node_t node returns none begin
+	-- insert element at end
+	variable i is u16 gets heap.num_elements;
+	
+	if i >= heap.max_elements then
+		-- die if too many inserted
+		variable j is ptr gets 0;
+		u8 at j gets 1;
+	end if
+	
+	variable i_score is u32 gets heap.value_map index node.id;
+	heap.num_elements gets heap.num_elements + 1;
+	
+	-- maintain heap property
+	while i > 0 do
+		variable j is u16 gets (i - 1) >> 1;
+		variable j_score is u32 gets heap.value_map index (heap.data index j).id;
+		
+		-- does the heap property hold
+		if j_score < i_score then
+			-- yes. done
+			break;
+		end if
+		
+		-- sift up
+		heap.data index i gets heap.data index j;
+		i gets j;
+	end while
+	
+	heap.data index i gets node;
+end function
+
+--
+-- Create a heap
+--
+function create_heap of u32 data_bytes, u32 pointer value_map returns heap_t begin
+	variable heap is heap_t gets (call _os.malloc with sizeof heap_s);
+	
+	heap.data gets (call _os.malloc with data_bytes);
+	heap.value_map gets value_map;
+	heap.num_elements gets 0;
+	heap.max_elements gets ((data_bytes >> 1) >> 1) as u16;
+	
+	return heap;
+end function
+
+--
+-- Destroy a heap
+--
+function destroy_heap of heap_t heap begin
+	call _os.free with heap.data;
+	call _os.free with heap;
+end function
+
+--
+-- A* Heuristic - distance between two nodes
+--
+function heuristic of graph_node_t node, graph_node_t target returns u32 begin
+	return (call compute_weight with node, target);
+end function
+
+--
+-- Render a path
+--
+function render_path of path_t path returns none begin
+	variable prev_node is graph_node_t gets path.node;
+	path gets path.prev;
+	
+	while path != 0 do
+		variable current_node is graph_node_t gets path.node;
+		
+		-- draw line between nodes
+		call _shapes.freeline with (prev_node.pos_x >> 16) as u16, (prev_node.pos_y >> 16) as u16, (current_node.pos_x >> 16) as u16, (current_node.pos_y >> 16) as u16, 0x80;
+		
+		path gets path.prev;
+		prev_node gets current_node;
+	end while
+end function
+
+--
+-- Destroy a path
+--
+function destroy_path of path_t path returns none begin
+	if path != 0 then
+		call destroy_path with path.prev;
+		call _os.free with path;
+	end if
+end function
+
+--
+-- Generate a graph
+--
+function generate_graph of u16 num_nodes, u16 min_edge_per_node, u32 seed returns graph_t begin
+	variable graph is graph_t gets (call _os.malloc with sizeof graph_s);
+	graph.nodes gets (call _os.malloc with (num_nodes as u32) * (sizeof ptr));
+	graph.num_nodes gets 0;
+	graph.max_nodes gets num_nodes;
+	
+	-- create rng state
+	variable rng_state is xors_state_t gets (call create_state with seed);
+
+	-- randomly place num_nodes nodes
+	for i is u16 gets 0; i < num_nodes; i gets i + 1 do
+		-- Allocate graph node
+		variable node is graph_node_t gets (call _os.malloc with sizeof graph_node_s);
+		
+		-- Initialize node
+		node.edges gets 0;
+		node.num_edges gets 0;
+		node.pos_x gets (call generate_coordinate with rng_state, false);
+		node.pos_y gets (call generate_coordinate with rng_state, true);
+		node.id gets graph.num_nodes as u16;
+		
+		-- Place in graph
+		graph.nodes index i gets node;
+		graph.num_nodes gets graph.num_nodes + 1;
+		
+		-- Generate initial edge at time of creation to ensure a path exists between all nodes
+		call generate_edge with graph, node, rng_state;
+	end for
+	
+	-- place min_edge_per_node edges at each node (1 already placed)
+	for n is u16 gets 0; n < graph.num_nodes; n gets n + 1 do
+		variable node_a is graph_node_t gets graph.nodes index n;
+		
+		for i is u16 gets 0; i < (min_edge_per_node - 1); i gets i + 1 do
+			call generate_edge with graph, node_a, rng_state;
+		end for
+	end for
+	
+	-- clean up
+	call destroy_state with rng_state;
+	
+	return graph;
+end function
+
+--
+-- Generate an edge for a node
+--
+function generate_edge of graph_t graph, graph_node_t node, xors_state_t rng_state returns none begin
+	variable node_a is graph_node_t gets node;
+	
+	-- are we full of edges
+	variable num_edges is u16 gets 0;
+	variable current_edge is node_list_t gets node.edges;
+	
+	while current_edge != 0 do
+		num_edges gets num_edges + 1;
+		current_edge gets current_edge.next;
+	end while
+	
+	if num_edges >= (graph.num_nodes as u16 - 1) then
+		return;
+	end if
+	
+	-- there's space. make an edge.
+	while true do
+		-- Pick nodes to put an edge between
+		variable node_b_idx is u16 gets (call xors16 with rng_state) % (graph.num_nodes as u16);
+		variable node_b is graph_node_t gets graph.nodes index node_b_idx;
+		
+		-- Can't make an edge to itself
+		if node_a = node_b then
+			continue;
+		end if
+		
+		-- Check that this edge doesn't already exist
+		-- Edge must be in both lists; check shorter list
+		if node_a.num_edges > node_b.num_edges then
+			if (call list_contains with node_b.edges, node_a) then
+				continue;
+			end if
+		else
+			if (call list_contains with node_a.edges, node_b) then
+				continue;
+			end if
+		end if
+		
+		-- Edge is not already present. Put edge in lists
+		variable node_a_edge is node_list_t gets (call _os.malloc with sizeof node_list_s);
+		variable node_b_edge is node_list_t gets (call _os.malloc with sizeof node_list_s);
+		variable weight is u32 gets (call compute_weight with node_a, node_b);
+		
+		node_a_edge.next gets node_a.edges;
+		node_a_edge.node gets node_b;
+		node_a_edge.weight gets weight;
+		node_a.edges gets node_a_edge;
+		node_a.num_edges gets node_a.num_edges + 1;
+		
+		node_b_edge.next gets node_b.edges;
+		node_b_edge.node gets node_a;
+		node_b_edge.weight gets weight;
+		node_b.edges gets node_b_edge;
+		node_b.num_edges gets node_b.num_edges + 1;
+		
+		return;
+	end while
+end function
+
+--
+-- Compute the weight of an edge between two nodes
+--
+function compute_weight of graph_node_t node_a, graph_node_t node_b returns u32 begin
+	-- compute x^2 + y^2
+	variable dist_x is u32 gets node_a.pos_x - node_b.pos_x;
+	variable dist_y is u32 gets node_a.pos_y - node_b.pos_y;
+	
+	variable x_sq is i32 gets (call _fxp.muls1616 with dist_x, dist_x);
+	variable y_sq is i32 gets (call _fxp.muls1616 with dist_y, dist_y);
+	
+	-- compute an approximation of sqrt(x^2 + y^2)
+	variable dist_sq is i32 gets (x_sq + y_sq);
+	variable dist_est is i32 gets (dist_sq >> 1) >> 1;
+	
+	if dist_est = 0 then
+		return 0;
+	end if
+	
+	for i is u16 gets 0; i < 6; i gets i + 1 do
+		dist_est gets (dist_est + (call _fxp.divu1616 with dist_sq, dist_est)) >> 1;
+	end for
+	
+	return dist_est;
+end function
+
+--
+-- Search a list for a node, returning true if it is present
+--
+function list_contains of node_list_t list, graph_node_t node returns boolean begin
+	while list != 0 do
+		if list.node = node then
+			return true;
+		end if
+		
+		list gets list.next;
+	end while
+	
+	return false;
+end function
+
+--
+-- Index into a node list
+--
+function index_list of node_list_t list, u16 idx returns node_list_t begin
+	while idx > 0 do
+		list gets list.next;
+		idx gets idx - 1;
+	end while
+	
+	return list;
+end function
+
+--
+-- Generate a u16.16 coordinate
+--
+function generate_coordinate of xors_state_t rng_state, boolean y returns u32 begin
+	variable upper is u16 gets (call xors16 with rng_state);
+	variable lower is u16 gets (call xors16 with rng_state);
+	variable modulus is u16;
+	
+	if y then
+		modulus gets 230;
+	else
+		modulus gets 310;
+	end if
+	
+	return ((((upper % modulus) + 4) as u32) << 16) or (lower as u32);
+end function
+
+-- 
+-- Render a graph
+--
+function render_graph of graph_t graph, graph_node_t start, graph_node_t target returns none begin
+	-- For each node
+	for n is u16 gets 0; n < graph.num_nodes; n gets n + 1 do
+		variable node is graph_node_t gets graph.nodes index n;
+		variable nx is u16 gets (node.pos_x >> 16) as u16;
+		variable ny is u16 gets (node.pos_y >> 16) as u16;
+		
+		-- Plot the node itself		
+		call _shapes.fill_rect with nx - 2, ny - 2, 5, 5, 0xFF;
+		
+		-- Plot the edges
+		variable edges is node_list_t gets node.edges;
+		
+		while edges != 0 do
+			variable other is graph_node_t gets edges.node;
+			
+			-- Plot edge
+			call _shapes.freeline with nx, ny, (other.pos_x >> 16) as u16, (other.pos_y >> 16) as u16, 0xFF;
+		
+			edges gets edges.next;
+		end while
+	end for
+	
+	-- Re-draw first and last node
+	call _shapes.fill_rect with (start.pos_x >> 16) as u16 - 2, (start.pos_y >> 16) as u16 - 2, 5, 5, 0x80;
+	call _shapes.fill_rect with (target.pos_x >> 16) as u16 - 2, (target.pos_y >> 16) as u16 - 2, 5, 5, 0x80;
+end function
+
+-- 
+-- Destroy a graph
+--
+
+function destroy_graph of graph_t graph begin
+	if graph = 0 then
+		return;
+	end if
+	
+	-- destroy nodes
+	for n is u16 gets 0; n < graph.num_nodes; n gets n + 1 do
+		call destroy_node with graph.nodes index n;
+	end for
+	
+	-- destroy node list
+	call _os.free with graph.nodes;
+	
+	-- destroy graph
+	call _os.free with graph;
+end function
+
+function destroy_node of graph_node_t node begin
+	if node != 0 then
+		-- destroy each part
+		call destroy_edges with node.edges;
+		call _os.free with node;
+	end if
+end function
+
+function destroy_edges of node_list_t edges begin
+	if edges != 0 then
+		call destroy_edges with edges.next;	-- destroy subsequent edges
+		call _os.free with edges;			-- destroy edge
+	end if
+end function
+
+--
+-- PRNG Functions
+--
+
+-- Create rng state
+function create_state of u32 seed returns xors_state_t begin
+	variable state is xors_state_t gets (call _os.malloc with sizeof xors_state_s);
+	variable seed_low is u16 gets seed as u16;
+	variable seed_high is u16 gets (seed >> 16) as u16;
+	
+	state.x index 0 gets 63197 xor (seed_high << 8);
+	state.x index 1 gets 20313 xor (seed_high >> 8);
+	state.x index 2 gets 3078 xor seed_low xor seed_high;
+	state.x index 3 gets 55319 xor (seed_low << 8);
+	state.x index 4 gets 20190 xor (seed_high >> 8);
+	state.c gets 49073 xor seed_low xor seed_high;
+	
+	return state;
+end function
+
+-- Destroy rng state
+function destroy_state of xors_state_t state begin
+	call _os.free with state;
+end function
+
+function xors16 of xors_state_t state returns u16 begin
+	-- value
+	variable t is u16 gets state.x index 4;
+	
+	-- shift state
+	variable s is u16 gets state.x index 0;
+	state.x index 4 gets state.x index 3;
+	state.x index 3 gets state.x index 2;
+	state.x index 2 gets state.x index 1;
+	state.x index 1 gets s;
+	
+	-- xor nonsense
+	t gets t xor (t >> 2);
+	t gets t xor (t << 1);
+	t gets t xor (s xor (s << 4));
+	state.x index 0 gets t;
+	state.c gets state.c + 29261;
+	
+	return t + state.c;
+end function
+
+function xors32 of xors_state_t state returns u32 begin
+	return (((call xors16 with state) as u32) << 16) or ((call xors16 with state) as u32);
+end function
