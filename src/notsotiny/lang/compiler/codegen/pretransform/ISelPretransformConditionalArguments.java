@@ -60,7 +60,7 @@ public class ISelPretransformConditionalArguments implements ISelPretransformer 
      */
     private void moveMapping(IRBranchInstruction branch, IRIdentifier target, IRArgumentMapping mapping, boolean isTrue, IRBasicBlock bb, IRFunction function) {
         // Make BB
-        IRIdentifier newID = new IRIdentifier(bb.getID().getName() + (isTrue ? "%true%" : "%false%") + function.getFUID(), IRIdentifierClass.BLOCK);
+        IRIdentifier newID = function.getFUID(bb.getID().getName() + (isTrue ? "%true" : "%false"), IRIdentifierClass.BLOCK);
         IRBasicBlock newBB = new IRBasicBlock(newID, function.getModule(), function, branch.getSourceLineNumber());
         function.addBasicBlock(newBB);
         
@@ -76,16 +76,17 @@ public class ISelPretransformConditionalArguments implements ISelPretransformer 
             branch.setTrueTargetBlock(newID);
             branch.setTrueArgumentMapping(new IRArgumentMapping());
             
-            if(!branch.getFalseTargetBlock().equals(target)) {
+            // (predecessors is a list, not a set)
+            //if(!branch.getFalseTargetBlock().equals(target)) {
                 targetBlock.removePredecessor(bb.getID());
-            }
+            //}
         } else {
             branch.setFalseTargetBlock(newID);
             branch.setFalseArgumentMapping(new IRArgumentMapping());
             
-            if(!branch.getTrueTargetBlock().equals(target)) {
+            //if(!branch.getTrueTargetBlock().equals(target)) {
                 targetBlock.removePredecessor(bb.getID());
-            }
+            //}
         }
     }
     

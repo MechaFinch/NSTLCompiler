@@ -26,6 +26,8 @@ public class IRBasicBlock implements IRSourceInfo {
     private IRBranchInstruction exitInstruction;
     
     // Predecessors
+    // This is specifically not a set, such that a different-mapping conditional to the same block appears as
+    // conditional, and predecessors when such control flow is modified can be removed without additional checks
     private List<IRIdentifier> predecessorBlocks;
     
     // Source function

@@ -1,6 +1,5 @@
 package notsotiny.lang.compiler.irgen;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -10,8 +9,6 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 import notsotiny.lang.compiler.CompilationException;
-import notsotiny.lang.compiler.types.NSTLType;
-import notsotiny.lang.ir.parts.IRArgumentList;
 import notsotiny.lang.ir.parts.IRArgumentMapping;
 import notsotiny.lang.ir.parts.IRBasicBlock;
 import notsotiny.lang.ir.parts.IRBranchInstruction;
@@ -80,18 +77,7 @@ public class SSAManager {
      * @return
      */
     public IRIdentifier getUniqueLocalID(String name) {
-        int id = this.targetFunction.getFUID();
-        String uname;
-        
-        if(name.equals("")) {
-            uname = "" + id;
-        } else if(name.contains("%")) {
-            uname = name.substring(0, name.indexOf("%")) + "%" + id;
-        } else {
-            uname = name + "%" + id;
-        }
-        
-        return new IRIdentifier(uname, IRIdentifierClass.LOCAL);
+        return this.targetFunction.getFUID(name, IRIdentifierClass.LOCAL);
     }
     
     /**

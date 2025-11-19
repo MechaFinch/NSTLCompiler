@@ -377,7 +377,7 @@ public class RegisterAllocator {
             // Create loads for each loaded spilled value
             for(IRIdentifier id : usedInGroup) {
                 // Create new ID
-                IRIdentifier loadID = new IRIdentifier(id.getName() + "%" + sourceFunction.getFUID(), IRIdentifierClass.LOCAL);
+                IRIdentifier loadID = sourceFunction.getFUID(id.getName());
                 loadedBeforeGroup.put(id, loadID);
                 spillLoads.add(loadID);
                 

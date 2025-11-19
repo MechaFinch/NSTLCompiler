@@ -81,7 +81,7 @@ public class IRPassBasicBlockMerge implements IROptimizationPass {
          */
         
         if(bb.getPredecessorBlocks().size() != 1) {
-            LOG.finest(bb.getID() + " has multiple predecessors");
+            LOG.finest(bb.getID() + " has multiple predecessors: " + bb.getPredecessorBlocks());
             return false;
         }
         

@@ -28,6 +28,7 @@ import notsotiny.lang.compiler.types.TypedArray;
 import notsotiny.lang.compiler.types.TypedRaw;
 import notsotiny.lang.compiler.types.TypedStructure;
 import notsotiny.lang.compiler.types.TypedValue;
+import notsotiny.lang.ir.parts.IRBasicBlock;
 import notsotiny.lang.ir.parts.IRConstant;
 import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRGlobal;

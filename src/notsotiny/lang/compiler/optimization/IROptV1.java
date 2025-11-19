@@ -10,6 +10,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import notsotiny.lang.compiler.optimization.cse.IRPassLCSE;
+import notsotiny.lang.compiler.optimization.gvnpre.IRPassGVN;
 import notsotiny.lang.compiler.optimization.other.IRPassBasicBlockMerge;
 import notsotiny.lang.compiler.optimization.other.IRPassDebug;
 import notsotiny.lang.compiler.optimization.sccp.IRPassSCCP;
@@ -32,6 +33,7 @@ public class IROptV1 implements IROptimizer {
     static {
         passes.add(new IRPassSCCP());
         passes.add(new IRPassBasicBlockMerge());
+        passes.add(new IRPassGVN());
         passes.add(new IRPassLCSE());
         passes.add(new IRPassDebug());
     }

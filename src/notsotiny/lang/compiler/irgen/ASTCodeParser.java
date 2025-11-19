@@ -116,7 +116,6 @@ public class ASTCodeParser {
          */
         IRIdentifier irBBID = new IRIdentifier(sourceBB.getName(), IRIdentifierClass.BLOCK);
         IRBasicBlock irBB = new IRBasicBlock(irBBID, irModule, targetFunction, sourceBB.getSourceLine());
-        
         targetFunction.addBasicBlock(irBB);
         
         // Add predecessor if present

@@ -51,7 +51,7 @@ public class CodeGenV1 implements CodeGenerator {
     private static Logger LOG = Logger.getLogger(CodeGenV1.class.getName());
     
     // TODO: tie to optimization level?
-    private static final int ALLOCATION_ITERATIONS = 2;
+    private static final int ALLOCATION_ITERATIONS = 16;
     
     private boolean showISelDAG = false;
     private boolean showRAIGUncolored = false;
@@ -143,7 +143,7 @@ public class CodeGenV1 implements CodeGenerator {
             }
             
             // Do several register allocation attempts to ensure the best is achieved
-            int bestInstructions = Integer.MAX_VALUE;
+            int bestScore = Integer.MAX_VALUE;
             List<AASMPart> bestCode = null;
             AllocationResult bestResult = null;
             int iters = (this.showRAIGColored || this.showRAIGUncolored) ? 1 : ALLOCATION_ITERATIONS;
@@ -156,10 +156,14 @@ public class CodeGenV1 implements CodeGenerator {
                 // Mainly cleaning up RA output
                 List<AASMPart> optimizedCode = PeepholeOptimizer.optimize(allocRes.allocatedCode(), function);
                 
-                if(optimizedCode.size() < bestInstructions) {
+                // Allocation quality heuristic: # of instructions + # callee saved registers * factor
+                int score = optimizedCode.size() + (allocRes.usedCalleeSavedRegisters().size() * 1);
+                //int score = optimizedCode.size();
+                
+                if(score < bestScore) {
                     bestCode = optimizedCode;
                     bestResult = allocRes;
-                    bestInstructions = optimizedCode.size();
+                    bestScore = score;
                 }
             }
             

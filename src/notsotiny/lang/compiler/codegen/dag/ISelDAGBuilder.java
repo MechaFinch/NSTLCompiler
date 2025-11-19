@@ -244,7 +244,7 @@ public class ISelDAGBuilder {
         for(IRIdentifier argName : li.getCallArgumentMapping().getOrdering()) {
             // arg -> PUSH -> CALL
             ISelDAGProducerNode argNode = argMap.get(argName);
-            ISelDAGProducerNode pushNode = new ISelDAGProducerNode(dag, new IRIdentifier("push%" + bb.getFunction().getFUID(), IRIdentifierClass.LOCAL), argNode.getProducedType(), ISelDAGProducerOperation.PUSH, argNode);
+            ISelDAGProducerNode pushNode = new ISelDAGProducerNode(dag, bb.getFunction().getFUID("push"), argNode.getProducedType(), ISelDAGProducerOperation.PUSH, argNode);
             
             // chain PUSHs for correct ordering
             if(previousPush != null) {
@@ -272,7 +272,7 @@ public class ISelDAGBuilder {
         // What are we dealing with
         if(value instanceof IRConstant c) {
             // Currently available constant
-            IRIdentifier constID = new IRIdentifier("const%" + bb.getFunction().getFUID(), IRIdentifierClass.LOCAL);
+            IRIdentifier constID = bb.getFunction().getFUID("const");
             typeMap.put(constID, c.getType());
             
             return new ISelDAGProducerNode(dag, constID, c, c.getType(), ISelDAGProducerOperation.VALUE);
@@ -283,7 +283,7 @@ public class ISelDAGBuilder {
         
         if(id.getIDClass() != IRIdentifierClass.LOCAL) { 
             // Resolves to some address
-            IRIdentifier localID = new IRIdentifier(id.getName() + "%" + bb.getFunction().getFUID(), IRIdentifierClass.LOCAL);
+            IRIdentifier localID = bb.getFunction().getFUID(id.getName());
             typeMap.put(localID, IRType.I32);
             
             return new ISelDAGProducerNode(dag, localID, id, IRType.I32, ISelDAGProducerOperation.VALUE);
@@ -312,7 +312,7 @@ public class ISelDAGBuilder {
         if(liveIn.contains(id)) {
             // It's a live-in. Make an IN node
             // Live-ins are given a local ID to avoid read-after-write hazards
-            IRIdentifier localID = new IRIdentifier(id.getName() + "%" + bb.getFunction().getFUID(), IRIdentifierClass.LOCAL);
+            IRIdentifier localID = bb.getFunction().getFUID(id.getName());
             typeMap.put(localID, typeMap.get(id));
             
             return new ISelDAGProducerNode(dag, localID, id, type, ISelDAGProducerOperation.IN);

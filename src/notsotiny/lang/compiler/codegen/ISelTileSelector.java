@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -18,6 +19,8 @@ import notsotiny.lang.compiler.aasm.AASMPart;
 import notsotiny.lang.compiler.aasm.AASMPrinter;
 import notsotiny.lang.compiler.codegen.dag.ISelDAG;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGNode;
+import notsotiny.lang.compiler.codegen.dag.ISelDAGProducerOperation;
+import notsotiny.lang.compiler.codegen.dag.ISelDAGTerminatorOperation;
 import notsotiny.lang.compiler.codegen.dag.ISelDAGTile;
 import notsotiny.lib.data.Pair;
 import notsotiny.lib.util.MapUtil;
@@ -209,7 +212,46 @@ public class ISelTileSelector {
     private static void improveCSEDecisions(ISelDAG dag, Map<ISelDAGNode, Pair<ISelDAGTile, Integer>> bestChoiceForNode, Set<ISelDAGNode> fixedNodes, Map<ISelDAGNode, Set<ISelDAGTile>> coveringTiles) {
         LOG.finest("Choosing fixed nodes");
         
-        // TODO
+        // Handle invalid overlap
+        // Now that LOADs can be common subexpressions, memory modification tiles can overlap with
+        // other uses of a LOAD such that chain-violating schedules are produced
+        // Therefore, if a LOAD is covered by multiple tiles and one of those contains a STORE, fix the LOAD
+        checking_loads:
+        for(Entry<ISelDAGNode, Set<ISelDAGTile>> entry : coveringTiles.entrySet()) {
+            ISelDAGNode covered = entry.getKey();
+            Set<ISelDAGTile> coverers = entry.getValue();
+            
+            if(covered.getOp() == ISelDAGProducerOperation.LOAD) {
+                // Covered node is a LOAD
+                // Do any covering tiles contain a STORE
+                for(ISelDAGTile coverer : coverers) {
+                    // Produced node is separate from coveredNodes
+                    if(coverer.rootNode().getOp() == ISelDAGTerminatorOperation.STORE) {
+                        // A covering tile contains a store. Fix the LOAD
+                        if(LOG.isLoggable(Level.FINEST)) {
+                            LOG.info("Fixing node for store-multiload: " + covered.getDescription());
+                        }
+                        
+                        fixedNodes.add(covered);
+                        continue checking_loads;
+                    }
+                    
+                    for(ISelDAGNode other : coverer.coveredNodes()) {
+                        if(other.getOp() == ISelDAGTerminatorOperation.STORE) {
+                            // A covering tile contains a store. Fix the LOAD
+                            if(LOG.isLoggable(Level.FINEST)) {
+                                LOG.info("Fixing node for store-multiload: " + covered.getDescription());
+                            }
+                            
+                            fixedNodes.add(covered);
+                            continue checking_loads;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // TODO: 'costly' overlap
         // Might not be done for a while. Current patterns are highly unlikely
         // to produce 'costly' overlap
         // Note - DAG nodes track consumers

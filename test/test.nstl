@@ -7,11 +7,24 @@ function main of none begin
 
 end function
 
-function test1 of u16 a, u16 b, u16 c returns u16 begin
-	if (a > b) or not (b < c) then
-		return 69;
+function test0 of u16 a, u16 b returns u16 begin
+	variable c is u16;
+	variable d is u16;
+	variable f is u16;
+	
+	if a > b then
+		c gets a + b;
+		d gets a - b;
+		f gets a - b;
+	else
+		d gets a - b;
+		f gets a - b;
 	end if
-
-	return ((a + b) - c * (a + b)) / c;
+	
+	c gets (a + b) - f;
+	variable e is u16 gets d + (a - b);
+	
+	while c > d do
+		d gets d + (a - b) + c;
+	end while
 end function
-

@@ -17,6 +17,7 @@ import notsotiny.lang.ir.parts.IRArgumentList;
 import notsotiny.lang.ir.parts.IRArgumentMapping;
 import notsotiny.lang.ir.parts.IRBasicBlock;
 import notsotiny.lang.ir.parts.IRBranchInstruction;
+import notsotiny.lang.ir.parts.IRBranchOperation;
 import notsotiny.lang.ir.parts.IRCondition;
 import notsotiny.lang.ir.parts.IRConstant;
 import notsotiny.lang.ir.parts.IRDefinition;
@@ -35,10 +36,348 @@ import notsotiny.lib.util.MapUtil;
 
 /**
  * Utility functions for the IR
+ * 
+ * Most functions are analyses of the IR.
  */
 public class IRUtil {
     
     private static Logger LOG = Logger.getLogger(IRUtil.class.getName());
+    
+    /**
+     * Computes the postdominator tree of the given function, returning it as a map from the BB to its immediate postdominator
+     * @param func
+     * @param exitID ID used as virtual exit block
+     * @return
+     */
+    public static Map<IRIdentifier, IRIdentifier> getPostdominatorMap(IRFunction func, IRIdentifier exitID) {
+        // Compute reverse postorder list of reversed-edge CFG
+        List<IRIdentifier> postorderList = new ArrayList<>();
+        
+        // Get all RET BBs, emulate postorderDFSReversed called on a node with them as its predecessors
+        List<IRIdentifier> retBBs = new ArrayList<>();
+        
+        for(IRBasicBlock bb : func.getBasicBlockList()) {
+             if(bb.getExitInstruction().getOp() == IRBranchOperation.RET) {
+                 // bb is a RET bb
+                 retBBs.add(bb.getID());
+             }
+        }
+        
+        Set<IRIdentifier> visited = new HashSet<>();
+        visited.add(exitID);
+        
+        for(IRIdentifier id : retBBs) {
+            postorderDFSReverse(id, postorderList, visited, func);
+        }
+        
+        postorderList.add(exitID);
+        
+        // Get reverse postorder information
+        List<IRIdentifier> reversePostorderList = postorderList;
+        Collections.reverse(reversePostorderList);
+        Map<IRIdentifier, Integer> reversePostorderNumbers = MapUtil.listToMap(reversePostorderList);
+        
+        // Initialize postdominator map
+        Map<IRIdentifier, IRIdentifier> pdomMap = new HashMap<>();
+        
+        for(IRBasicBlock bb : func.getBasicBlockList()) {
+            pdomMap.put(bb.getID(), null);
+        }
+        
+        pdomMap.put(exitID, exitID);
+        
+        // Iterate until converged
+        boolean changed = true;
+        
+        while(changed) {
+            changed = false;
+            
+            // For each node in reverse postorder, except exit
+            for(IRIdentifier bbID : reversePostorderList) {
+                if(bbID.equals(exitID)) {
+                    continue;
+                }
+                
+                // Get arbitrary processed successor
+                IRBasicBlock bb = func.getBasicBlock(bbID);
+                List<IRIdentifier> successors = bb.getSuccessorBlocks();
+                
+                IRIdentifier firstSucc = null;
+                
+                if(successors.size() == 0) {
+                    firstSucc = exitID;
+                } else {
+                    for(IRIdentifier succID : successors) {
+                        if(pdomMap.get(succID) != null) {
+                            firstSucc = succID;
+                            break;
+                        }
+                    }
+                }
+                
+                IRIdentifier newIPDom = firstSucc;
+                
+                // For all other successors
+                for(IRIdentifier succID : successors) {
+                    if(succID.equals(firstSucc)) {
+                        continue;
+                    }
+                    
+                    // If successor's postdominator has been calculated, update with intersect
+                    if(pdomMap.get(succID) != null) {
+                        newIPDom = intersectDominators(succID, newIPDom, pdomMap, reversePostorderNumbers);
+                    }
+                }
+                
+                // Update if changed
+                if(!newIPDom.equals(pdomMap.get(bbID))) {
+                    pdomMap.put(bbID, newIPDom);
+                    changed = true;
+                }
+            }
+        }
+        
+        return pdomMap;
+    }
+    
+    /**
+     * Depth-first search of the reversed CFG, creating a postorder list
+     * @param id
+     * @param list
+     * @param visited
+     * @param function
+     */
+    private static void postorderDFSReverse(IRIdentifier id, List<IRIdentifier> list, Set<IRIdentifier> visited, IRFunction function) {
+        // mark visited
+        visited.add(id);
+        
+        // postorder depth-first (reverse)
+        List<IRIdentifier> predecessors = function.getBasicBlock(id).getPredecessorBlocks();
+        
+        for(IRIdentifier pred : predecessors) {
+            if(!visited.contains(pred)) {
+                postorderDFSReverse(pred, list, visited, function);
+            }
+        }
+        
+        // add to list
+        list.add(id);
+    }
+    
+    /**
+     * Computes the dominator tree of the given function, returning it as a map from a BB to its immediate dominator
+     * @param func
+     * @return
+     */
+    public static Map<IRIdentifier, IRIdentifier> getDominatorMap(IRFunction func) {
+        return getDominatorMap(func, getReversePostorderList(func));
+    }
+    
+    /**
+     * Computes the dominator tree of the given function, returning it as a map from a BB to its immediate dominator
+     * @param func
+     * @param reversePostorderList
+     * @return
+     */
+    public static Map<IRIdentifier, IRIdentifier> getDominatorMap(IRFunction func, List<IRIdentifier> reversePostorderList) {
+        // Determine dominators as described by Cooper et al. A Simple, Fast Dominance Algorithm
+        // Recover (reverse) postorder numbers
+        Map<IRIdentifier, Integer> reversePostorderNumbers = MapUtil.listToMap(reversePostorderList);
+        
+        // Initialize dominator map
+        Map<IRIdentifier, IRIdentifier> domMap = new HashMap<>();
+        
+        for(IRBasicBlock bb : func.getBasicBlockList()) {
+            domMap.put(bb.getID(), null);
+        }
+        
+        IRIdentifier start = func.getEntryBlock().getID();
+        domMap.put(start, start);
+        
+        // Iterate until converged
+        boolean changed = true;
+        
+        while(changed) {
+            changed = false;
+            
+            // All nodes except start node in reverse postorder
+            for(IRIdentifier bbID : reversePostorderList) {
+                if(bbID.equals(start)) {
+                    continue;
+                }
+                
+                // Get arbitrary processed predecessor
+                IRBasicBlock bb = func.getBasicBlock(bbID);
+                IRIdentifier firstPred = null;
+                
+                for(IRIdentifier predID : bb.getPredecessorBlocks()) {
+                    if(domMap.get(predID) != null) {
+                        firstPred = predID;
+                        break;
+                    }
+                }
+                
+                IRIdentifier newIDomID = firstPred;
+                
+                // Iterate each other predecessor
+                for(IRIdentifier predID : bb.getPredecessorBlocks()) {
+                    if(predID.equals(firstPred)) {
+                        continue;
+                    }
+                    
+                    // If the predecessor's dominator has been calculated, update via intersection
+                    if(domMap.get(predID) != null) {
+                        newIDomID = intersectDominators(predID, newIDomID, domMap, reversePostorderNumbers);
+                    }
+                }
+                
+                // Update if changed
+                if(!newIDomID.equals(domMap.get(bbID))) {
+                    domMap.put(bbID, newIDomID);
+                    changed = true;
+                }
+            }
+        }
+        
+        return domMap;
+    }
+    
+    /**
+     * intersect function used by the dominators finding algorithm
+     * @param id1
+     * @param id2
+     * @param domMap
+     * @param reversePostorderNumbers
+     * @return
+     */
+    private static IRIdentifier intersectDominators(IRIdentifier id1, IRIdentifier id2, Map<IRIdentifier, IRIdentifier> domMap, Map<IRIdentifier, Integer> reversePostorderNumbers) {
+        while(!id1.equals(id2)) {
+            int num = reversePostorderNumbers.get(id2);
+            
+            // In the paper, < is used since it is comparing postorder numbers.
+            // We are comparing reverse postorder numbers, so we use >
+            while(reversePostorderNumbers.get(id1) > num) {
+                id1 = domMap.get(id1);
+            }
+            
+            num = reversePostorderNumbers.get(id1);
+            
+            while(reversePostorderNumbers.get(id2) > num) {
+                id2 = domMap.get(id2);
+            }
+        }
+        
+        return id1;
+    }
+    
+    /**
+     * Produces a map of which functions are pure
+     * @param module
+     * @param divisionIsPure
+     * @return
+     */
+    public static Map<IRIdentifier, Boolean> getFunctionPurityMap(IRModule module, boolean divisionIsPure) {
+        Map<IRIdentifier, Boolean> purityMap = new HashMap<>();
+        
+        for(IRFunction func : module.getInternalFunctions().values()) {
+            // (call updates the map)
+            isFunctionPure(func, divisionIsPure, purityMap);
+        }
+        
+        return purityMap;
+    }
+    
+    /**
+     * Returns true if func is a pure function - it has no side effects and its behavior depends only on its arguments
+     * In other words, no loads, no stores, no impure calls.
+     * Uses the given map of function purity, adding if new information is found
+     * @param func
+     * @param divisionIsPure
+     * @param purityMap
+     * @return
+     */
+    public static boolean isFunctionPure(IRFunction func, boolean divisionIsPure, Map<IRIdentifier, Boolean> purityMap) {
+        // Has this already been determined
+        if(purityMap.containsKey(func.getID())) {
+            return purityMap.get(func.getID());
+        }
+        
+        // Consider indirect recursion impure, so that called functions are not incorrectly marked pure
+        purityMap.put(func.getID(), false);
+        
+        // Go through each instruction
+        for(IRBasicBlock bb : func.getBasicBlockList()) {
+            for(IRLinearInstruction li : bb.getInstructions()) {
+                // Determine purity of instruction
+                switch(li.getOp()) {
+                    case LOAD, STORE:
+                        // Loads aren't deterministic without more advanced analysis and stores have side effects
+                        return false;
+                    
+                    case DIVU, DIVS:
+                        // Division by zero produces an exception
+                        if(!divisionIsPure) {
+                            return false;
+                        }
+                        break;
+                    
+                    case CALLR, CALLN:
+                        // Calls are pure if their targets are known & pure
+                        IRValue callTarget = li.getCallTarget();
+                    
+                        if(callTarget.equals(func.getID())) {
+                            // Recursion. Pure until proven otherwise 
+                            continue;
+                        }
+                    
+                        if(callTarget instanceof IRIdentifier ctID && purityMap.containsKey(ctID)) {
+                            // Target is in the map
+                            boolean callPure = purityMap.get(ctID);
+                            
+                            if(!callPure) {
+                                // Target is known impure
+                                return false;
+                            }
+                            
+                            // pure, keep looking
+                            continue;
+                        }
+                        
+                        if(callTarget instanceof IRIdentifier ctID && func.getModule().getInternalFunctions().containsKey(ctID)) {
+                            // Target is a function we can analyze
+                            boolean callPure = isFunctionPure(func.getModule().getInternalFunctions().get(ctID), divisionIsPure, purityMap);
+                            
+                            if(!callPure) {
+                                // Target is known impure
+                                return false;
+                            }
+                        } else {
+                            // Target is variable or otherwise not available. Impure.
+                            return false;
+                        }
+                        break;
+                    
+                    default:
+                        // Otherwise, pure
+                }
+            }
+        }
+        
+        // If we reach here, the function is pure
+        purityMap.put(func.getID(), true);
+        return true;
+    }
+    
+    /**
+     * Returns true if func is a pure function - it has no side effects and its behavior depends only on its arguments
+     * In other words, no loads, no stores, no impure calls.
+     * @param func
+     * @param divisionIsPure
+     * @return
+     */
+    public static boolean isFunctionPure(IRFunction func, boolean divisionIsPure) {
+        return isFunctionPure(func, divisionIsPure, new HashMap<>());
+    }
     
     /**
      * Where possible, replaces NONE with a concrete type 
@@ -265,7 +604,7 @@ public class IRUtil {
         }
         
         // Postorder partial liveness
-        glsPartialLivenessDFS(function.getEntryBlock().getID(), argAssignmentsAreLiveOut, livenessSetMap, new HashSet<>(), function, listToMap(dfsOrderList), dfsAncestryMap);
+        glsPartialLivenessDFS(function.getEntryBlock().getID(), argAssignmentsAreLiveOut, livenessSetMap, new HashSet<>(), function, MapUtil.listToMap(dfsOrderList), dfsAncestryMap);
         
         // Propagate liveness through loops
         //LOG.info(loopNestingForest.getRoots() + "");
@@ -448,8 +787,8 @@ public class IRUtil {
      * @param function
      */
     private static void glsPropagateLoops(TreeNode<IRIdentifier> loopNode, Map<IRIdentifier, Pair<Set<IRIdentifier>, Set<IRIdentifier>>> livenessSetMap, IRFunction function) {
-        // Is this a loop header
-        if(loopNode.getChildren().size() != 0) {
+        // Is this a loop header -> has body or is a self-loop
+        if(loopNode.getChildren().size() != 0 || function.getBasicBlock(loopNode.getElement()).getSuccessorBlocks().contains(loopNode.getElement())) {
             IRIdentifier headerID = loopNode.getElement();
             
             // Live in loop = live in(header) - header args
@@ -509,7 +848,7 @@ public class IRUtil {
         }
         
         // Construct map from ID to list index
-        Map<IRIdentifier, Integer> dfsIndexMap = listToMap(dfsOrderList);
+        Map<IRIdentifier, Integer> dfsIndexMap = MapUtil.listToMap(dfsOrderList);
         
         //LOG.finest(dfsAncestryMap + "");
         //LOG.finest(dfsIndexMap + "");
@@ -623,6 +962,7 @@ public class IRUtil {
     
     /**
      * DFS for getPostorderList
+     * @param id
      * @param list
      * @param visited
      * @param function
@@ -1046,21 +1386,5 @@ public class IRUtil {
                 }
             }
         }
-    }
-    
-    /**
-     * Converts a list to a map from element to index
-     * @param <K>
-     * @param list
-     * @return
-     */
-    public static <K> Map<K, Integer> listToMap(List<K> list) {
-        Map<K, Integer> map = new HashMap<>();
-        
-        for(int i = 0; i < list.size(); i++) {
-            map.put(list.get(i), i);
-        }
-        
-        return map;
     }
 }

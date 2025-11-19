@@ -328,7 +328,7 @@ public class ISelPatternMatcher {
                             // Stack slots have their own namespace, so don't need to add to type map
                             // We need a unique ID for the slot, though, to prevent a conflict in the
                             // case where the STACK's local gets spilled
-                            IRIdentifier slotID = new IRIdentifier(pn.getProducedName().getName() + "%slot%" + dag.getBasicBlock().getFunction().getFUID(), IRIdentifierClass.LOCAL);
+                            IRIdentifier slotID = dag.getBasicBlock().getFunction().getFUID(pn.getProducedName().getName() + "%slot");
                             
                             List<AASMPart> aasm = List.of(new AASMInstruction(
                                     AASMOperation.LEA,
@@ -1149,7 +1149,7 @@ public class ISelPatternMatcher {
                     // Temporaries
                     // Create if absent
                     if(!tmpMap.containsKey(key)) {
-                        IRIdentifier id = new IRIdentifier(key + "%" + match.matchRoot().getDAG().getBasicBlock().getFunction().getFUID(), IRIdentifierClass.LOCAL);
+                        IRIdentifier id = match.matchRoot().getDAG().getBasicBlock().getFunction().getFUID(key);
                         tmpMap.put(key, id);
                         typeMap.put(id, IRType.valueOf("I" + key.substring(4, key.indexOf("_"))));
                     }

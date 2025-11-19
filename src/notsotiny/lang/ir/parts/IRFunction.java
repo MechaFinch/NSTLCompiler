@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A function.
@@ -182,7 +184,7 @@ public class IRFunction implements IRSourceInfo {
         if(this.blockNameMap.containsKey(id)) {
             // Remove from us
             IRBasicBlock bb = this.blockNameMap.remove(id);
-            this.basicBlocks.remove(bb);            
+            this.basicBlocks.remove(bb);
             return bb;
         } else {
             return null;
@@ -198,14 +200,51 @@ public class IRFunction implements IRSourceInfo {
         return this.localTypeMap.get(id);
     }
     
+    private static final Pattern PATTERN_FUNAME = Pattern.compile(".*%(\\d+)");
+    
     /**
-     * Get a number that is unique within the function
+     * Get a name that is unique within this function, based on the given name
      * @return
      */
-    public int getFUID() {
-        return this.fuid++;
+    public String getFUName(String name) {
+        int id = this.fuid++;
+        
+        if(name.equals("")) {
+            // Empty name = no seaprator
+            return "" + id;
+        } else {
+            // We want matcher state for the last index of %
+            Matcher matcher = PATTERN_FUNAME.matcher(name);
+            
+            if(matcher.matches()) {
+                // Name is a FUName
+                return name.substring(0, matcher.start(1)) + id;
+            } else {
+                // Name is just a name
+                return name + "%" + id;
+            }
+        }
     }
-
+    
+    /**
+     * Get an IRIdentifier that is unique within the function, based on the given name, with the given ID class
+     * @param name
+     * @param idClass
+     * @return
+     */
+    public IRIdentifier getFUID(String name, IRIdentifierClass idClass) {
+        return new IRIdentifier(getFUName(name), idClass);
+    }
+    
+    /**
+     * Get a LOCAL IRIdentifier that is unique within the function, based on the given name.
+     * @param name
+     * @return
+     */
+    public IRIdentifier getFUID(String name) {
+        return getFUID(name, IRIdentifierClass.LOCAL);
+    }
+    
     @Override
     public Path getSourceFile() {
         return module.getSourceFile();

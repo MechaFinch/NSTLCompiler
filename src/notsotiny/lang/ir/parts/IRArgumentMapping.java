@@ -79,4 +79,13 @@ public class IRArgumentMapping {
     public List<IRIdentifier> getOrdering() { return this.ordering; }
     public Map<IRIdentifier, IRValue> getMap() { return this.args; }
     
+    @Override
+    public boolean equals(Object o) {
+        if(o instanceof IRArgumentMapping other) {
+            return this.ordering.equals(other.ordering) && this.args.equals(other.args);
+        }
+        
+        return false;
+    }
+    
 }
