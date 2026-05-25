@@ -22,6 +22,7 @@ import notsotiny.lang.ir.parts.IRCondition;
 import notsotiny.lang.ir.parts.IRConstant;
 import notsotiny.lang.ir.parts.IRDefinition;
 import notsotiny.lang.ir.parts.IRFunction;
+import notsotiny.lang.ir.parts.IRGlobal;
 import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRIdentifierClass;
 import notsotiny.lang.ir.parts.IRLinearInstruction;
@@ -380,13 +381,31 @@ public class IRUtil {
     }
     
     /**
-     * Where possible, replaces NONE with a concrete type 
+     * Where possible, replace NONE with a concrete type in the given function
+     * @param func
+     */
+    public static void inferNoneTypes(IRFunction func) {
+        inferNoneTypes(func, getTypeMap(func));
+    }
+    
+    /**
+     * Where possible, replace NONE with a concrete type in the given function
+     * @param func
+     * @param typeMap
+     */
+    public static void inferNoneTypes(IRFunction func, Map<IRIdentifier, IRType> typeMap) {
+        for(IRBasicBlock bb : func.getBasicBlockList()) {
+            inferNoneTypes(bb, typeMap);
+        }
+    }
+    
+    /**
+     * Where possible, replaces NONE with a concrete type in the given bb
      * @param bb
      * @param typeMap
      */
     public static void inferNoneTypes(IRBasicBlock bb, Map<IRIdentifier, IRType> typeMap) {
         boolean modifiedTypes;
-        
         do {
             modifiedTypes = false;
             
@@ -520,6 +539,20 @@ public class IRUtil {
                 default:
             }
         } while(modifiedTypes);
+    }
+    
+    /**
+     * Get the type of an IRValue
+     * @param v
+     * @param typeMap
+     * @return
+     */
+    public static IRType getType(IRValue v, Map<IRIdentifier, IRType> typeMap) {
+        return switch(v) {
+            case IRIdentifier id    -> typeMap.get(id);
+            case IRConstant c       -> c.getType();
+            default -> throw new IllegalArgumentException("Unexpected IRValue " + v);
+        };
     }
     
     /**
@@ -1046,7 +1079,7 @@ public class IRUtil {
      * @param visited
      * @param function
      */
-    private static void generalDFS(IRIdentifier id, List<IRIdentifier> postorderList, List<IRIdentifier> preorderList, Map<Integer, Integer> preorderAncestryMap, Set<IRIdentifier> visited, IRFunction function) {
+    public static void generalDFS(IRIdentifier id, List<IRIdentifier> postorderList, List<IRIdentifier> preorderList, Map<Integer, Integer> preorderAncestryMap, Set<IRIdentifier> visited, IRFunction function) {
         // Mark ID as visited
         visited.add(id);
         
@@ -1076,6 +1109,7 @@ public class IRUtil {
     
     /**
      * Constructs a list of IRDefinitions found in the function
+     * Note: Does not depend on SSA
      * @param function
      * @return
      */
@@ -1146,6 +1180,7 @@ public class IRUtil {
     
     /**
      * Constructs a map from identifiers to defines that use them
+     * Note: Does not depend on SSA
      * @param function
      * @param defineMap
      * @return
@@ -1199,7 +1234,7 @@ public class IRUtil {
                         MapUtil.getOrCreateList(useMap, argID).add(def);
                     }
                     
-                    if(li.getOp() == IRLinearOperation.CALLR) {
+                    if(li.getOp() == IRLinearOperation.CALLR || li.getOp() == IRLinearOperation.CALLN) {
                         for(IRValue mappedVal : li.getCallArgumentMapping().getMap().values()) {
                             if(mappedVal instanceof IRIdentifier mappedID) {
                                 MapUtil.getOrCreateList(useMap, mappedID).add(def);
@@ -1281,7 +1316,7 @@ public class IRUtil {
      */
     public static void replaceInBlock(IRBasicBlock bb, IRValue from, IRValue to) {
         
-        // Replace in body code, find defining instruction if it exists\
+        // Replace in body code, find defining instruction if it exists
         List<IRLinearInstruction> lis = bb.getInstructions();
         for(int i = 0; i < lis.size(); i++) {
             IRLinearInstruction li = lis.get(i);
@@ -1290,83 +1325,21 @@ public class IRUtil {
                 // LI defines from. Remove it.
                 lis.remove(i--);
             } else {
-                if(from.equals(li.getLeftSourceValue())) {
-                    // Left source is from. replace.
-                    li.setLeftSourceValue(to);
-                }
-                
-                if(from.equals(li.getRightSourceValue())) {
-                    // Right source is from. replace.
-                    li.setRightSourceValue(to);
-                }
-                
-                if(from.equals(li.getLeftComparisonValue())) {
-                    // Left comparison value is from. replace.
-                    li.setLeftComparisonValue(to);
-                }
-                
-                if(from.equals(li.getRightComparisonValue())) {
-                    // Right comparison value is from. replace.
-                    li.setRightComparisonValue(to);
-                }
-                
-                if(li.getCallArgumentMapping() != null) {
-                    for(Entry<IRIdentifier, IRValue> mapping : li.getCallArgumentMapping().getMap().entrySet()) {
-                        if(from.equals(mapping.getValue())) {
-                            mapping.setValue(to);
-                        }
-                    }
-                }
+                // Might be used. Replace in inst
+                replaceInLI(li, from, to);
             }
         }
         
         // Replace in exit code
         IRBranchInstruction branch = bb.getExitInstruction();
         if(branch != null) {
-            if(from.equals(branch.getCompareLeft())) {
-                branch.setCompareLeft(to);
-            }
-            
-            if(from.equals(branch.getCompareRight())) {
-                branch.setCompareRight(to);
-            }
-            
-            if(from.equals(branch.getReturnValue())) {
-                branch.setReturnValue(to);
-            }
-            
-            IRArgumentMapping trueMap = branch.getTrueArgumentMapping();
-            IRArgumentMapping falseMap = branch.getFalseArgumentMapping();
-            
-            if(trueMap != null) {
-                for(Entry<IRIdentifier, IRValue> entry : trueMap.getMap().entrySet()) {
-                    if(entry.getValue().equals(from)) {
-                        entry.setValue(to);
-                    }
-                }
-            }
-            
-            if(falseMap != null) {
-                for(Entry<IRIdentifier, IRValue> entry : falseMap.getMap().entrySet()) {
-                    if(entry.getValue().equals(from)) {
-                        entry.setValue(to);
-                    }
-                }
-            }
+            replaceInBI(branch, from, to);
         }
         
         // Find defining argument if it exists
-        IRArgumentList args = bb.getArgumentList();
-        List<IRIdentifier> argNames = args.getNameList();
-        List<IRType> argTypes = args.getTypeList();
-        
-        for(int i = 0; i < argNames.size(); i++) {
-            if(argNames.get(i).equals(from)) {
-                // Defined by an argument. Remove it
-                IRIdentifier argName = argNames.remove(i);
-                argTypes.remove(i);
-                i--;
-                
+        if(from instanceof IRIdentifier fromID) {
+            if(bb.getArgumentList().removeArgument(fromID)) {
+                // from was defined by an argument, which has been removed
                 // Remove from predecessors' mappings
                 for(IRIdentifier predID : bb.getPredecessorBlocks()) {
                     IRBasicBlock predBB = bb.getFunction().getBasicBlock(predID);
@@ -1376,13 +1349,88 @@ public class IRUtil {
                     
                     if(bb.getID().equals(predTrueSuccessor)) {
                         // We're the true successor
-                        predExit.getTrueArgumentMapping().removeArgument(argName);
+                        predExit.getTrueArgumentMapping().removeArgument(fromID);
                     }
                     
                     if(bb.getID().equals(predFalseSuccessor)) {
                         // We're the false successor
-                        predExit.getFalseArgumentMapping().removeArgument(argName);
+                        predExit.getFalseArgumentMapping().removeArgument(fromID);
                     }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Replace uses of from with to in bi
+     * @param bi
+     * @param from
+     * @param to
+     */
+    public static void replaceInBI(IRBranchInstruction bi, IRValue from, IRValue to) {
+        if(from.equals(bi.getCompareLeft())) {
+            bi.setCompareLeft(to);
+        }
+        
+        if(from.equals(bi.getCompareRight())) {
+            bi.setCompareRight(to);
+        }
+        
+        if(from.equals(bi.getReturnValue())) {
+            bi.setReturnValue(to);
+        }
+        
+        IRArgumentMapping trueMap = bi.getTrueArgumentMapping();
+        IRArgumentMapping falseMap = bi.getFalseArgumentMapping();
+        
+        if(trueMap != null) {
+            for(Entry<IRIdentifier, IRValue> entry : trueMap.getMap().entrySet()) {
+                if(entry.getValue().equals(from)) {
+                    entry.setValue(to);
+                }
+            }
+        }
+        
+        if(falseMap != null) {
+            for(Entry<IRIdentifier, IRValue> entry : falseMap.getMap().entrySet()) {
+                if(entry.getValue().equals(from)) {
+                    entry.setValue(to);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Replace uses of from with to in li.
+     * @param li
+     * @param from
+     * @param to
+     */
+    public static void replaceInLI(IRLinearInstruction li, IRValue from, IRValue to) {
+        if(from.equals(li.getLeftSourceValue())) {
+            // Left source is from. replace.
+            li.setLeftSourceValue(to);
+        }
+        
+        if(from.equals(li.getRightSourceValue())) {
+            // Right source is from. replace.
+            li.setRightSourceValue(to);
+        }
+        
+        if(from.equals(li.getLeftComparisonValue())) {
+            // Left comparison value is from. replace.
+            li.setLeftComparisonValue(to);
+        }
+        
+        if(from.equals(li.getRightComparisonValue())) {
+            // Right comparison value is from. replace.
+            li.setRightComparisonValue(to);
+        }
+        
+        if(li.getCallArgumentMapping() != null) {
+            for(Entry<IRIdentifier, IRValue> mapping : li.getCallArgumentMapping().getMap().entrySet()) {
+                if(from.equals(mapping.getValue())) {
+                    mapping.setValue(to);
                 }
             }
         }

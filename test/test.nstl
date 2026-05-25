@@ -4,27 +4,70 @@
 --
 
 function main of none begin
-
+	
 end function
 
 function test0 of u16 a, u16 b returns u16 begin
+	variable c is u16 gets a;
+	variable d is u16 gets b;
+	
+	-- before loop rotation
+	-- while c > d do
+	--	c gets a + b;
+	--	d gets c - d;
+	-- end while
+	
+	if c > d then
+		until c <= d do
+			c gets a + b;
+			d gets c - d;
+		end until
+	end if
+	
+	return d;
+end function
+
+function test1 of u16 a, u16 b returns u16 begin
 	variable c is u16;
 	variable d is u16;
 	variable f is u16;
+	variable g is u16 gets b - a;
+	variable h is u16;
 	
 	if a > b then
 		c gets a + b;
 		d gets a - b;
 		f gets a - b;
+		h gets g - b;
 	else
 		d gets a - b;
 		f gets a - b;
+		h gets g - b;
 	end if
 	
-	c gets (a + b) - f;
+	c gets (a + b) - f + h;
 	variable e is u16 gets d + (a - b);
 	
 	while c > d do
 		d gets d + (a - b) + c;
 	end while
+end function
+
+function test2 of u16 a, u16 b, u16 c, u8 pointer d begin
+	out:
+	while true do
+		at d gets (at d) + 1;
+		
+		while b do
+			if c then
+				break out;
+			end if
+		end while
+		
+		-- after
+		b gets b + 1;
+		break;
+	end while
+	
+	-- outside
 end function

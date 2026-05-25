@@ -13,7 +13,9 @@ import notsotiny.lang.ir.parts.IRFunction;
 import notsotiny.lang.ir.parts.IRIdentifier;
 import notsotiny.lang.ir.parts.IRIdentifierClass;
 import notsotiny.lang.ir.parts.IRLinearInstruction;
+import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lang.ir.parts.IRValue;
+import notsotiny.lang.ir.util.IRUtil;
 import notsotiny.lib.data.Pair;
 import notsotiny.lib.data.Triple;
 
@@ -25,8 +27,8 @@ public class GVNValueTable {
     // Map canonical-form values to value numbers
     private Map<GVNElement, Integer> valueNumberMap;
     
-    // Map value number to earliest-computed IRValue containing the value
-    private Map<Integer, IRValue> numberLeaderMap;
+    // Map value numbers to their types
+    private Map<Integer, IRType> numberTypeMap;
     
     // Next number to be assigned
     private int currentNumber;
@@ -36,65 +38,106 @@ public class GVNValueTable {
      */
     public GVNValueTable() {
         this.valueNumberMap = new HashMap<>();
-        this.numberLeaderMap = new HashMap<>();
+        this.numberTypeMap = new HashMap<>();
         this.currentNumber = 0;
+    }
+    
+    /**
+     * Adds the element if not present
+     * @param e
+     * @return
+     */
+    public int addElement(GVNElement e) {
+        // Do we have a number already
+        if(!this.valueNumberMap.containsKey(e)) {
+            // Not present, make new number
+            int vn = this.currentNumber++;
+            this.valueNumberMap.put(e, vn);
+            this.numberTypeMap.put(vn, e.type());
+            
+            return vn;
+        }
+        
+        // A number exists for this value
+        return this.valueNumberMap.get(e);
     }
     
     /**
      * Adds the element if not present
      * @param e Element
      * @param representative IRValue containing e
-     * @return The element's value number and leader value
+     * @return The element's value number
      */
-    private Pair<Integer, IRValue> addElement(GVNElement e, IRValue representative) {
-        if(!this.valueNumberMap.containsKey(e)) {
-            // Not present, make new number
-            int vn = this.currentNumber++;
-            this.valueNumberMap.put(e, vn);
-            this.numberLeaderMap.put(vn, representative);
-            
-            return new Pair<>(vn, representative);
+    public int addElement(GVNElement e, IRValue representative) {
+        GVNValue repVal = new GVNValue(e.type(), representative);
+        
+        int vn = addElement(e);
+        this.valueNumberMap.put(repVal, vn);
+        return vn;
+    }
+    
+    /**
+     * Adds the element if not present, adding to EXP_GEN if not added
+     * @param e Element
+     * @param representative IRValue containing e
+     * @param expGen EXP_GEN set
+     * @param addedExps Value numbers already added to EXP_GEN
+     * @return The element's value number
+     */
+    public int addElement(GVNElement e, IRValue representative, List<Pair<Integer, GVNElement>> expGen, Set<Integer> addedExps) {
+        int vn = addElement(e, representative);
+        
+        if(!addedExps.contains(vn)) {
+            addedExps.add(vn);
+            expGen.add(new Pair<>(vn, e));
         }
         
-        // A number exists for this value
-        int vn = this.valueNumberMap.get(e);
-        
-        // If it doesn't have a representative, add it
-        if(!this.numberLeaderMap.containsKey(vn)) {
-            this.numberLeaderMap.put(vn, representative);
-            
-            return new Pair<>(vn, representative);
-        } else {
-            return new Pair<>(vn, this.numberLeaderMap.get(vn));
-        }
+        return vn;
     }
     
     /**
      * Add an IRValue if not present
      * @param v
-     * @return The IRValue's value number and leader value
+     * @param type
+     * @return
      */
-    public Pair<Integer, IRValue> addIRValue(IRValue v) {
-        return addElement(new GVNValue(v), v);
+    public int addIRValue(IRValue v, IRType type) {
+        return addElement(new GVNValue(type, v), v);
+    }
+    
+    /**
+     * Add an IRValue if not present
+     * @param v
+     * @param type
+     * @param expGen EXP_GEN set
+     * @param addedExps values added to EXP_GEN
+     * @return The IRValue's value number
+     */
+    public int addIRValue(IRValue v, IRType type, List<Pair<Integer, GVNElement>> expGen, Set<Integer> addedExps) {
+        return addElement(new GVNValue(type, v), v, expGen, addedExps);
     }
     
     /**
      * Adds an IRValue if not present, unless it is a local
      * @param v
+     * @param type
      * @return The IRValue's value number, or -1 if it is a local without a number
      */
-    private Pair<Integer, IRValue> addIRValueNoLocals(IRValue v) {
-        if(this.valueNumberMap.containsKey(new GVNValue(v))) {
-            // Has a number
-            return addIRValue(v);
-        } else {
-            if(v instanceof IRIdentifier id && id.getIDClass() == IRIdentifierClass.LOCAL) {
-                // Local without a number, don't add
-                return new Pair<>(-1, v);
+    private int addIRValueNoLocals(IRValue v, IRType type) {
+        if(v instanceof IRIdentifier id && id.getIDClass() == IRIdentifierClass.LOCAL) {
+            // Local. Cannot be made a leader.
+            GVNValue vVal = new GVNValue(type, v);
+            
+            if(this.valueNumberMap.containsKey(vVal)) {
+                // Has a number
+                return this.valueNumberMap.get(vVal);
             } else {
-                // Not a local
-                return addIRValue(v);
+                // No number
+                return -1;
             }
+        } else {
+            // Not a local. just add
+            return addIRValue(v, type);
         }
     }
     
@@ -104,10 +147,12 @@ public class GVNValueTable {
      * @param bbID
      * @param preds
      * @param func
-     * @return Pair<Value number, representative>
+     * @return value number
      */
-    public Pair<Integer, IRValue> addBBArgument(IRIdentifier arg, IRIdentifier bbID, List<IRIdentifier> preds, IRFunction func) {
+    public int addBBArgument(IRIdentifier arg, IRIdentifier bbID, List<IRIdentifier> preds, IRFunction func, Map<Integer, IRIdentifier> phiGen) {
         Map<IRIdentifier, Pair<Integer, Integer>> mappedValueNumbers = new HashMap<>();
+        
+        IRType type = func.getBasicBlock(bbID).getArgumentList().getType(arg);
         
         int lastNumber = -1;
         boolean meaningful = false;
@@ -124,16 +169,21 @@ public class GVNValueTable {
                 // True target is the block in question
                 IRValue mappedValue = predBranch.getTrueArgumentMapping().getMapping(arg);
                 
-                // We don't want to make a value number for the mapped value
-                int mappedNumber = addIRValueNoLocals(mappedValue).a;
+                // We don't want to make a value number for the mapped value if it isn't present
+                int mappedNumber = addIRValueNoLocals(mappedValue, type);
+                //System.out.println(arg + " is " + mappedValue + " from " + predID + " = " + mappedNumber);
                 
                 if(mappedNumber == -1) {
                     // Found a mapping without a value number
-                    return addIRValue(arg);
+                    //System.out.println(arg + " missing number from " + predID);
+                    int vn = addIRValue(arg, type); 
+                    phiGen.put(vn, arg);
+                    return vn;
                 }
                 
                 if(lastNumber != -1 && lastNumber != mappedNumber) {
                     // more than one value number is in the phi
+                    //System.out.println(lastNumber + " != " + mappedNumber + " from " + predID + " for " + arg);
                     meaningful = true;
                 }
                 
@@ -145,16 +195,21 @@ public class GVNValueTable {
                 // False target is the block in question
                 IRValue mappedValue = predBranch.getFalseArgumentMapping().getMapping(arg);
                 
-                // We don't want to make a value number for the mapped value
-                int mappedNumber = addIRValueNoLocals(mappedValue).a;
+                // We don't want to make a value number for the mapped value if it isn't present
+                int mappedNumber = addIRValueNoLocals(mappedValue, type);
+                //System.out.println(arg + " is " + mappedValue + " from " + predID + " = " + mappedNumber);
                 
                 if(mappedNumber == -1) {
                     // Found a mapping without a value number
-                    return addIRValue(arg);
+                    //System.out.println(arg + " missing number from " + predID);
+                    int vn = addIRValue(arg, type); 
+                    phiGen.put(vn, arg);
+                    return vn;
                 }
                 
                 if(lastNumber != -1 && lastNumber != mappedNumber) {
                     // more than one value number is in the phi
+                    //System.out.println(lastNumber + " != " + mappedNumber + " from " + predID + " for " + arg);
                     meaningful = true;
                 }
                 
@@ -167,10 +222,13 @@ public class GVNValueTable {
         
         if(meaningful) {
             // Put in phi & add 
-            return addElement(new GVNPhi(mappedValueNumbers), arg);
+            int vn = addElement(new GVNPhi(type, mappedValueNumbers), arg);
+            phiGen.put(vn, arg);
+            return vn;
         } else {
-            // phi is meaningless, return assigned number instead
-            return new Pair<>(lastNumber, this.numberLeaderMap.get(lastNumber));
+            // phi is meaningless. Return assigned number.
+            this.valueNumberMap.put(new GVNValue(type, arg), lastNumber);
+            return lastNumber;
         }
     }
     
@@ -179,52 +237,52 @@ public class GVNValueTable {
      * - The instruction's arguments are already numbered
      * - Numbering the instruction is valid
      * @param li
-     * @return
+     * @return value number
      */
-    public Pair<Integer, IRValue> addInstruction(IRLinearInstruction li) {
+    public int addInstruction(IRLinearInstruction li, List<Pair<Integer, GVNElement>> expGen, Set<Integer> addedExps, Map<IRIdentifier, IRType> typeMap) {
         GVNElement e;
         
         // Convert to element
         switch(li.getOp()) {
             case TRUNC, SX, ZX, NOT, NEG:
                 // Single argument
-                e = new GVNExpression(li.getOp(), List.of(
-                    addIRValue(li.getLeftSourceValue()).a
+                e = new GVNExpression(li.getDestinationType(), li.getOp(), List.of(
+                    addIRValue(li.getLeftSourceValue(), IRUtil.getType(li.getLeftSourceValue(), typeMap), expGen, addedExps)
                 ));
                 break;
         
             case ADD, SUB, MULU, MULS, DIVU, DIVS, REMU, REMS,
                  SHL, SHR, SAR, ROL, ROR, AND, OR, XOR:
                 // Two argument
-                e = new GVNExpression(li.getOp(), List.of(
-                    addIRValue(li.getLeftSourceValue()).a,
-                    addIRValue(li.getRightSourceValue()).a
+                e = new GVNExpression(li.getDestinationType(), li.getOp(), List.of(
+                    addIRValue(li.getLeftSourceValue(), IRUtil.getType(li.getLeftSourceValue(), typeMap), expGen, addedExps),
+                    addIRValue(li.getRightSourceValue(), IRUtil.getType(li.getRightSourceValue(), typeMap), expGen, addedExps)
                 ));
                 break;
         
             case SELECT:
                 // Select
-                e = new GVNExpression(li.getOp(), li.getSelectCondition(), List.of(
-                    addIRValue(li.getLeftComparisonValue()).a,
-                    addIRValue(li.getRightComparisonValue()).a,
-                    addIRValue(li.getLeftSourceValue()).a,
-                    addIRValue(li.getRightSourceValue()).a
+                e = new GVNExpression(li.getDestinationType(), li.getOp(), li.getSelectCondition(), List.of(
+                    addIRValue(li.getLeftComparisonValue(), IRUtil.getType(li.getLeftComparisonValue(), typeMap), expGen, addedExps),
+                    addIRValue(li.getRightComparisonValue(), IRUtil.getType(li.getRightComparisonValue(), typeMap), expGen, addedExps),
+                    addIRValue(li.getLeftSourceValue(), IRUtil.getType(li.getLeftSourceValue(), typeMap), expGen, addedExps),
+                    addIRValue(li.getRightSourceValue(), IRUtil.getType(li.getRightSourceValue(), typeMap), expGen, addedExps)
                 ));
                 break;
             
             case CALLR:
                 // CALLR to a presumably pure function
                 List<Integer> argList = new ArrayList<>();
-                argList.add(addIRValue(li.getCallTarget()).a);
+                argList.add(addIRValue(li.getCallTarget(), IRUtil.getType(li.getCallTarget(), typeMap), expGen, addedExps));
                 
                 // Arg list is in order target, first arg, second arg, etc
                 IRArgumentMapping argMap = li.getCallArgumentMapping();
                 
                 for(IRIdentifier id : argMap.getOrdering()) {
-                    argList.add(addIRValue(argMap.getMapping(id)).a);
+                    argList.add(addIRValue(argMap.getMapping(id), typeMap.get(id), expGen, addedExps));
                 }
                 
-                e = new GVNExpression(li.getOp(), argList);
+                e = new GVNExpression(li.getDestinationType(), li.getOp(), argList);
                 break;
             
             default:
@@ -232,39 +290,34 @@ public class GVNValueTable {
         }
         
         // Number element & associate destination with number
-        return addElement(e, li.getDestinationID());
+        return addElement(e, li.getDestinationID(), expGen, addedExps);
     }
     
     /**
-     * Get the representative IRValue of a value number
-     * @param valueNumber
+     * Get the value number representing e
+     * @param e
      * @return
      */
-    public IRValue getNumberValue(int valueNumber) {
-        return this.numberLeaderMap.get(valueNumber);
+    public int getValueNumber(GVNElement e) {
+        return this.valueNumberMap.getOrDefault(e, -1);
     }
     
     /**
-     * Remove the value with the given number
-     * @param valueNumber
-     * @return The representative IRValue of the value number
-     */
-    public IRValue removeValue(int valueNumber) {
-        // Remove from leaders
-        IRValue v = this.numberLeaderMap.remove(valueNumber);
-        
-        // Mappings to the value are not removed since it would be O(n) and doing
-        // so doesn't affect anything
-        
-        return v;
-    }
-    
-    /**
-     * Returns the set of available value numbers
+     * Remove the value number representing e
+     * @param e
      * @return
      */
-    public Set<Integer> getAvailableNumbers() {
-        return this.numberLeaderMap.keySet();
+    public int removeValueNumber(GVNElement e) {
+        return this.valueNumberMap.remove(e);
+    }
+    
+    /**
+     * Get the type of a vn
+     * @param vn
+     * @return
+     */
+    public IRType getType(int vn) {
+        return this.numberTypeMap.get(vn);
     }
     
 }

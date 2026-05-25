@@ -688,7 +688,7 @@ public class ASTCodeParser {
                 }
             } else {
                 // No
-                ALOG.severe(refChildren.get(0), "Name " + varName + " is not a variable");
+                ALOG.severe(refNode, "Name " + varName + " is not a variable");
                 throw new CompilationException();
             }
         }

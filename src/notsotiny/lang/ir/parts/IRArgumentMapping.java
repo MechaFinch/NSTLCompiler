@@ -67,6 +67,21 @@ public class IRArgumentMapping {
     }
     
     /**
+     * Rename an argument
+     * @param prevID
+     * @param newID
+     */
+    public void renameArgument(IRIdentifier prevID, IRIdentifier newID) {
+        int idx = this.ordering.indexOf(prevID);
+        
+        if(idx != -1) {
+            this.ordering.set(idx, newID);
+        }
+        
+        this.args.put(newID, this.args.remove(prevID));
+    }
+    
+    /**
      * Add all mappings in map to this
      * @param map
      */

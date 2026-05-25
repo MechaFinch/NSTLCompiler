@@ -84,6 +84,8 @@ public class IRDefinition {
     public IRBasicBlock getBB() { return this.bb; }
     public IRFunction getFunction() { return this.fun; }
     
+    public void setID(IRIdentifier nID) { this.id = nID; }
+    
     @Override
     public int hashCode() {
         return this.type.hashCode() ^ switch(this.getType()) {

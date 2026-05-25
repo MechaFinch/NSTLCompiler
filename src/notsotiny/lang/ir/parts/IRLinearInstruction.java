@@ -224,6 +224,7 @@ public class IRLinearInstruction implements IRSourceInfo {
     public int getSourceCount() { return this.op.getSourceCount(); }
     public boolean hasDestination() { return this.op.hasDestination(); }
     
+    public void setDestination(IRIdentifier d) { this.destination = d; }
     public void setLeftSourceValue(IRValue v) { this.sourceA = v; }
     public void setRightSourceValue(IRValue v) { this.sourceB = v; }
     public void setLeftComparisonValue(IRValue v) { this.compareA = v; }

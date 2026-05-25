@@ -3,6 +3,7 @@ package notsotiny.lang.compiler.optimization.gvnpre;
 import java.util.Map;
 
 import notsotiny.lang.ir.parts.IRIdentifier;
+import notsotiny.lang.ir.parts.IRType;
 import notsotiny.lib.data.Pair;
 
 /**
@@ -10,6 +11,6 @@ import notsotiny.lib.data.Pair;
  * representation in this context.
  * @param mappedValueNumbers Map from predecessor ID to mapped value number(s)
  */
-public record GVNPhi(Map<IRIdentifier, Pair<Integer, Integer>> mappedValueNumbers) implements GVNElement {
+public record GVNPhi(IRType type, Map<IRIdentifier, Pair<Integer, Integer>> mappedValueNumbers) implements GVNElement {
     
 }

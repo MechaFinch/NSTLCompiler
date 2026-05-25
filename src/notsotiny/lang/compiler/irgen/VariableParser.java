@@ -1,5 +1,6 @@
 package notsotiny.lang.compiler.irgen;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -508,15 +509,22 @@ public class VariableParser {
                 throw new CompilationException();
             }
         } else {
-            mapping = new IRArgumentMapping();
-            
             // No header. Type inference only
             if(node.getChildren().size() == 0) {
-                return mapping;
+                return new IRArgumentMapping();
             }
             
             // Has arguments but no header. Assume arguments are correct if types inferrable
             List<ASTNode> argNodes = node.getChildren();
+            
+            // Make ordering for arg mapping, since it's opposite computation order
+            List<IRIdentifier> ordering = new ArrayList<>(argNodes.size());
+            
+            for(int i = 0; i < argNodes.size(); i++) {
+                ordering.add(new IRIdentifier("arg" + i, IRIdentifierClass.LOCAL));
+            }
+            
+            mapping = new IRArgumentMapping(ordering);
             
             // Compute args
             for(int i = argNodes.size() - 1; i >= 0; i--) {
@@ -526,7 +534,7 @@ public class VariableParser {
                 Pair<IRValue, NSTLType> argPair = VariableParser.parseIntegerExpression(argNode, "", RawType.NONE, irBB, manager, context, sourceModule, func, irModule);
                 
                 // Map
-                mapping.addMapping(new IRIdentifier("arg" + i, IRIdentifierClass.LOCAL), argPair.a);
+                mapping.addMapping(ordering.get(i), argPair.a);
             }
             
             return mapping;

@@ -184,7 +184,7 @@ prod_not:
 prod_neg:
 	(I8 NEG (I8 LOCAL <x>))		-> "MOV <out>, <x>; NEG <out>" |
 	(I16 NEG (I16 LOCAL <x>))	-> "MOV <out>, <x>; NEG <out>" |
-	(I32 NEG (I32 LOCAL <x>))	-> "MOV <out>, <x>; NEG <out><low>; NEG <out><high>" ;
+	(I32 NEG (I32 LOCAL <x>))	-> "MOV <out>, <x>; NEG <out>" ;
 
 # callr is handled as a special case
 # in needs no patterned AASM. in as live-in information is hanlded as a special case

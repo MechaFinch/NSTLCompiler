@@ -2,6 +2,8 @@ package notsotiny.lang.compiler.optimization.transforms;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import notsotiny.lang.ir.parts.IRArgumentMapping;
 import notsotiny.lang.ir.parts.IRBasicBlock;
@@ -21,12 +23,18 @@ import notsotiny.lang.ir.parts.IRIdentifierClass;
  */
 public class IRTransformCriticalEdgeRemoval {
     
+    private static Logger LOG = Logger.getLogger(IRTransformCriticalEdgeRemoval.class.getName());
+    
     /**
      * Removes critical edges from the given function
      * @param func
      * @return true if any modifications were made to the function
      */
     public static boolean removeCriticalEdges(IRFunction func) {
+        if(LOG.isLoggable(Level.FINEST)) {
+            LOG.finest("Removing critical edges from " + func.getID());
+        }
+        
         boolean changed = false;
         
         // Copy of the block list so we can modify it and skip checking new blocks 
@@ -49,6 +57,10 @@ public class IRTransformCriticalEdgeRemoval {
                 IRBasicBlock trueBlock = func.getBasicBlock(trueID);
                 
                 if(trueBlock.getPredecessorBlocks().size() > 1) {
+                    if(LOG.isLoggable(Level.FINEST)) {
+                        LOG.finest("Removing critical edge " + fromID + " t-> " + trueID);
+                    }
+                    
                     // True edge is critical
                     // Create new basic block
                     IRIdentifier newID = func.getFUID(fromID.getName() + "%true", IRIdentifierClass.BLOCK);
@@ -57,6 +69,7 @@ public class IRTransformCriticalEdgeRemoval {
                     
                     // Make unconditional branch from new BB to true successor with original argument mapping
                     newBB.setExitInstruction(new IRBranchInstruction(IRBranchOperation.JMP, trueID, branch.getTrueArgumentMapping(), newBB, branch.getSourceLineNumber()));
+                    newBB.addPredecessor(fromID);
                     
                     // Redirect original branch to new block
                     branch.setTrueTargetBlock(newID);
@@ -74,6 +87,10 @@ public class IRTransformCriticalEdgeRemoval {
                 IRBasicBlock falseBlock = func.getBasicBlock(falseID);
                 
                 if(falseBlock.getPredecessorBlocks().size() > 1) {
+                    if(LOG.isLoggable(Level.FINEST)) {
+                        LOG.finest("Removing critical edge " + fromID + " f-> " + falseID);
+                    }
+                    
                     // False edge is critical
                     // Create new basic block
                     IRIdentifier newID = func.getFUID(fromID.getName() + "%false", IRIdentifierClass.BLOCK);
@@ -82,6 +99,7 @@ public class IRTransformCriticalEdgeRemoval {
                     
                     // Make unconditional branch from new BB to false successor with original argument mapping
                     newBB.setExitInstruction(new IRBranchInstruction(IRBranchOperation.JMP, falseID, branch.getFalseArgumentMapping(), newBB, branch.getSourceLineNumber()));
+                    newBB.addPredecessor(fromID);
                     
                     // Redirect original branch to new block
                     branch.setFalseTargetBlock(newID);

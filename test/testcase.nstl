@@ -1,0 +1,10 @@
+
+function func_a of u16 a, u16 b, u16 c, u16 d begin
+	variable ab is u32 gets ((a as u32) << 16) or (b as u32);
+	variable cd is u32 gets ((c as u32) << 16) or (d as u32);
+	call func_b with ab, cd, a;
+end function
+
+function func_b of u32 a, u32 b, u16 c begin
+	(u8 at b) gets (((u16 at a) + c) >> 8) as u8;
+end function

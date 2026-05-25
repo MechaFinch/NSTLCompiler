@@ -13,6 +13,10 @@ import notsotiny.lang.ir.parts.IRIdentifierClass;
 
 /**
  * A pre-DAG transformation that moves conditional argument assignments into their own basic blocks
+ * 
+ * This transformation is a subset of critical edge removal. In the case where a block has multiple
+ * predecessors but no arguments, critical edge removal may insert a block where this will not. 
+ * 
  * TODO: lift code used only to generate a conditionally assigned argument into its new basic block?
  * Just moving mappings should improve register allocation as it reduces inter-block interference
  * and might come in handy when generating code.

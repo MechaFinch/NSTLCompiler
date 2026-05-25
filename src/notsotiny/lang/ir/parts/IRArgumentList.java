@@ -43,12 +43,21 @@ public class IRArgumentList {
     }
     
     /**
-     * Gets the type of an argument
+     * Gets the type of an argument given its index
      * @param index
      * @return
      */
     public IRType getType(int index) {
         return this.types.get(index);
+    }
+    
+    /**
+     * Gets the type of an argument given its name
+     * @param name
+     * @return
+     */
+    public IRType getType(IRIdentifier name) {
+        return this.types.get(this.names.indexOf(name));
     }
     
     /**
@@ -67,6 +76,42 @@ public class IRArgumentList {
     public void addArgument(IRIdentifier name, IRType type) {
         this.names.add(name);
         this.types.add(type);
+    }
+    
+    /**
+     * Remove an argument by name
+     * @param name
+     * @return True if found & removed
+     */
+    public boolean removeArgument(IRIdentifier name) {
+        for(int i = 0; i < this.names.size(); i++) {
+            if(this.names.get(i).equals(name)) {
+                this.names.remove(i);
+                this.types.remove(i);
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Replace an argument by name
+     * @param replacedName
+     * @param newName
+     * @param newType
+     * @return True if found and replaced
+     */
+    public boolean replaceArgument(IRIdentifier prevName, IRIdentifier newName, IRType newType) {
+        for(int i = 0; i < this.names.size(); i++) {
+            if(this.names.get(i).equals(prevName)) {
+                this.names.set(i, newName);
+                this.types.set(i, newType);
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**

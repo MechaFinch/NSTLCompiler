@@ -4,22 +4,24 @@ import java.util.List;
 
 import notsotiny.lang.ir.parts.IRCondition;
 import notsotiny.lang.ir.parts.IRLinearOperation;
+import notsotiny.lang.ir.parts.IRType;
 
 /**
  * An expression in terms of value numbers
+ * @param type IR type
  * @param op Operation
  * @param cond Condition (for SELECT)
  * @param argValues Ordered list of argument value numbers
  */
-public record GVNExpression(IRLinearOperation op, IRCondition cond, List<Integer> argValues) implements GVNElement {
+public record GVNExpression(IRType type, IRLinearOperation op, IRCondition cond, List<Integer> argValues) implements GVNElement {
     
     /**
      * No-condition constructor
      * @param op Operation
      * @param argValues
      */
-    public GVNExpression(IRLinearOperation op, List<Integer> argValues) {
-        this(op, IRCondition.NONE, argValues);
+    public GVNExpression(IRType type, IRLinearOperation op, List<Integer> argValues) {
+        this(type, op, IRCondition.NONE, argValues);
     }
     
     /**

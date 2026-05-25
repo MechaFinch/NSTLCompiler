@@ -345,7 +345,7 @@ prod_not_mems:
 prod_neg_mems:
 	(I8 NEG (<x> load_i8))		-> "MOV <out>, <x>; NEG <out>" |
 	(I16 NEG (<x> load_i16))	-> "MOV <out>, <x>; NEG <out>" |
-	(I32 NEG (<x> load_i32))	-> "MOV <out>, <x>; NEG <out><low>; NEG <out><high>" ;
+	(I32 NEG (<x> load_i32))	-> "MOV <out>, <x>; NEG <out>" ;
 
 prod_push_mems:
 	(I8 PUSH (<x> load_i8))		-> "PUSH <x><i8>" |
@@ -534,4 +534,7 @@ prod_neg_memd:
 		(<dst>))	-> "NEG <dst><i8>" |
 	(STORE
 		(I16 NEG (I16 LOAD (<dst> mem)))
-		(<dst>))	-> "NEG <dst><i16>" ;
+		(<dst>))	-> "NEG <dst><i16>" |
+	(STORE
+		(I32 NEG (I32 LOAD (<dst> mem)))
+		(<dst>))	-> "NEG <dst><i32>" ;
